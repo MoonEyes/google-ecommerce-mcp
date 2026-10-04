@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "google-ecommerce-mcp: one-time setup",
+    "output": "sequence-setup.html",
+    "viewBox": [1080, 600],
+    "column_fit": "spread",
+    "animation": "trace",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    { "id": "user", "type": "external", "label": "You", "sublabel": "terminal" },
+    { "id": "cli", "type": "backend", "label": "setup command", "sublabel": "google-ecommerce-mcp" },
+    { "id": "browser", "type": "frontend", "label": "Browser", "sublabel": "consent screen" },
+    { "id": "oauth", "type": "security", "label": "Google OAuth", "sublabel": "your Cloud project" },
+    { "id": "keyring", "type": "security", "label": "OS keyring", "sublabel": "or token file" },
+    { "id": "client", "type": "frontend", "label": "MCP client", "sublabel": "config + restart" }
+  ],
+  "segments": [
+    { "from": 150, "to": 240, "label": "Start" },
+    { "from": 245, "to": 385, "label": "Consent + exchange" },
+    { "from": 390, "to": 480, "label": "Store + wire" }
+  ],
+  "messages": [
+    { "id": "run", "from": "user", "to": "cli", "y": 165, "label": "setup --client-secret", "variant": "emphasis" },
+    { "id": "open", "from": "cli", "to": "browser", "y": 195, "label": "open consent URL", "variant": "default" },
+    { "id": "grant", "from": "user", "to": "browser", "y": 225, "label": "sign in + grant scopes", "variant": "security" },
+    { "id": "consent", "from": "browser", "to": "oauth", "y": 258, "label": "consent", "variant": "security" },
+    { "id": "code", "from": "oauth", "to": "browser", "y": 286, "label": "auth code", "variant": "return" },
+    { "id": "redirect", "from": "browser", "to": "cli", "y": 316, "label": "localhost redirect", "variant": "return" },
+    { "id": "exchange", "from": "cli", "to": "oauth", "y": 346, "label": "exchange code", "variant": "security" },
+    { "id": "tokens", "from": "oauth", "to": "cli", "y": 374, "label": "refresh + access token", "variant": "return" },
+    { "id": "store", "from": "cli", "to": "keyring", "y": 404, "label": "store refresh token", "variant": "emphasis" },
+    { "id": "done", "from": "cli", "to": "user", "y": 434, "label": "Token stored", "variant": "return" },
+    { "id": "wire", "from": "user", "to": "client", "y": 464, "label": "add server to config, restart", "variant": "dashed" }
+  ],
+  "activations": [
+    { "participant": "cli", "from": 160, "to": 440, "type": "backend" },
+    { "participant": "browser", "from": 190, "to": 322, "type": "frontend" },
+    { "participant": "oauth", "from": 253, "to": 380, "type": "security" },
+    { "participant": "keyring", "from": 399, "to": 420, "type": "security" }
+  ],
+  "cards": [
+    { "dot": "violet", "title": "Your OAuth client", "items": ["Desktop-app client created in your own Cloud project", "No shared app, no verification by a third party", "Revoke any time from your Google account"] },
+    { "dot": "rose", "title": "Scopes", "items": ["Read-only scopes for GA4, Search Console, GTM", "Merchant API has no read-only scope: content", "Indexing scope only reads notification metadata"] },
+    { "dot": "amber", "title": "Check it", "items": ["google-ecommerce-mcp check lists each service", "Unconfigured services answer not_configured", "Run setup again to rotate the token"] }
+  ]
+}

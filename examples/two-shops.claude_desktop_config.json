@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "google-shop-fr": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/MoonEyes/google-ecommerce-mcp", "google-ecommerce-mcp"],
+      "env": {
+        "GA4_PROPERTY_ID": "111111111",
+        "GSC_SITE_URL": "sc-domain:shop-fr.example",
+        "MERCHANT_ACCOUNT_ID": "1111111111"
+      }
+    },
+    "google-shop-uk": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/MoonEyes/google-ecommerce-mcp", "google-ecommerce-mcp"],
+      "env": {
+        "GA4_PROPERTY_ID": "222222222",
+        "GSC_SITE_URL": "https://www.shop-uk.example/",
+        "MERCHANT_ACCOUNT_ID": "2222222222",
+        "GOOGLE_TOKEN_FILE": "~/.config/google-ecommerce-mcp/shop-uk-token.json"
+      }
+    }
+  }
+}

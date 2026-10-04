@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "google-ecommerce": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/MoonEyes/google-ecommerce-mcp", "google-ecommerce-mcp"],
+      "env": {
+        "GA4_PROPERTY_ID": "123456789",
+        "GSC_SITE_URL": "sc-domain:example.com",
+        "MERCHANT_ACCOUNT_ID": "1234567890",
+        "GTM_CONTAINER_ID": "GTM-XXXXXXX",
+        "PAGESPEED_API_KEY": ""
+      }
+    }
+  }
+}

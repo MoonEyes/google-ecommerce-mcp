@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "google-ecommerce-mcp: one tool call",
+    "output": "sequence-tool-call.html",
+    "viewBox": [1080, 580],
+    "column_fit": "spread",
+    "animation": "trace",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    { "id": "user", "type": "external", "label": "You", "sublabel": "question in chat" },
+    { "id": "client", "type": "frontend", "label": "MCP client", "sublabel": "Claude Desktop / Code" },
+    { "id": "server", "type": "backend", "label": "google-ecommerce-mcp", "sublabel": "stdio, local" },
+    { "id": "keyring", "type": "security", "label": "OS keyring", "sublabel": "refresh token" },
+    { "id": "oauth", "type": "security", "label": "Google OAuth", "sublabel": "token endpoint" },
+    { "id": "api", "type": "cloud", "label": "GA4 Data API", "sublabel": "read-only" }
+  ],
+  "segments": [
+    { "from": 150, "to": 210, "label": "Request" },
+    { "from": 215, "to": 325, "label": "Credentials" },
+    { "from": 330, "to": 450, "label": "Query + answer" }
+  ],
+  "messages": [
+    { "id": "ask", "from": "user", "to": "client", "y": 165, "label": "organic traffic this month?", "variant": "default" },
+    { "id": "call", "from": "client", "to": "server", "y": 195, "label": "tools/call ga4_report", "variant": "emphasis" },
+    { "id": "read-token", "from": "server", "to": "keyring", "y": 228, "label": "read refresh token", "variant": "security" },
+    { "id": "token", "from": "keyring", "to": "server", "y": 256, "label": "token", "variant": "return" },
+    { "id": "refresh", "from": "server", "to": "oauth", "y": 286, "label": "refresh access token", "variant": "security" },
+    { "id": "access", "from": "oauth", "to": "server", "y": 314, "label": "access token (1 h)", "variant": "return" },
+    { "id": "run-report", "from": "server", "to": "api", "y": 346, "label": "POST :runReport", "variant": "emphasis" },
+    { "id": "rows", "from": "api", "to": "server", "y": 374, "label": "rows", "variant": "return" },
+    { "id": "result", "from": "server", "to": "client", "y": 406, "label": "flat JSON rows", "variant": "return" },
+    { "id": "answer", "from": "client", "to": "user", "y": 436, "label": "answer", "variant": "return" }
+  ],
+  "activations": [
+    { "participant": "client", "from": 160, "to": 442, "type": "frontend" },
+    { "participant": "server", "from": 190, "to": 412, "type": "backend" },
+    { "participant": "keyring", "from": 223, "to": 262, "type": "security" },
+    { "participant": "oauth", "from": 281, "to": 320, "type": "security" },
+    { "participant": "api", "from": 341, "to": 380, "type": "cloud" }
+  ],
+  "cards": [
+    { "dot": "emerald", "title": "Local only", "items": ["The client starts the server as a child process (stdio)", "No port is opened, no third party in the path", "Requests go straight from your machine to Google"] },
+    { "dot": "rose", "title": "Credentials", "items": ["Refresh token read from the OS keyring", "Access token refreshed on demand, kept in memory", "API errors come back as data, never as a crash"] },
+    { "dot": "cyan", "title": "Read-only", "items": ["Only GET and query POSTs (reports, inspection)", "A test fails if any write endpoint is called", "Same flow for GSC, Merchant, GTM, Indexing, PageSpeed"] }
+  ]
+}

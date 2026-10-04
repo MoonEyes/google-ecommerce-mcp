@@ -1,0 +1,58 @@
+# Troubleshooting
+
+Start with `google-ecommerce-mcp check` (or ask the assistant to run `server_status`). It shows which variables are set and whether the token works.
+
+## Installation and startup
+
+**The client shows the server as failed or disconnected.**
+Run the exact `command` + `args` from your client config in a terminal. A stdio MCP server waits silently for input: no output and no exit means it starts fine (stop it with Ctrl+C). An error message means the client sees the same error.
+
+**`uvx: command not found`.**
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/), or use an absolute path to `uvx` in the client config (GUI apps often do not inherit your shell `PATH`).
+
+**`ImportError: cannot import name 'FastMCP'`.**
+The `mcp` package 2.x renamed it. This project pins `mcp<2`; reinstall in a clean environment (`uvx` does this automatically).
+
+## Authentication
+
+**`not_authenticated`.** No token stored for this OS user. Run `setup`. If you set `GOOGLE_TOKEN_FILE` during setup, set the same value in the client config.
+
+**`invalid_grant` / `Token has been expired or revoked`.**
+- Your OAuth app is External and in *Testing*: refresh tokens expire after 7 days. Publish the app (see [SETUP-GOOGLE-CLOUD.md](SETUP-GOOGLE-CLOUD.md#3-configure-the-oauth-consent-screen)) and rerun `setup`.
+- You changed your Google password or revoked the app: rerun `setup`.
+
+**`403 insufficient authentication scopes`.** The token was created before a scope was added. Rerun `setup` and tick every box on the consent screen.
+
+**No keyring backend on a headless Linux server.**
+Set `GOOGLE_TOKEN_FILE=~/.config/google-ecommerce-mcp/token.json` both for `setup` and in the client config, or install a Secret Service provider.
+
+**Browser does not open during setup (remote machine).**
+Run `setup` on a machine with a browser using `--token-file`, then copy the token file to the server and point `GOOGLE_TOKEN_FILE` at it.
+
+## Per service
+
+**GA4 `403 User does not have sufficient permissions`.** Wrong property id (use the numeric *Property ID*, not `G-XXXX`), or the signed-in account has no access to the property.
+
+**GA4 `400 Field xyz is not a valid dimension`.** Use API names, not UI labels: `sessionDefaultChannelGroup`, not "Default channel group". See the [API schema](https://developers.google.com/analytics/devguides/reporting/data/v1/api-schema).
+
+**Search Console `403 User does not have sufficient permission for site`.** `GSC_SITE_URL` must match the property exactly: `sc-domain:example.com` for a domain property, or the full URL-prefix with trailing slash.
+
+**Search Console returns no rows for recent dates.** Data lags about 2 days; the default end date already accounts for it.
+
+**`gsc_inspect_url` 403/400.** The URL must belong to the configured property, and the daily quota is 2,000 inspections per property.
+
+**Merchant `403 ... GCP project ... not registered`.** Register your Cloud project with Merchant Center (step 5 of the setup guide).
+
+**Merchant `404` or empty results.** Check `MERCHANT_ACCOUNT_ID`. For a multi-client account (MCA), use the sub-account id that owns the products.
+
+**MCQL `id must be selected`.** Queries on `product_view` must include `id` in `SELECT`.
+
+**GTM `container_not_found`.** The signed-in account cannot see that `GTM-` container, or the id has a typo.
+
+**`indexing_status` says no notification.** Normal for most shops: it only reports URLs submitted through the Indexing API.
+
+**PageSpeed `Quota exceeded`.** Set `PAGESPEED_API_KEY` to your own restricted key.
+
+## Still stuck
+
+Open an [issue](https://github.com/MoonEyes/google-ecommerce-mcp/issues) with the output of `google-ecommerce-mcp check` and the tool's error object. Remove ids you consider private.
