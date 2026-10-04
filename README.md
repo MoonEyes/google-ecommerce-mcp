@@ -1,5 +1,7 @@
 # google-ecommerce-mcp
 
+<!-- mcp-name: io.github.MoonEyes/google-ecommerce-mcp -->
+
 One read-only MCP server for the Google services an online shop lives on: **GA4, Search Console, Merchant Center, Tag Manager, Indexing API and PageSpeed**.
 
 Ask your AI assistant "how much organic traffic did we get this month?", "which products are disapproved in Merchant Center?" or "is GA4 loaded twice on my site?" and it answers from your own Google accounts.
@@ -10,19 +12,19 @@ Built by [MoonEyes](https://www.mooneyeswargame.com), a small French shop sellin
 ![license](https://img.shields.io/badge/license-MIT-blue)
 ![python](https://img.shields.io/badge/python-3.10%2B-blue)
 
-![Architecture overview](docs/diagrams/architecture-overview.png)
+![Architecture overview](https://raw.githubusercontent.com/MoonEyes/google-ecommerce-mcp/main/docs/diagrams/architecture-overview.png)
 
 ## Documentation
 
 | Page | What is in it |
 |---|---|
-| [Architecture](docs/ARCHITECTURE.md) | Components, a tool call step by step, design choices, sequence diagrams |
-| [Tool reference](docs/TOOLS.md) | Every tool: parameters, output, example questions |
-| [Google Cloud setup](docs/SETUP-GOOGLE-CLOUD.md) | OAuth client, APIs to enable, where to find each id |
-| [Security model](docs/SECURITY.md) | Scopes, token storage, threats, how to revoke |
-| [Troubleshooting](docs/TROUBLESHOOTING.md) | Every error we have met and its fix |
-| [Example prompts](examples/PROMPTS.md) | Questions that work well, by use case |
-| [Client configs](examples/) | Claude Desktop (one or two shops), Claude Code |
+| [Architecture](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/ARCHITECTURE.md) | Components, a tool call step by step, design choices, sequence diagrams |
+| [Tool reference](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/TOOLS.md) | Every tool: parameters, output, example questions |
+| [Google Cloud setup](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/SETUP-GOOGLE-CLOUD.md) | OAuth client, APIs to enable, where to find each id |
+| [Security model](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/SECURITY.md) | Scopes, token storage, threats, how to revoke |
+| [Troubleshooting](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/TROUBLESHOOTING.md) | Every error we have met and its fix |
+| [Example prompts](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/examples/PROMPTS.md) | Questions that work well, by use case |
+| [Client configs](https://github.com/MoonEyes/google-ecommerce-mcp/tree/main/examples) | Claude Desktop (one or two shops), Claude Code |
 
 ## Why this one
 
@@ -72,7 +74,7 @@ If you used the quick install, you only need step 1. The steps below are the man
 
 ### 1. Google Cloud (once, about 10 minutes)
 
-Full walkthrough with every click explained: [docs/SETUP-GOOGLE-CLOUD.md](docs/SETUP-GOOGLE-CLOUD.md). Short version:
+Full walkthrough with every click explained: [docs/SETUP-GOOGLE-CLOUD.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/SETUP-GOOGLE-CLOUD.md). Short version:
 
 1. In [Google Cloud Console](https://console.cloud.google.com/), create or pick a project.
 2. Enable the APIs you need: *Google Analytics Data API*, *Google Search Console API*, *Merchant API*, *Tag Manager API*, *Web Search Indexing API*, *PageSpeed Insights API*.
@@ -139,11 +141,11 @@ Every variable is optional: a tool for a service you did not configure simply an
 
 ## How a call works
 
-![Sequence of one tool call](docs/diagrams/sequence-tool-call.png)
+![Sequence of one tool call](https://raw.githubusercontent.com/MoonEyes/google-ecommerce-mcp/main/docs/diagrams/sequence-tool-call.png)
 
 ## Security notes
 
-Details: [docs/SECURITY.md](docs/SECURITY.md).
+Details: [docs/SECURITY.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/SECURITY.md).
 
 - The server never calls a write endpoint (no Tag Manager publish, no feed upload, no sitemap submission). `tests/test_server.py::test_every_call_is_read_only` checks every outgoing call.
 - Scopes are read-only except **Merchant Center** (`content`) and **Indexing API** (`indexing`): Google has no read-only scope for these. The server does not use them to write, but treat the token as sensitive, or remove those scopes if you do not need the services.
@@ -157,7 +159,7 @@ Details: [docs/SECURITY.md](docs/SECURITY.md).
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Security reports: [SECURITY.md](SECURITY.md).
+See [CONTRIBUTING.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/CONTRIBUTING.md). Security reports: [SECURITY.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/SECURITY.md).
 
 ## Development
 
@@ -170,4 +172,4 @@ Tests run offline with a fake HTTP session; no Google account needed.
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+MIT, see [LICENSE](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/LICENSE).

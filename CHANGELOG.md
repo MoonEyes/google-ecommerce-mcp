@@ -15,3 +15,4 @@ First public release.
 - Offline test suite, including a guard that every outgoing call is read-only.
 - Documentation: architecture, tool reference, Google Cloud setup, security model, troubleshooting,
   example prompts and client configs, Archify diagrams (architecture, tool call, setup), CI on 3 OSes.
+- Release pipeline: PyPI trusted publishing and the official MCP Registry (`io.github.MoonEyes/google-ecommerce-mcp`).

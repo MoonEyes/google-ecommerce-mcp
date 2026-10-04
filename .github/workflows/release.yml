@@ -1,0 +1,67 @@
+name: release
+
+# Push a tag vX.Y.Z (same version in pyproject.toml and server.json) to publish:
+# 1. tests + build, 2. PyPI (trusted publishing, no token), 3. official MCP Registry (GitHub OIDC, no token).
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Tag, pyproject.toml and server.json carry the same version
+        run: |
+          V=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          test "v$V" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME does not match pyproject $V"; exit 1; }
+          test "$(jq -r .version server.json)" = "$V" || { echo "server.json version mismatch"; exit 1; }
+          test "$(jq -r '.packages[0].version' server.json)" = "$V" || { echo "server.json package version mismatch"; exit 1; }
+          grep -q "mcp-name: $(jq -r .name server.json)" README.md || { echo "README lacks the mcp-name line"; exit 1; }
+      - run: pip install -e ".[dev]" build
+      - run: pytest -q
+      - run: python -m build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  mcp-registry:
+    needs: pypi
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install mcp-publisher
+        run: curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+      - name: Wait until PyPI serves this version
+        run: |
+          V=${GITHUB_REF_NAME#v}
+          for i in $(seq 1 30); do
+            curl -fs "https://pypi.org/pypi/google-ecommerce-mcp/$V/json" > /dev/null && exit 0
+            sleep 10
+          done
+          echo "PyPI does not serve $V yet"; exit 1
+      - run: ./mcp-publisher login github-oidc
+      - run: ./mcp-publisher publish

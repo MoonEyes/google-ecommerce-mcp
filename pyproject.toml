@@ -36,6 +36,11 @@ google-ecommerce-mcp = "google_ecommerce_mcp.__main__:main"
 [project.urls]
 Homepage = "https://github.com/MoonEyes/google-ecommerce-mcp"
 Issues = "https://github.com/MoonEyes/google-ecommerce-mcp/issues"
+Documentation = "https://github.com/MoonEyes/google-ecommerce-mcp/tree/main/docs"
+Changelog = "https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/CHANGELOG.md"
+
+[tool.hatch.build.targets.sdist]
+exclude = ["docs/diagrams/*.html", "docs/diagrams/*.png", ".github"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/google_ecommerce_mcp"]

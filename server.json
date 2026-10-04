@@ -1,0 +1,32 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.MoonEyes/google-ecommerce-mcp",
+  "title": "Google E-commerce (GA4, Search Console, Merchant Center)",
+  "description": "Read-only GA4, Search Console, Merchant Center, Tag Manager, Indexing and PageSpeed for shops.",
+  "repository": {
+    "url": "https://github.com/MoonEyes/google-ecommerce-mcp",
+    "source": "github"
+  },
+  "websiteUrl": "https://github.com/MoonEyes/google-ecommerce-mcp",
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "google-ecommerce-mcp",
+      "version": "0.1.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {"name": "GA4_PROPERTY_ID", "description": "GA4 numeric property id", "isRequired": false, "format": "string", "isSecret": false},
+        {"name": "GSC_SITE_URL", "description": "Search Console property, sc-domain:example.com or https://www.example.com/", "isRequired": false, "format": "string", "isSecret": false},
+        {"name": "MERCHANT_ACCOUNT_ID", "description": "Merchant Center account id", "isRequired": false, "format": "string", "isSecret": false},
+        {"name": "GTM_CONTAINER_ID", "description": "Tag Manager container id, GTM-XXXXXXX", "isRequired": false, "format": "string", "isSecret": false},
+        {"name": "PAGESPEED_API_KEY", "description": "PageSpeed Insights API key (optional)", "isRequired": false, "format": "string", "isSecret": true},
+        {"name": "GOOGLE_TOKEN_FILE", "description": "Store the OAuth token in this file instead of the OS keyring", "isRequired": false, "format": "string", "isSecret": false}
+      ]
+    }
+  ]
+}

@@ -37,3 +37,10 @@ npx @modelcontextprotocol/inspector google-ecommerce-mcp
 ## Diagrams
 
 Diagram sources are JSON files in `docs/diagrams/`, rendered with Archify (see `docs/ARCHITECTURE.md`). Update the JSON, rerender, and commit both the JSON, the HTML and the PNG.
+
+## Releasing (maintainers)
+
+1. Bump the version in `pyproject.toml`, `server.json` (`version` and `packages[0].version`) and `src/google_ecommerce_mcp/__init__.py`, and add a `CHANGELOG.md` entry.
+2. Commit, then `git tag vX.Y.Z && git push origin vX.Y.Z`.
+3. `.github/workflows/release.yml` checks the versions match, runs the tests, publishes to PyPI (trusted publishing) and to the official MCP Registry (GitHub OIDC). No token is stored anywhere.
+4. Create the GitHub release from the tag with the changelog entry as notes.
