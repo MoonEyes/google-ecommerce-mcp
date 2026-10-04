@@ -30,7 +30,7 @@ The MCP client launches the server as a child process and talks to it over **std
 2. On the first call only, the server reads the refresh token from the OS keyring.
 3. If the in-memory access token is missing or expired, `google-auth` refreshes it against Google's token endpoint. Access tokens live about one hour and are never written to disk.
 4. The server calls the Google API with `Authorization: Bearer ...`.
-5. The raw response is flattened into compact JSON (for example GA4 rows become `{"dimension": value, "metric": value}` objects) and returned to the client.
+5. The raw response is flattened into compact JSON (for example GA4 rows become `{"dimension": value, "metric": number}` objects). Report tools add what the model needs to read the numbers correctly: totals over every row, the unit and definition of each metric, and the date range resolved in the data's timezone with `data_complete`. The result goes back to the client.
 
 ## One-time setup
 

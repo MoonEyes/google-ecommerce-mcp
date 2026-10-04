@@ -20,6 +20,7 @@ Copy, adapt the dates, paste into your assistant. Each line names the tools it u
 - *"Organic search sessions, purchases and revenue per month this year."* (`ga4_report` with `yearMonth`, `channel_group: "Organic Search"`)
 - *"List the GTM tags with their triggers. Is any GA4 tag firing twice on all pages?"* (`gtm_inventory`)
 - *"I just opened the home page once in a private window. How many page views does realtime show?"* (`ga4_realtime`)
+- *"Which GA4 properties can you see? Compare last month's revenue of the shop and the blog."* (`ga4_properties`, then `ga4_report` with `property_id`)
 
 ## Merchant Center
 

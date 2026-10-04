@@ -55,7 +55,7 @@ def use(server, monkeypatch, rules):
 
 
 def call_every_tool(server):
-    server.ga4_report(); server.ga4_realtime(); server.gsc_performance(); server.gsc_inspect_url("https://example.com/")
+    server.ga4_report(); server.ga4_realtime(); server.ga4_properties(); server.gsc_performance(); server.gsc_inspect_url("https://example.com/")
     server.gsc_sitemaps(); server.merchant_data_sources(); server.merchant_product_issues(); server.merchant_report_query()
     server.gtm_inventory(); server.indexing_status("https://example.com/"); server.pagespeed("https://example.com/")
 
@@ -136,17 +136,20 @@ def test_server_status_flags_write_capable_scopes(server, monkeypatch):
 
 
 def test_ga4_report_flattens_rows(server, monkeypatch):
-    payload = {"dimensionHeaders": [{"name": "sessionDefaultChannelGroup"}], "metricHeaders": [{"name": "sessions"}],
+    payload = {"dimensionHeaders": [{"name": "sessionDefaultChannelGroup"}],
+               "metricHeaders": [{"name": "sessions", "type": "TYPE_INTEGER"}],
                "rows": [{"dimensionValues": [{"value": "Organic Search"}], "metricValues": [{"value": "99"}]}], "rowCount": 1}
     use(server, monkeypatch, [(":runReport", FakeResponse(200, payload))])
     result = server.ga4_report()
-    assert result["rows"] == [{"sessionDefaultChannelGroup": "Organic Search", "sessions": "99"}] and result["row_count"] == 1
+    assert result["rows"] == [{"sessionDefaultChannelGroup": "Organic Search", "sessions": 99}] and result["row_count"] == 1
+    assert result["truncated"] is False
 
 
 def test_results_state_date_range_and_freshness(server, monkeypatch):
     use(server, monkeypatch, [(":runReport", FakeResponse(200, {})), ("searchAnalytics", FakeResponse(200, {}))])
     ga4 = server.ga4_report(start_date="7daysAgo", end_date="yesterday")
-    assert ga4["date_range"] == {"start": "7daysAgo", "end": "yesterday"}
+    assert ga4["date_range"]["requested"] == {"start": "7daysAgo", "end": "yesterday"}
+    assert len(ga4["date_range"]["start"]) == 10 and ga4["date_range"]["data_complete"] is False
     gsc = server.gsc_performance()
     assert len(gsc["date_range"]["start"]) == 10 and len(gsc["date_range"]["end"]) == 10
     for result in (ga4, gsc, server.merchant_data_sources()):
@@ -225,7 +228,8 @@ def test_gtm_maps_built_in_triggers(server, monkeypatch):
 
 def test_tools_are_registered_with_real_signatures(server):
     tools = {t.name: t for t in asyncio.run(server.mcp.list_tools())}
-    assert len(tools) == 12
+    assert len(tools) == 13
+    assert "property_id" in tools["ga4_report"].inputSchema["properties"]
     assert "channel_group" in tools["ga4_report"].inputSchema["properties"]
     assert tools["gsc_inspect_url"].inputSchema["required"] == ["url"]
 
@@ -243,3 +247,130 @@ def test_server_reports_its_own_version(server):
 
     options = server.mcp._mcp_server.create_initialization_options()
     assert options.server_version == __version__ and options.instructions
+
+
+# ------------------------------------------------------------------ 0.3.0: totals, units, time, discovery
+GA4_PAYLOAD = {
+    "dimensionHeaders": [{"name": "landingPage"}],
+    "metricHeaders": [{"name": "sessions", "type": "TYPE_INTEGER"}, {"name": "engagementRate", "type": "TYPE_FLOAT"},
+                      {"name": "purchaseRevenue", "type": "TYPE_CURRENCY"}],
+    "rows": [{"dimensionValues": [{"value": "/"}], "metricValues": [{"value": "10"}, {"value": "0.5"}, {"value": "12.5"}]},
+             {"dimensionValues": [{"value": "/shop"}], "metricValues": [{"value": "9"}, {"value": "0.25"}, {"value": "0"}]}],
+    "totals": [{"dimensionValues": [{"value": "RESERVED_TOTAL"}],
+                "metricValues": [{"value": "120"}, {"value": "0.4"}, {"value": "300.75"}]}],
+    "rowCount": 37,
+    "metadata": {"currencyCode": "EUR", "timeZone": "Europe/Paris"},
+}
+
+
+def test_ga4_returns_totals_numbers_units_and_definitions(server, monkeypatch):
+    session = use(server, monkeypatch, [(":runReport", FakeResponse(200, GA4_PAYLOAD))])
+    result = server.ga4_report(metrics=["sessions", "engagementRate", "purchaseRevenue"], limit=2)
+    assert session.calls[0][2]["json"]["metricAggregations"] == ["TOTAL"]
+    assert result["rows"][1] == {"landingPage": "/shop", "sessions": 9, "engagementRate": 0.25, "purchaseRevenue": 0.0}
+    assert result["totals"] == {"sessions": 120, "engagementRate": 0.4, "purchaseRevenue": 300.75}
+    assert result["truncated"] is True and result["row_count"] == 37
+    assert result["metrics"]["sessions"]["unit"] == "count"
+    assert result["metrics"]["engagementRate"]["unit"] == "ratio 0 to 1"
+    assert result["metrics"]["purchaseRevenue"]["unit"] == "EUR" and result["currency"] == "EUR"
+    assert "engaged" in result["metrics"]["sessions"]["definition"].lower()
+
+
+def test_ga4_dates_are_resolved_in_the_property_timezone(server, monkeypatch):
+    use(server, monkeypatch, [(":runReport", FakeResponse(200, GA4_PAYLOAD))])
+    complete = server.ga4_report(start_date="2026-01-01", end_date="2026-01-31")
+    assert complete["date_range"]["timezone"] == "Europe/Paris"
+    assert complete["date_range"]["data_complete"] is True and "settling_from" not in complete["date_range"]
+    assert "requested" not in complete["date_range"]
+    recent = server.ga4_report(start_date="7daysAgo", end_date="today")
+    from google_ecommerce_mcp.metrics import today_in
+    import datetime
+    today, _ = today_in("Europe/Paris")
+    assert recent["date_range"]["end"] == today.isoformat()
+    assert recent["date_range"]["settling_from"] == (today - datetime.timedelta(days=1)).isoformat()
+    assert recent["date_range"]["settling_note"]
+
+
+def test_unknown_timezone_falls_back_to_utc_and_says_so():
+    from google_ecommerce_mcp.metrics import date_range_info
+
+    info = date_range_info("2026-01-01", "2026-01-02", "Not/AZone", 2, "note")
+    assert info["timezone"].startswith("UTC") and info["data_complete"] is True
+
+
+def test_ga4_property_id_override_and_validation(server, monkeypatch):
+    session = use(server, monkeypatch, [(":runReport", FakeResponse(200, GA4_PAYLOAD))])
+    assert server.ga4_report(property_id="properties/456")["property_id"] == "456"
+    assert "/properties/456:runReport" in session.calls[0][1]
+    bad = server.ga4_report(property_id="456:runReport/../x")
+    assert bad["error"] == "invalid_property_id" and len(session.calls) == 1
+    monkeypatch.setattr(server, "SETTINGS", server.Settings(None, None, None, None, None, None))
+    assert server.ga4_report(property_id="789")["property_id"] == "789"
+
+
+def test_ga4_properties_lists_every_account_and_marks_the_configured_one(server, monkeypatch):
+    def page(kwargs):
+        if kwargs["params"].get("pageToken") == "n2":
+            return FakeResponse(200, {"accountSummaries": [{"account": "accounts/2", "displayName": "Other",
+                                                             "propertySummaries": [{"property": "properties/77",
+                                                                                    "displayName": "Blog"}]}]})
+        return FakeResponse(200, {"accountSummaries": [{"account": "accounts/1", "displayName": "Shop", "propertySummaries": [
+            {"property": "properties/123", "displayName": "Shop FR", "propertyType": "PROPERTY_TYPE_ORDINARY"}]}],
+            "nextPageToken": "n2"})
+
+    use(server, monkeypatch, [("accountSummaries", page)])
+    result = server.ga4_properties()
+    assert [p["property_id"] for p in result["properties"]] == ["123", "77"]
+    assert result["properties"][0]["configured"] is True and result["properties"][1]["configured"] is False
+    assert result["properties"][1]["account_name"] == "Other" and result["truncated"] is False
+    assert result["configured_property_id"] == "123"
+
+
+def test_ga4_properties_keeps_first_pages_on_later_failure(server, monkeypatch):
+    def page(kwargs):
+        if kwargs["params"].get("pageToken"):
+            return FakeResponse(429, {"error": {"message": "quota"}})
+        return FakeResponse(200, {"accountSummaries": [{"account": "accounts/1", "propertySummaries": [
+            {"property": "properties/1"}]}], "nextPageToken": "n2"})
+
+    use(server, monkeypatch, [("accountSummaries", page)])
+    result = server.ga4_properties()
+    assert result["partial"] is True and len(result["properties"]) == 1
+
+
+def test_admin_api_disabled_tells_which_api_to_enable(server, monkeypatch):
+    error = {"error": {"code": 403, "message": "Google Analytics Admin API has not been used in project 1 before or it "
+                                               "is disabled.", "status": "PERMISSION_DENIED",
+                       "details": [{"reason": "SERVICE_DISABLED"}]}}
+    use(server, monkeypatch, [("accountSummaries", FakeResponse(403, error))])
+    result = server.ga4_properties()
+    assert result["error"] == "api_disabled" and result["api"] == "Google Analytics Admin API"
+
+
+def test_gsc_returns_true_totals_units_and_pacific_dates(server, monkeypatch):
+    def answer(kwargs):
+        if "dimensions" in kwargs["json"]:
+            return FakeResponse(200, {"rows": [{"keys": ["terrain"], "clicks": 3, "impressions": 100, "ctr": 0.03,
+                                                "position": 7.26}]})
+        return FakeResponse(200, {"rows": [{"clicks": 40, "impressions": 2000, "ctr": 0.02, "position": 12.04}]})
+
+    session = use(server, monkeypatch, [("searchAnalytics", answer)])
+    result = server.gsc_performance(limit=1, page_contains="/shop")
+    totals_body = session.calls[1][2]["json"]
+    assert "dimensions" not in totals_body and "rowLimit" not in totals_body
+    assert totals_body["dimensionFilterGroups"] == session.calls[0][2]["json"]["dimensionFilterGroups"]
+    assert result["totals"] == {"clicks": 40, "impressions": 2000, "ctr": 0.02, "position": 12.0}
+    assert result["truncated"] is True and "anonymized" in result["totals_note"]
+    assert result["metrics"]["ctr"]["unit"] == "ratio 0 to 1" and "lower is better" in result["metrics"]["position"]["definition"]
+    assert result["date_range"]["timezone"] == "America/Los_Angeles" and result["date_range"]["data_complete"] is True
+
+
+def test_gsc_totals_failure_is_partial_not_fatal(server, monkeypatch):
+    def answer(kwargs):
+        if "dimensions" in kwargs["json"]:
+            return FakeResponse(200, {"rows": []})
+        return FakeResponse(429, {"error": {"message": "quota"}})
+
+    use(server, monkeypatch, [("searchAnalytics", answer)])
+    result = server.gsc_performance()
+    assert result["rows"] == [] and result["partial"] is True and result["partial_error"]["step"] == "totals"

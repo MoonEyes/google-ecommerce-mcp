@@ -1,7 +1,23 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 (2026-10-05)
 
+Responses a model can read without guessing (feedback from r/mcp).
+
+- **Totals next to the top N.** `ga4_report` and `ga4_realtime` return `totals` computed by GA4 over every row,
+  plus `row_count` and `truncated`. `gsc_performance` returns the real property totals (same filter, no split),
+  which include rows beyond `limit` and anonymized queries; if that second query fails the rows still come back
+  with `partial: true`.
+- **Units and definitions in the response.** A `metrics` block gives each metric's unit (count, ratio 0 to 1,
+  seconds, the property currency...) and a short definition; `sessions` and `engagedSessions` are defined against
+  each other. GA4 values are now numbers instead of strings. **Breaking** for code that expected strings.
+- **Explicit time.** `date_range` gives calendar dates resolved in the data's timezone (the GA4 property's, Pacific
+  Time for Search Console), the `requested` values when they were relative, and `data_complete`. When false,
+  `settling_from` names the first day that can still change. `tzdata` is now installed on Windows for this.
+- **Property discovery.** New `ga4_properties` tool (Admin API `accountSummaries`, read-only, no extra scope) lists
+  every GA4 account and property the token can read. `ga4_report` and `ga4_realtime` accept a `property_id`.
+  Enable the *Google Analytics Admin API* in your Cloud project to use it.
+- **`api_disabled` error** names the Google Cloud API to enable instead of returning a bare 403.
 - The allow-list now accepts reading a single Merchant Center product (`GET .../products/{name}`); it was refused as `blocked`.
 
 ## 0.2.0 (2026-10-04)

@@ -20,11 +20,25 @@ WRITE_CAPABLE_SCOPES = {MERCHANT_SCOPE, INDEXING_SCOPE}
 # Scope each API host needs, used to tell the user exactly which scope is missing.
 SCOPE_BY_HOST = {
     "analyticsdata.googleapis.com": "https://www.googleapis.com/auth/analytics.readonly",
+    "analyticsadmin.googleapis.com": "https://www.googleapis.com/auth/analytics.readonly",
     "www.googleapis.com/webmasters": "https://www.googleapis.com/auth/webmasters.readonly",
     "searchconsole.googleapis.com": "https://www.googleapis.com/auth/webmasters.readonly",
     "tagmanager.googleapis.com": "https://www.googleapis.com/auth/tagmanager.readonly",
     "merchantapi.googleapis.com": MERCHANT_SCOPE,
     "indexing.googleapis.com": INDEXING_SCOPE,
+}
+
+
+# Google Cloud API each host belongs to, used when Google answers that the API is not enabled in the project.
+API_BY_HOST = {
+    "analyticsdata.googleapis.com": "Google Analytics Data API",
+    "analyticsadmin.googleapis.com": "Google Analytics Admin API",
+    "www.googleapis.com/webmasters": "Google Search Console API",
+    "searchconsole.googleapis.com": "Google Search Console API",
+    "tagmanager.googleapis.com": "Tag Manager API",
+    "merchantapi.googleapis.com": "Merchant API",
+    "indexing.googleapis.com": "Web Search Indexing API",
+    "www.googleapis.com/pagespeedonline": "PageSpeed Insights API",
 }
 
 

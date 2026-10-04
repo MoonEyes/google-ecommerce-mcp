@@ -37,6 +37,8 @@ The `mcp` package 2.x renamed it. This project pins `mcp<2`; reinstall in a clea
 
 **`missing_scope`.** The token lacks the scope named in `required_scope`. Rerun `setup` and tick every box on the consent screen. For Merchant Center add `--with-merchant`, for `indexing_status` add `--with-indexing`: since 0.2.0 these write-capable scopes are no longer requested by default.
 
+**`api_disabled`.** The API named in `api` is not enabled in the Google Cloud project of your OAuth client. Enable it under **APIs & Services > Library**, wait a few minutes, then retry. `ga4_properties` (0.3.0) needs the *Google Analytics Admin API*, which older setups did not enable.
+
 **No keyring backend on a headless Linux server.**
 Set `GOOGLE_TOKEN_FILE=~/.config/google-ecommerce-mcp/token.json` both for `setup` and in the client config, or install a Secret Service provider.
 
@@ -47,11 +49,17 @@ Run `setup` on a machine with a browser using `--token-file`, then copy the toke
 
 **GA4 `403 User does not have sufficient permissions`.** Wrong property id (use the numeric *Property ID*, not `G-XXXX`), or the signed-in account has no access to the property.
 
+**`invalid_property_id`.** `property_id` takes the numeric id returned by `ga4_properties` (or `properties/123`), not the `G-XXXX` measurement id.
+
+**`date_range.timezone` says `UTC (property timezone unknown)`.** The machine has no timezone database. On Windows it comes with the `tzdata` package, installed automatically since 0.3.0; rerun the install line.
+
 **GA4 `400 Field xyz is not a valid dimension`.** Use API names, not UI labels: `sessionDefaultChannelGroup`, not "Default channel group". See the [API schema](https://developers.google.com/analytics/devguides/reporting/data/v1/api-schema).
 
 **Search Console `403 User does not have sufficient permission for site`.** `GSC_SITE_URL` must match the property exactly: `sc-domain:example.com` for a domain property, or the full URL-prefix with trailing slash.
 
-**Search Console returns no rows for recent dates.** Data lags about 2 days; the default end date already accounts for it.
+**Search Console returns no rows for recent dates.** Data lags about 2 days; the default end date already accounts for it, and `date_range.data_complete: false` flags a range that reaches into those days.
+
+**Search Console `totals` are higher than the sum of the rows.** Expected: totals include rows beyond `limit` and the queries Google anonymizes for privacy.
 
 **`gsc_inspect_url` 403/400.** The URL must belong to the configured property, and the daily quota is 2,000 inspections per property.
 

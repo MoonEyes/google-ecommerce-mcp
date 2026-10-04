@@ -13,6 +13,7 @@ You need your **own** OAuth client. It takes about 10 minutes, once. Nothing her
 | API to enable | Needed for |
 |---|---|
 | Google Analytics Data API | `ga4_report`, `ga4_realtime` |
+| Google Analytics Admin API | `ga4_properties` (lists your GA4 properties; same read-only scope) |
 | Google Search Console API | `gsc_performance`, `gsc_inspect_url`, `gsc_sitemaps` |
 | Merchant API | `merchant_*` tools |
 | Tag Manager API | `gtm_inventory` |

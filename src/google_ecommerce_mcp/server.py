@@ -19,7 +19,8 @@ from pydantic import Field
 
 from . import __version__
 from .auth import NotAuthenticated, TokenProvider
-from .config import SCOPE_BY_HOST, WRITE_CAPABLE_SCOPES, NotConfigured, Settings
+from . import metrics
+from .config import API_BY_HOST, SCOPE_BY_HOST, WRITE_CAPABLE_SCOPES, NotConfigured, Settings
 
 SETTINGS = Settings.from_env()
 TOKENS = TokenProvider(SETTINGS.token_file)
@@ -31,10 +32,13 @@ mcp = FastMCP(
     "google-ecommerce-mcp",
     instructions=(
         "Read-only access to the shop's Google accounts. Start with server_status to see which services are "
-        "configured. Traffic and revenue: ga4_report (ga4_realtime for the last 30 minutes). Organic search: "
+        "configured. Traffic and revenue: ga4_report (ga4_realtime for the last 30 minutes); ga4_properties lists "
+        "the GA4 properties the account can read, to find a property id. Organic search: "
         "gsc_performance, gsc_inspect_url for one URL's index state, gsc_sitemaps. Product feeds and "
         "disapprovals: merchant_product_issues, merchant_data_sources, merchant_report_query. Tracking setup: "
-        "gtm_inventory. Speed: pagespeed. No tool can modify anything."
+        "gtm_inventory. Speed: pagespeed. No tool can modify anything. Report results carry totals, the unit and "
+        "definition of each metric, and a date_range with its timezone and data_complete: when data_complete is "
+        "false, the days from settling_from can still change, so do not compare them with complete days."
     ),
     website_url="https://github.com/MoonEyes/google-ecommerce-mcp",
 )
@@ -54,6 +58,7 @@ def tool(title: str):
 ALLOWED_ENDPOINTS = [
     ("POST", r"https://analyticsdata\.googleapis\.com/v1beta/properties/[^/]+:runReport"),
     ("POST", r"https://analyticsdata\.googleapis\.com/v1beta/properties/[^/]+:runRealtimeReport"),
+    ("GET", r"https://analyticsadmin\.googleapis\.com/v1beta/accountSummaries"),
     ("POST", r"https://www\.googleapis\.com/webmasters/v3/sites/[^/]+/searchAnalytics/query"),
     ("GET", r"https://www\.googleapis\.com/webmasters/v3/sites/[^/]+/sitemaps"),
     ("POST", r"https://searchconsole\.googleapis\.com/v1/urlInspection/index:inspect"),
@@ -107,6 +112,10 @@ def _scope_for(url: str) -> str | None:
     return next((scope for host, scope in SCOPE_BY_HOST.items() if host in url), None)
 
 
+def _api_for(url: str) -> str:
+    return next((api for host, api in API_BY_HOST.items() if host in url), "the API this tool calls")
+
+
 def _api_error(response, data, url: str) -> dict:
     """Structured error: the caller learns what is missing and what to do, not just a status code."""
     detail = data.get("error", data) if isinstance(data, dict) else data
@@ -116,6 +125,12 @@ def _api_error(response, data, url: str) -> dict:
         return {"error": "missing_scope", "required_scope": scope,
                 "fix": "rerun `google-ecommerce-mcp setup` and grant this scope"
                        + (" (add --with-merchant or --with-indexing)" if scope in WRITE_CAPABLE_SCOPES else ""),
+                "detail": detail}
+    if response.status_code == 403 and ("SERVICE_DISABLED" in text or "has not been used in project" in text
+                                        or "it is disabled" in text):
+        return {"error": "api_disabled", "api": _api_for(url),
+                "fix": f"enable {_api_for(url)} in Google Cloud Console (APIs & Services > Library) for the project "
+                       "of your OAuth client, wait a few minutes, then retry",
                 "detail": detail}
     if response.status_code == 429:
         headers = getattr(response, "headers", None) or {}
@@ -166,28 +181,57 @@ def _guard(freshness: str):
     return decorate
 
 
-def _days_ago(n: int) -> str:
-    return (datetime.date.today() - datetime.timedelta(days=n)).isoformat()
-
-
 def _cap(limit: int) -> int:
     return max(1, min(int(limit), MAX_ROWS))
 
 
+GA4_SETTLING_NOTE = "GA4 can still revise the last 24 to 48 hours; compare complete days only"
+GSC_SETTLING_NOTE = "Search Console fills the last 2 days late; recent days may be missing or partial"
+
+
 def _ga4_rows(resp: dict, limit: int, date_range: dict | None = None) -> dict:
+    """Flatten a GA4 response: numbers as numbers, totals, unit and definition per metric, timezone, currency."""
     if "error" in resp:
         return resp
     dims = [d["name"] for d in resp.get("dimensionHeaders", [])]
-    mets = [m["name"] for m in resp.get("metricHeaders", [])]
+    headers = resp.get("metricHeaders", [])
+    mets = [m["name"] for m in headers]
+    types = [m.get("type", "") for m in headers]
+    meta = resp.get("metadata", {})
+
+    def values(row: dict) -> dict:
+        return {name: metrics.to_number(v.get("value"), kind)
+                for name, kind, v in zip(mets, types, row.get("metricValues", []))}
+
     rows = []
     for row in resp.get("rows", [])[:limit]:
         item = dict(zip(dims, (v["value"] for v in row.get("dimensionValues", []))))
-        item.update(zip(mets, (v["value"] for v in row.get("metricValues", []))))
+        item.update(values(row))
         rows.append(item)
-    out = {"rows": rows, "row_count": resp.get("rowCount", len(rows))}
+    row_count = resp.get("rowCount", len(rows))
+    out = {"rows": rows, "row_count": row_count, "truncated": row_count > len(rows)}
+    if resp.get("totals"):
+        out["totals"] = values(resp["totals"][0])
+    out["metrics"] = metrics.ga4_metric_info(headers, meta.get("currencyCode"))
+    if meta.get("currencyCode"):
+        out["currency"] = meta["currencyCode"]
     if date_range:
         out["date_range"] = date_range
     return out
+
+
+def metrics_date_range(start: str, end: str, timezone: str | None, note: str) -> dict:
+    return metrics.date_range_info(start, end, timezone, settle_days=2, note=note)
+
+
+def _ga4_property(property_id: str) -> str:
+    """The property to query: the one passed (from ga4_properties) or GA4_PROPERTY_ID."""
+    prop = (property_id or "").strip().removeprefix("properties/")
+    if prop:
+        if not prop.isdigit():
+            raise ValueError(f"property_id must be the numeric GA4 property id, got {property_id!r}")
+        return prop
+    return _require(SETTINGS.ga4_property_id, "GA4_PROPERTY_ID")
 
 
 def check() -> dict:
@@ -221,6 +265,10 @@ def server_status() -> dict:
 
 
 # ------------------------------------------------------------------ GA4
+PROPERTY_ID = Annotated[str, Field(description="Numeric GA4 property id, as listed by ga4_properties; "
+                                            "empty uses the configured GA4_PROPERTY_ID")]
+
+
 @tool("GA4 report")
 @_guard("GA4 processed data; the last 24 to 48 hours can still change")
 def ga4_report(
@@ -230,22 +278,35 @@ def ga4_report(
                                         "ecommercePurchases, purchaseRevenue, keyEvents")] = ["sessions", "totalUsers"],
     start_date: Annotated[str, Field(description="YYYY-MM-DD, NdaysAgo, yesterday or today")] = "28daysAgo",
     end_date: Annotated[str, Field(description="YYYY-MM-DD, NdaysAgo, yesterday or today")] = "yesterday",
-    limit: Annotated[int, Field(description="Maximum rows returned (1 to 1000)", ge=1, le=1000)] = 50,
+    limit: Annotated[int, Field(description="Maximum rows returned (1 to 1000); totals always cover every row",
+                                ge=1, le=1000)] = 50,
     channel_group: Annotated[str, Field(description="Optional exact filter on sessionDefaultChannelGroup, "
                                         "e.g. 'Organic Search'; empty for all channels")] = "",
+    property_id: PROPERTY_ID = "",
 ) -> dict:
-    """Run a Google Analytics 4 report (Data API runReport) on the configured property: traffic, conversions or
-    revenue split by any dimensions over a date range. Returns {"rows": [{dimension: value, metric: value}],
-    "row_count": total}. Use ga4_realtime for the last 30 minutes."""
-    prop = _require(SETTINGS.ga4_property_id, "GA4_PROPERTY_ID")
+    """Run a Google Analytics 4 report (Data API runReport): traffic, conversions or revenue split by any dimensions
+    over a date range. Returns the top rows ({"rows": [{dimension: value, metric: number}]}), "totals" over every
+    row, "row_count" and "truncated", the unit and definition of each metric under "metrics", the currency, and a
+    "date_range" resolved to calendar dates in the property's timezone with "data_complete". Use ga4_realtime for the
+    last 30 minutes."""
+    try:
+        prop = _ga4_property(property_id)
+    except ValueError as exc:
+        return {"error": "invalid_property_id", "detail": str(exc)}
     limit = _cap(limit)
     body = {"dateRanges": [{"startDate": start_date, "endDate": end_date}],
-            "dimensions": [{"name": d} for d in dimensions], "metrics": [{"name": m} for m in metrics], "limit": limit}
+            "dimensions": [{"name": d} for d in dimensions], "metrics": [{"name": m} for m in metrics],
+            "limit": limit, "metricAggregations": ["TOTAL"]}
     if channel_group:
         body["dimensionFilter"] = {"filter": {"fieldName": "sessionDefaultChannelGroup",
                                               "stringFilter": {"value": channel_group}}}
-    return _ga4_rows(_call("POST", f"https://analyticsdata.googleapis.com/v1beta/properties/{prop}:runReport", json=body),
-                     limit, {"start": start_date, "end": end_date})
+    resp = _call("POST", f"https://analyticsdata.googleapis.com/v1beta/properties/{prop}:runReport", json=body)
+    if "error" in resp:
+        return resp
+    timezone = resp.get("metadata", {}).get("timeZone")
+    out = _ga4_rows(resp, limit, metrics_date_range(start_date, end_date, timezone, GA4_SETTLING_NOTE))
+    out["property_id"] = prop
+    return out
 
 
 @tool("GA4 realtime")
@@ -255,13 +316,58 @@ def ga4_realtime(
                                            "country, deviceCategory")] = ["unifiedScreenName"],
     metrics: Annotated[list[str], Field(description="GA4 realtime metrics, e.g. activeUsers, screenPageViews, "
                                         "eventCount")] = ["activeUsers", "screenPageViews"],
+    property_id: PROPERTY_ID = "",
 ) -> dict:
     """GA4 realtime report for the last 30 minutes. Useful to check a tracking change, for example that one page
-    view is counted once and not twice. Returns {"rows": [...], "row_count": n}."""
-    prop = _require(SETTINGS.ga4_property_id, "GA4_PROPERTY_ID")
-    body = {"dimensions": [{"name": d} for d in dimensions], "metrics": [{"name": m} for m in metrics]}
-    return _ga4_rows(_call("POST", f"https://analyticsdata.googleapis.com/v1beta/properties/{prop}:runRealtimeReport", json=body),
-                     100, {"start": "30 minutes ago", "end": "now"})
+    view is counted once and not twice. Returns {"rows": [...], "row_count": n, "totals": {...}, "metrics": {...}}."""
+    try:
+        prop = _ga4_property(property_id)
+    except ValueError as exc:
+        return {"error": "invalid_property_id", "detail": str(exc)}
+    body = {"dimensions": [{"name": d} for d in dimensions], "metrics": [{"name": m} for m in metrics],
+            "metricAggregations": ["TOTAL"]}
+    out = _ga4_rows(_call("POST", f"https://analyticsdata.googleapis.com/v1beta/properties/{prop}:runRealtimeReport",
+                          json=body), 100, {"start": "30 minutes ago", "end": "now", "data_complete": False,
+                                            "settling_note": "realtime counts keep moving"})
+    if "error" not in out:
+        out["property_id"] = prop
+    return out
+
+
+@tool("GA4 properties")
+@_guard("current state")
+def ga4_properties(
+    max_pages: Annotated[int, Field(description="Pages of 200 accounts to read at most", ge=1, le=20)] = 5,
+) -> dict:
+    """GA4 accounts and properties the authorized Google account can read (Admin API accountSummaries), so the
+    assistant can find a property id itself and pass it as property_id to ga4_report or ga4_realtime. Returns
+    {"properties": [{property_id, property_name, property_type, account_id, account_name, configured}],
+    "configured_property_id"}. Needs the Google Analytics Admin API enabled; no extra OAuth scope."""
+    url = "https://analyticsadmin.googleapis.com/v1beta/accountSummaries"
+    found, token, pages = [], None, 0
+    while pages < max_pages:
+        params = {"pageSize": 200}
+        if token:
+            params["pageToken"] = token
+        resp = _call("GET", url, params=params)
+        if "error" in resp:
+            if not pages:
+                return resp
+            return {"properties": found, "configured_property_id": SETTINGS.ga4_property_id,
+                    "truncated": True, "partial": True, "partial_error": resp}
+        pages += 1
+        for account in resp.get("accountSummaries", []):
+            account_id = account.get("account", "").removeprefix("accounts/")
+            for prop in account.get("propertySummaries", []):
+                prop_id = prop.get("property", "").removeprefix("properties/")
+                found.append({"property_id": prop_id, "property_name": prop.get("displayName"),
+                              "property_type": prop.get("propertyType"), "account_id": account_id,
+                              "account_name": account.get("displayName"),
+                              "configured": prop_id == SETTINGS.ga4_property_id})
+        token = resp.get("nextPageToken")
+        if not token:
+            break
+    return {"properties": found, "configured_property_id": SETTINGS.ga4_property_id, "truncated": bool(token)}
 
 
 # ------------------------------------------------------------------ Search Console
@@ -274,26 +380,45 @@ def _site() -> str:
 def gsc_performance(
     dimensions: Annotated[list[Literal["query", "page", "country", "device", "date", "searchAppearance"]],
                           Field(description="How to split the results")] = ["query"],
-    start_date: Annotated[str, Field(description="YYYY-MM-DD; empty means 30 days ago")] = "",
+    start_date: Annotated[str, Field(description="YYYY-MM-DD; empty means 30 days ago (Pacific Time)")] = "",
     end_date: Annotated[str, Field(description="YYYY-MM-DD; empty means 2 days ago (Search Console data lag)")] = "",
-    limit: Annotated[int, Field(description="Maximum rows returned (1 to 1000)", ge=1, le=1000)] = 50,
+    limit: Annotated[int, Field(description="Maximum rows returned (1 to 1000); totals always cover the whole "
+                                "property", ge=1, le=1000)] = 50,
     page_contains: Annotated[str, Field(description="Optional: keep only pages whose URL contains this text")] = "",
 ) -> dict:
     """Google Search Console search performance for the configured property: clicks, impressions, CTR and average
-    position, split by query, page, country, device or date. Returns {"rows": [{<dimensions>, clicks, impressions,
-    ctr, position}]}."""
+    position, split by query, page, country, device or date. Returns the top rows, "totals" for the whole period
+    (same filter, no split), "truncated", the unit and definition of each metric under "metrics", and a
+    "date_range" in Pacific Time (Search Console's timezone) with "data_complete"."""
     limit = _cap(limit)
-    date_range = {"start": start_date or _days_ago(30), "end": end_date or _days_ago(2)}
-    body = {"startDate": date_range["start"], "endDate": date_range["end"], "dimensions": dimensions, "rowLimit": limit}
+    today, _ = metrics.today_in(metrics.GSC_TIMEZONE)
+    start = start_date or (today - datetime.timedelta(days=30)).isoformat()
+    end = end_date or (today - datetime.timedelta(days=2)).isoformat()
+    body = {"startDate": start, "endDate": end, "dimensions": dimensions, "rowLimit": limit}
     if page_contains:
         body["dimensionFilterGroups"] = [{"filters": [{"dimension": "page", "operator": "contains",
                                                        "expression": page_contains}]}]
-    resp = _call("POST", f"https://www.googleapis.com/webmasters/v3/sites/{_site()}/searchAnalytics/query", json=body)
+    url = f"https://www.googleapis.com/webmasters/v3/sites/{_site()}/searchAnalytics/query"
+    resp = _call("POST", url, json=body)
     if "error" in resp:
         return resp
-    return {"rows": [dict(zip(dimensions, r["keys"]), clicks=r["clicks"], impressions=r["impressions"],
-                          ctr=round(r["ctr"], 4), position=round(r["position"], 1)) for r in resp.get("rows", [])],
-            "date_range": date_range}
+    rows = [dict(zip(dimensions, r["keys"]), clicks=r["clicks"], impressions=r["impressions"],
+                 ctr=round(r["ctr"], 4), position=round(r["position"], 1)) for r in resp.get("rows", [])]
+    out = {"rows": rows, "truncated": len(rows) >= limit}
+    # Totals come from the same query without dimensions: summing the rows would miss the rows beyond the limit and
+    # the queries Google anonymizes, so row sums are always lower than the real total.
+    totals = _call("POST", url, json={k: v for k, v in body.items() if k not in ("dimensions", "rowLimit")})
+    if "error" in totals:
+        out.update(partial=True, partial_error={"step": "totals", **totals})
+    else:
+        t = (totals.get("rows") or [{"clicks": 0, "impressions": 0, "ctr": 0, "position": 0}])[0]
+        out["totals"] = {"clicks": t["clicks"], "impressions": t["impressions"], "ctr": round(t["ctr"], 4),
+                         "position": round(t["position"], 1)}
+        if "query" in dimensions:
+            out["totals_note"] = "totals include anonymized queries, so they exceed the sum of query rows"
+    out["metrics"] = metrics.GSC_METRICS
+    out["date_range"] = metrics_date_range(start, end, metrics.GSC_TIMEZONE, GSC_SETTLING_NOTE)
+    return out
 
 
 @tool("Search Console URL inspection")

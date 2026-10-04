@@ -1,6 +1,6 @@
 # Tool reference
 
-Twelve tools, all read-only. Every tool returns JSON. On failure a tool returns an object with an `error` key instead of raising:
+Thirteen tools, all read-only. Every tool returns JSON. On failure a tool returns an object with an `error` key instead of raising:
 
 | `error` value | Meaning | Fix |
 |---|---|---|
@@ -8,18 +8,26 @@ Twelve tools, all read-only. Every tool returns JSON. On failure a tool returns 
 | `not_authenticated` | No token stored | Run `google-ecommerce-mcp setup --client-secret ...` |
 | `network` | Google could not be reached | Check connectivity or proxy |
 | `missing_scope` | The token lacks the scope this API needs; `required_scope` names it | Rerun `setup` (with `--with-merchant` or `--with-indexing` for those services) |
+| `api_disabled` | The Google Cloud API named in `api` is not enabled for your OAuth client's project | Enable it in APIs & Services > Library |
+| `invalid_property_id` | `property_id` is not a numeric GA4 property id | Use an id from `ga4_properties` |
 | `rate_limited` | Google quota hit; `retry_after_seconds` when Google sends it | Wait, or narrow the date range or `limit` |
 | `blocked` | The request is not on the read-only allow-list and was not sent | Should never happen; open an issue |
 | an HTTP status (`403`, `404`, ...) | Google refused the call; `detail` holds Google's message | See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) |
 
 Row-returning tools cap `limit` at 1,000.
 
-Every result also carries `fetched_at` (UTC time of the read) and `freshness` (how far behind Google's data is, e.g. Search Console lags about 2 days). Report tools return the `date_range` actually queried. When some sub-requests fail, `merchant_product_issues` and `gtm_inventory` return what they could read with `partial: true` and the failing part in `partial_error` / `partial_errors`.
+Every result also carries `fetched_at` (UTC time of the read) and `freshness` (how far behind Google's data is, e.g. Search Console lags about 2 days).
+
+Report tools (`ga4_report`, `ga4_realtime`, `gsc_performance`) also return:
+
+- `totals` over every matching row, not just the rows returned, plus `truncated` when more rows exist;
+- `metrics`: the unit (`count`, `ratio 0 to 1`, `seconds`, the property currency...) and a short definition of each metric;
+- `date_range`: `start` and `end` as calendar dates in the data's `timezone` (GA4 property timezone, Pacific Time for Search Console), the `requested` values when they were relative (`7daysAgo`), and `data_complete`. When it is `false`, `settling_from` is the first day Google can still revise: do not compare those days with complete ones. When some sub-requests fail, `merchant_product_issues` and `gtm_inventory` return what they could read with `partial: true` and the failing part in `partial_error` / `partial_errors`.
 
 ## Contents
 
 - [server_status](#server_status)
-- GA4: [ga4_report](#ga4_report), [ga4_realtime](#ga4_realtime)
+- GA4: [ga4_report](#ga4_report), [ga4_realtime](#ga4_realtime), [ga4_properties](#ga4_properties)
 - Search Console: [gsc_performance](#gsc_performance), [gsc_inspect_url](#gsc_inspect_url), [gsc_sitemaps](#gsc_sitemaps)
 - Merchant Center: [merchant_data_sources](#merchant_data_sources), [merchant_product_issues](#merchant_product_issues), [merchant_report_query](#merchant_report_query)
 - Tag Manager: [gtm_inventory](#gtm_inventory)
@@ -52,9 +60,17 @@ GA4 Data API `runReport`. Needs `GA4_PROPERTY_ID`.
 | `end_date` | str | `yesterday` | same formats |
 | `limit` | int | `50` | max 1,000 |
 | `channel_group` | str | `""` | exact filter on `sessionDefaultChannelGroup`, e.g. `Organic Search` |
+| `property_id` | str | `""` | numeric property id from `ga4_properties`; empty uses `GA4_PROPERTY_ID` |
 
 ```json
-{"rows": [{"sessionDefaultChannelGroup": "Organic Search", "sessions": "412", "totalUsers": "377"}], "row_count": 6}
+{"rows": [{"sessionDefaultChannelGroup": "Organic Search", "sessions": 412, "purchaseRevenue": 1830.5}],
+ "row_count": 6, "truncated": false, "totals": {"sessions": 1290, "purchaseRevenue": 5120.0},
+ "metrics": {"sessions": {"unit": "count", "definition": "All sessions started on the site, engaged or not."},
+             "purchaseRevenue": {"unit": "EUR", "definition": "Revenue from purchase events only, before refunds."}},
+ "currency": "EUR", "property_id": "123456789",
+ "date_range": {"start": "2026-09-07", "end": "2026-10-04", "timezone": "Europe/Paris",
+                "requested": {"start": "28daysAgo", "end": "yesterday"}, "data_complete": false,
+                "settling_from": "2026-10-04", "settling_note": "GA4 can still revise the last 24 to 48 hours; compare complete days only"}}
 ```
 
 Ask: *"Top 10 landing pages from organic search last month, with purchases and revenue."*
@@ -69,10 +85,29 @@ GA4 realtime report, last 30 minutes. Needs `GA4_PROPERTY_ID`.
 |---|---|---|
 | `dimensions` | list of str | `["unifiedScreenName"]` |
 | `metrics` | list of str | `["activeUsers", "screenPageViews"]` |
+| `property_id` | str | `""` (configured property) |
 
 Useful to check a tracking change: open one page in a private window and verify `screenPageViews` moves by 1, not 2.
 
 Ask: *"I just opened the home page once. How many page views does GA4 see right now?"*
+
+---
+
+## ga4_properties
+
+Every GA4 account and property the authorized Google account can read (Admin API `accountSummaries`). Lets the assistant find a property id itself instead of you pasting it, then pass it as `property_id`. Same `analytics.readonly` scope; enable the *Google Analytics Admin API* in your Cloud project.
+
+| Parameter | Type | Default |
+|---|---|---|
+| `max_pages` | int | `5` (200 accounts per page) |
+
+```json
+{"properties": [{"property_id": "123456789", "property_name": "Shop FR", "property_type": "PROPERTY_TYPE_ORDINARY",
+                 "account_id": "1000", "account_name": "MoonEyes", "configured": true}],
+ "configured_property_id": "123456789", "truncated": false}
+```
+
+Ask: *"Which GA4 properties can you see? Compare last month's sessions of the shop and the blog."*
 
 ---
 
@@ -89,8 +124,14 @@ Search Console Search Analytics. Needs `GSC_SITE_URL`.
 | `page_contains` | str | `""` | keep only pages whose URL contains this text |
 
 ```json
-{"rows": [{"query": "wargame terrain", "clicks": 14, "impressions": 820, "ctr": 0.0171, "position": 8.4}]}
+{"rows": [{"query": "wargame terrain", "clicks": 14, "impressions": 820, "ctr": 0.0171, "position": 8.4}],
+ "truncated": true, "totals": {"clicks": 230, "impressions": 15400, "ctr": 0.0149, "position": 14.2},
+ "totals_note": "totals include anonymized queries, so they exceed the sum of query rows",
+ "metrics": {"ctr": {"unit": "ratio 0 to 1", "definition": "clicks / impressions (0.05 means 5 %)."}, "...": "..."},
+ "date_range": {"start": "2026-09-04", "end": "2026-10-02", "timezone": "America/Los_Angeles", "data_complete": true}}
 ```
+
+`totals` come from a second query with the same filter and no split, so they are the real property totals.
 
 Ask: *"Queries where we rank between 5 and 15 with more than 100 impressions: quick wins?"*
 

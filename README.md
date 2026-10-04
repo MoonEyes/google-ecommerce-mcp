@@ -33,6 +33,7 @@ Built by [MoonEyes](https://www.mooneyeswargame.com), a small French shop sellin
 - **All-in-one for e-commerce.** Other MCP servers cover one or two of these services. This one covers the six a shop owner checks every week.
 - **Read-only by design.** No tool creates, updates, publishes or deletes anything. A test enforces it.
 - **Token in your OS keyring.** The OAuth token goes to Windows Credential Manager, macOS Keychain or Secret Service, not to a plain file (a file is still possible if you prefer).
+- **Answers a model can read correctly.** Reports return the top rows plus totals over everything, the unit and definition of each metric, and dates resolved in the property's timezone with a flag when the last days can still change.
 - **No third party.** Requests go straight from your machine to Google.
 
 ## Tools
@@ -42,6 +43,7 @@ Built by [MoonEyes](https://www.mooneyeswargame.com), a small French shop sellin
 | `server_status` | All | Which services are configured, does the token work |
 | `ga4_report` | GA4 | Any report: channels, landing pages, purchases, revenue, by period |
 | `ga4_realtime` | GA4 | Last 30 minutes, e.g. to check a page view is counted once |
+| `ga4_properties` | GA4 | Every GA4 account and property you can read, to find a property id |
 | `gsc_performance` | Search Console | Clicks, impressions, CTR, position by query, page, country, device, date |
 | `gsc_inspect_url` | Search Console | Is this URL indexed, which canonical did Google pick, last crawl |
 | `gsc_sitemaps` | Search Console | Declared sitemaps, last download, errors |
@@ -79,7 +81,7 @@ If you used the quick install, you only need step 1. The steps below are the man
 Full walkthrough with every click explained: [docs/SETUP-GOOGLE-CLOUD.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/SETUP-GOOGLE-CLOUD.md). Short version:
 
 1. In [Google Cloud Console](https://console.cloud.google.com/), create or pick a project.
-2. Enable the APIs you need: *Google Analytics Data API*, *Google Search Console API*, *Merchant API*, *Tag Manager API*, *Web Search Indexing API*, *PageSpeed Insights API*.
+2. Enable the APIs you need: *Google Analytics Data API*, *Google Analytics Admin API*, *Google Search Console API*, *Merchant API*, *Tag Manager API*, *Web Search Indexing API*, *PageSpeed Insights API*.
 3. Configure the OAuth consent screen (External, add yourself as a test user).
 4. Create an OAuth client of type **Desktop app** and download its JSON file.
 5. Merchant API only: [register your Cloud project](https://developers.google.com/merchant/api/guides/quickstart) with your Merchant Center account.
@@ -152,13 +154,13 @@ Details: [docs/SECURITY.md](https://github.com/MoonEyes/google-ecommerce-mcp/blo
 
 - Read-only is enforced, not just declared: every request is checked against an allow-list before it is sent, and CI fails if any tool tries an endpoint outside it. `readOnlyHint` is only a hint.
 - `setup` requests read-only scopes only. Google has no read-only scope for **Merchant Center** (`content`) or the **Indexing API** (`indexing`); they are requested only with `--with-merchant` / `--with-indexing`, and `server_status` flags them when present.
-- Every result carries `fetched_at` and `freshness`; report tools return the `date_range` queried.
+- Every result carries `fetched_at` and `freshness`; report tools return the `date_range` queried, resolved in the data's timezone, with `data_complete`.
 - Revoke access at any time from your [Google account permissions](https://myaccount.google.com/permissions).
 
 ## Limitations
 
 - The Merchant API is recent and Google keeps changing it; the older Content API for Shopping is being shut down. Open an issue if a call breaks.
-- One property, site, Merchant account and container per server instance. Run several instances for several shops.
+- One site, Merchant account and container per server instance; GA4 tools accept any readable `property_id`. Run several instances for several shops.
 - GA4 Data API quotas apply to `ga4_report`.
 
 ## Contributing
