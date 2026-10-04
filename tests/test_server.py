@@ -118,3 +118,11 @@ def test_tools_are_registered_with_real_signatures(server):
     assert len(tools) == 12
     assert "channel_group" in tools["ga4_report"].inputSchema["properties"]
     assert tools["gsc_inspect_url"].inputSchema["required"] == ["url"]
+
+
+def test_every_tool_is_declared_read_only_and_documented(server):
+    for t in asyncio.run(server.mcp.list_tools()):
+        assert t.annotations.readOnlyHint is True and t.annotations.destructiveHint is False, t.name
+        assert t.title and len(t.description) > 60, t.name
+        for name, prop in t.inputSchema.get("properties", {}).items():
+            assert prop.get("description"), f"{t.name}.{name} has no description"

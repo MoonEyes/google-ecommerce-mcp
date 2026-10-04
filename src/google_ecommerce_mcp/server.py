@@ -5,8 +5,12 @@ from __future__ import annotations
 import datetime
 from urllib.parse import quote
 
+from typing import Annotated, Literal
+
 import requests
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
+from pydantic import Field
 
 from . import __version__
 from .auth import NotAuthenticated, TokenProvider
@@ -19,6 +23,13 @@ TIMEOUT = 60
 MAX_ROWS = 1000
 
 mcp = FastMCP("google-ecommerce-mcp")
+
+# Every tool only reads from Google: declared to MCP clients through the standard annotations.
+READ_ONLY = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True)
+
+
+def tool(title: str):
+    return mcp.tool(title=title, annotations=READ_ONLY)
 
 
 # ------------------------------------------------------------------ helpers
@@ -97,21 +108,31 @@ def check() -> dict:
 
 
 # ------------------------------------------------------------------ server info
-@mcp.tool()
+@tool("Server status")
 def server_status() -> dict:
-    """Which Google services are configured for this server, and whether the stored token works."""
+    """Which Google services are configured for this server, and whether the stored OAuth token works.
+    Call it first when another tool answers not_configured or not_authenticated. Returns one boolean per
+    service, the token storage (os-keyring or file), "token": "ok" or the error, and the package version."""
     return check()
 
 
 # ------------------------------------------------------------------ GA4
-@mcp.tool()
+@tool("GA4 report")
 @_guard
-def ga4_report(dimensions: list[str] = ["sessionDefaultChannelGroup"], metrics: list[str] = ["sessions", "totalUsers"],
-               start_date: str = "28daysAgo", end_date: str = "yesterday", limit: int = 50,
-               channel_group: str = "") -> dict:
-    """GA4 report (Data API runReport). Any standard dimensions/metrics, e.g. landingPage, sessionSource, yearMonth;
-    sessions, ecommercePurchases, purchaseRevenue, keyEvents. Dates: YYYY-MM-DD or relative (28daysAgo, yesterday).
-    channel_group filters on sessionDefaultChannelGroup (e.g. 'Organic Search')."""
+def ga4_report(
+    dimensions: Annotated[list[str], Field(description="GA4 API dimension names, e.g. sessionDefaultChannelGroup, "
+                                           "landingPage, sessionSource, yearMonth, itemName")] = ["sessionDefaultChannelGroup"],
+    metrics: Annotated[list[str], Field(description="GA4 API metric names, e.g. sessions, totalUsers, "
+                                        "ecommercePurchases, purchaseRevenue, keyEvents")] = ["sessions", "totalUsers"],
+    start_date: Annotated[str, Field(description="YYYY-MM-DD, NdaysAgo, yesterday or today")] = "28daysAgo",
+    end_date: Annotated[str, Field(description="YYYY-MM-DD, NdaysAgo, yesterday or today")] = "yesterday",
+    limit: Annotated[int, Field(description="Maximum rows returned (1 to 1000)", ge=1, le=1000)] = 50,
+    channel_group: Annotated[str, Field(description="Optional exact filter on sessionDefaultChannelGroup, "
+                                        "e.g. 'Organic Search'; empty for all channels")] = "",
+) -> dict:
+    """Run a Google Analytics 4 report (Data API runReport) on the configured property: traffic, conversions or
+    revenue split by any dimensions over a date range. Returns {"rows": [{dimension: value, metric: value}],
+    "row_count": total}. Use ga4_realtime for the last 30 minutes."""
     prop = _require(SETTINGS.ga4_property_id, "GA4_PROPERTY_ID")
     limit = _cap(limit)
     body = {"dateRanges": [{"startDate": start_date, "endDate": end_date}],
@@ -122,10 +143,16 @@ def ga4_report(dimensions: list[str] = ["sessionDefaultChannelGroup"], metrics: 
     return _ga4_rows(_call("POST", f"https://analyticsdata.googleapis.com/v1beta/properties/{prop}:runReport", json=body), limit)
 
 
-@mcp.tool()
+@tool("GA4 realtime")
 @_guard
-def ga4_realtime(dimensions: list[str] = ["unifiedScreenName"], metrics: list[str] = ["activeUsers", "screenPageViews"]) -> dict:
-    """GA4 realtime report (last 30 minutes). Handy to check that one page view is counted once, not twice."""
+def ga4_realtime(
+    dimensions: Annotated[list[str], Field(description="GA4 realtime dimensions, e.g. unifiedScreenName, "
+                                           "country, deviceCategory")] = ["unifiedScreenName"],
+    metrics: Annotated[list[str], Field(description="GA4 realtime metrics, e.g. activeUsers, screenPageViews, "
+                                        "eventCount")] = ["activeUsers", "screenPageViews"],
+) -> dict:
+    """GA4 realtime report for the last 30 minutes. Useful to check a tracking change, for example that one page
+    view is counted once and not twice. Returns {"rows": [...], "row_count": n}."""
     prop = _require(SETTINGS.ga4_property_id, "GA4_PROPERTY_ID")
     body = {"dimensions": [{"name": d} for d in dimensions], "metrics": [{"name": m} for m in metrics]}
     return _ga4_rows(_call("POST", f"https://analyticsdata.googleapis.com/v1beta/properties/{prop}:runRealtimeReport", json=body), 100)
@@ -136,12 +163,19 @@ def _site() -> str:
     return quote(_require(SETTINGS.gsc_site_url, "GSC_SITE_URL"), safe="")
 
 
-@mcp.tool()
+@tool("Search Console performance")
 @_guard
-def gsc_performance(dimensions: list[str] = ["query"], start_date: str = "", end_date: str = "", limit: int = 50,
-                    page_contains: str = "") -> dict:
-    """Search Console clicks, impressions, CTR and average position. dimensions: query, page, country, device, date.
-    Dates YYYY-MM-DD; default is the last 28 days ending 2 days ago (Search Console data lag)."""
+def gsc_performance(
+    dimensions: Annotated[list[Literal["query", "page", "country", "device", "date", "searchAppearance"]],
+                          Field(description="How to split the results")] = ["query"],
+    start_date: Annotated[str, Field(description="YYYY-MM-DD; empty means 30 days ago")] = "",
+    end_date: Annotated[str, Field(description="YYYY-MM-DD; empty means 2 days ago (Search Console data lag)")] = "",
+    limit: Annotated[int, Field(description="Maximum rows returned (1 to 1000)", ge=1, le=1000)] = 50,
+    page_contains: Annotated[str, Field(description="Optional: keep only pages whose URL contains this text")] = "",
+) -> dict:
+    """Google Search Console search performance for the configured property: clicks, impressions, CTR and average
+    position, split by query, page, country, device or date. Returns {"rows": [{<dimensions>, clicks, impressions,
+    ctr, position}]}."""
     limit = _cap(limit)
     body = {"startDate": start_date or _days_ago(30), "endDate": end_date or _days_ago(2),
             "dimensions": dimensions, "rowLimit": limit}
@@ -155,17 +189,20 @@ def gsc_performance(dimensions: list[str] = ["query"], start_date: str = "", end
                           ctr=round(r["ctr"], 4), position=round(r["position"], 1)) for r in resp.get("rows", [])]}
 
 
-@mcp.tool()
+@tool("Search Console URL inspection")
 @_guard
-def gsc_inspect_url(url: str) -> dict:
-    """Google index status of one URL: verdict, coverage state, Google-selected canonical, last crawl time."""
+def gsc_inspect_url(
+    url: Annotated[str, Field(description="Full URL to inspect; must belong to the configured Search Console property")],
+) -> dict:
+    """Google index status of one URL (URL Inspection API): verdict, coverage state, user and Google-selected
+    canonical, robots.txt state, page fetch state and last crawl time. Quota: 2,000 inspections per day."""
     site = _require(SETTINGS.gsc_site_url, "GSC_SITE_URL")
     resp = _call("POST", "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect",
                  json={"inspectionUrl": url, "siteUrl": site})
     return resp if "error" in resp else resp.get("inspectionResult", {}).get("indexStatusResult", resp)
 
 
-@mcp.tool()
+@tool("Search Console sitemaps")
 @_guard
 def gsc_sitemaps() -> dict:
     """Sitemaps declared in Search Console, with last submission, last download, errors and warnings."""
@@ -176,7 +213,7 @@ def gsc_sitemaps() -> dict:
 MERCHANT = "https://merchantapi.googleapis.com"
 
 
-@mcp.tool()
+@tool("Merchant Center data sources")
 @_guard
 def merchant_data_sources() -> dict:
     """Merchant Center data sources (feeds): labels, countries, languages, fetch URLs."""
@@ -184,11 +221,18 @@ def merchant_data_sources() -> dict:
     return _call("GET", f"{MERCHANT}/datasources/v1/accounts/{acc}/dataSources")
 
 
-@mcp.tool()
+@tool("Merchant Center product issues")
 @_guard
-def merchant_product_issues(limit: int = 50, only_with_issues: bool = True, max_pages: int = 20) -> dict:
-    """Merchant Center products with their item-level issues (disapprovals, warnings) per destination.
-    Walks through all pages (250 products each, up to max_pages)."""
+def merchant_product_issues(
+    limit: Annotated[int, Field(description="Maximum products returned (1 to 1000)", ge=1, le=1000)] = 50,
+    only_with_issues: Annotated[bool, Field(description="True: only products with at least one issue; "
+                                            "False: every product")] = True,
+    max_pages: Annotated[int, Field(description="Pages of 250 products to scan at most", ge=1, le=200)] = 20,
+) -> dict:
+    """Merchant Center products with their item-level issues (disapprovals, demotions, warnings) per destination,
+    with the attribute to fix. Scans every page of products up to max_pages. Returns {"products": [{offer_id,
+    feed_label, title, link, issues: [{code, severity, description, attribute, destination}]}], "scanned": n,
+    "truncated": bool}."""
     acc = _require(SETTINGS.merchant_account_id, "MERCHANT_ACCOUNT_ID")
     limit = _cap(limit)
     out, token, pages, scanned = [], None, 0, 0
@@ -218,11 +262,16 @@ def merchant_product_issues(limit: int = 50, only_with_issues: bool = True, max_
     return {"products": out, "scanned": scanned, "truncated": bool(token)}
 
 
-@mcp.tool()
+@tool("Merchant Center report query")
 @_guard
-def merchant_report_query(query: str = "SELECT id, offer_id, title, aggregated_reporting_context_status FROM product_view LIMIT 50") -> dict:
-    """Merchant Center Query Language (MCQL) report search, e.g. on product_view or product_performance_view.
-    product_view queries must select the id field."""
+def merchant_report_query(
+    query: Annotated[str, Field(description="Merchant Center Query Language (MCQL) statement. Tables include "
+                                "product_view (must select id) and product_performance_view (clicks, impressions "
+                                "by date or offer)")] =
+        "SELECT id, offer_id, title, aggregated_reporting_context_status FROM product_view LIMIT 50",
+) -> dict:
+    """Run a Merchant Center report (Merchant API reports:search) with an MCQL query, for example product status
+    or free-listing performance. Returns Google's raw result rows."""
     acc = _require(SETTINGS.merchant_account_id, "MERCHANT_ACCOUNT_ID")
     return _call("POST", f"{MERCHANT}/reports/v1/accounts/{acc}/reports:search", json={"query": query})
 
@@ -233,10 +282,12 @@ BUILT_IN_TRIGGERS = {"2147479553": "All Pages (built-in)", "2147479573": "Initia
                      "2147479572": "Consent Initialization - All Pages (built-in)"}
 
 
-@mcp.tool()
+@tool("Tag Manager inventory")
 @_guard
 def gtm_inventory() -> dict:
-    """Tags, triggers and variables of the container's default workspace, plus the live (published) version."""
+    """Tags (type, paused, firing triggers, parameters), triggers and variables of the configured Google Tag Manager
+    container's default workspace, plus the id of the live published version. Built-in trigger ids are translated,
+    e.g. All Pages. Useful to spot a tag configured twice."""
     public_id = _require(SETTINGS.gtm_container_id, "GTM_CONTAINER_ID")
     accounts = _call("GET", f"{GTM_API}/accounts")
     if "error" in accounts:
@@ -264,19 +315,25 @@ def gtm_inventory() -> dict:
 
 
 # ------------------------------------------------------------------ Indexing API + PageSpeed
-@mcp.tool()
-def indexing_status(url: str) -> dict:
-    """Latest Indexing API notifications Google holds for a URL (read only, nothing is submitted)."""
+@tool("Indexing API status")
+def indexing_status(
+    url: Annotated[str, Field(description="Full URL to look up")],
+) -> dict:
+    """Latest Indexing API notifications (URL_UPDATED / URL_DELETED) Google holds for a URL. Read only: nothing is
+    submitted. Most URLs were never notified, which is reported as such."""
     resp = _call("GET", "https://indexing.googleapis.com/v3/urlNotifications/metadata", params={"url": url})
     if resp.get("error") == 404:
         return {"status": "no Indexing API notification has been sent for this URL"}
     return resp
 
 
-@mcp.tool()
-def pagespeed(url: str, strategy: str = "mobile") -> dict:
-    """Lighthouse performance and SEO scores plus Core Web Vitals for a URL. Set PAGESPEED_API_KEY to avoid the
-    shared anonymous quota. strategy: mobile or desktop."""
+@tool("PageSpeed Insights")
+def pagespeed(
+    url: Annotated[str, Field(description="Full public URL to test")],
+    strategy: Annotated[Literal["mobile", "desktop"], Field(description="Device profile Lighthouse emulates")] = "mobile",
+) -> dict:
+    """Lighthouse performance and SEO scores (0 to 100) plus LCP, CLS and TBT for a URL, and the Chrome UX Report
+    field category when Google has real-user data. Set PAGESPEED_API_KEY to avoid the shared anonymous quota."""
     params = {"url": url, "strategy": strategy, "category": ["performance", "seo"]}
     if SETTINGS.pagespeed_api_key:
         params["key"] = SETTINGS.pagespeed_api_key

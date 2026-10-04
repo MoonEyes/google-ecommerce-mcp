@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2 (2026-10-04)
+
+- Every tool carries a title, a fuller description and the standard MCP annotations
+  (`readOnlyHint`, `destructiveHint: false`, `idempotentHint`, `openWorldHint`), so clients can show it is read-only.
+- Every parameter is described in the tool schema; `limit` and `max_pages` are bounded,
+  `gsc_performance.dimensions` and `pagespeed.strategy` are enumerations.
+- Requires `mcp>=1.10`.
+
 ## 0.1.1 (2026-10-04)
 
 - Published on PyPI and in the official MCP Registry: install with `uvx google-ecommerce-mcp`.
