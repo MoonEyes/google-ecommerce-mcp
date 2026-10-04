@@ -4,7 +4,7 @@ Thanks for helping. Issues and pull requests are welcome, in English or French.
 
 ## Ground rules
 
-1. **Read-only stays read-only.** A tool must never call an endpoint that creates, updates, publishes, submits or deletes. If a new tool needs a query `POST`, add its URL suffix to `allowed_posts` in `tests/test_server.py::test_every_call_is_read_only` and explain why in the PR.
+1. **Read-only stays read-only.** A tool must never call an endpoint that creates, updates, publishes, submits or deletes. Every endpoint a tool calls must be listed in `ALLOWED_ENDPOINTS` in `server.py`; anything else is refused at runtime and fails CI. If a new tool needs a query `POST`, add it there and to `read_queries` in `tests/test_server.py::test_allow_list_has_no_write_endpoint`, and explain why in the PR.
 2. **Errors are results.** Use `_call` and `@_guard` so failures come back as `{"error": ...}` objects.
 3. **No hard-coded accounts.** Every id comes from an environment variable read in `config.py`.
 4. **Keep answers small.** Flatten Google responses to what a model needs and cap row counts.

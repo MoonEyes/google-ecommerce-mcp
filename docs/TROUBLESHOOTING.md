@@ -35,7 +35,7 @@ The `mcp` package 2.x renamed it. This project pins `mcp<2`; reinstall in a clea
 - Your OAuth app is External and in *Testing*: refresh tokens expire after 7 days. Publish the app (see [SETUP-GOOGLE-CLOUD.md](SETUP-GOOGLE-CLOUD.md#3-configure-the-oauth-consent-screen)) and rerun `setup`.
 - You changed your Google password or revoked the app: rerun `setup`.
 
-**`403 insufficient authentication scopes`.** The token was created before a scope was added. Rerun `setup` and tick every box on the consent screen.
+**`missing_scope`.** The token lacks the scope named in `required_scope`. Rerun `setup` and tick every box on the consent screen. For Merchant Center add `--with-merchant`, for `indexing_status` add `--with-indexing`: since 0.2.0 these write-capable scopes are no longer requested by default.
 
 **No keyring backend on a headless Linux server.**
 Set `GOOGLE_TOKEN_FILE=~/.config/google-ecommerce-mcp/token.json` both for `setup` and in the client config, or install a Secret Service provider.

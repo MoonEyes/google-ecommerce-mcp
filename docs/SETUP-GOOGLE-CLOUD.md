@@ -53,7 +53,7 @@ uvx google-ecommerce-mcp setup --client-secret ~/Downloads/client_secret_XXXX.js
 
 Only read-only scopes are requested by default. Add `--with-merchant` if you use Merchant Center and `--with-indexing` if you need `indexing_status`: Google has no read-only scope for these two.
 
-Sign in with the Google account that has access to your GA4 property, Search Console property, Merchant Center account and GTM container, and tick every scope. The token goes to your OS keyring.
+Sign in with the Google account that has access to your GA4 property, Search Console property, Merchant Center account and GTM container, and tick every scope listed on the consent screen. The token goes to your OS keyring.
 
 ## 8. Find your ids
 
