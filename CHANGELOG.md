@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1 (2026-10-04)
+
+- Published on PyPI and in the official MCP Registry: install with `uvx google-ecommerce-mcp`.
+- The installer now registers `uvx google-ecommerce-mcp` (PyPI) in Claude Desktop instead of a GitHub archive URL.
+- Dockerfile and `glama.json` for Glama listing and checks.
+
 ## 0.1.0 (2026-10-04)
 
 First public release.

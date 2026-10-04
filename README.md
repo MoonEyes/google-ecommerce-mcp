@@ -11,6 +11,8 @@ Built by [MoonEyes](https://www.mooneyeswargame.com), a small French shop sellin
 ![tests](https://github.com/MoonEyes/google-ecommerce-mcp/actions/workflows/tests.yml/badge.svg)
 ![license](https://img.shields.io/badge/license-MIT-blue)
 ![python](https://img.shields.io/badge/python-3.10%2B-blue)
+[![PyPI](https://img.shields.io/pypi/v/google-ecommerce-mcp)](https://pypi.org/project/google-ecommerce-mcp/)
+[![MCP Registry](https://img.shields.io/badge/MCP%20Registry-io.github.MoonEyes%2Fgoogle--ecommerce--mcp-blue)](https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.MoonEyes/google-ecommerce-mcp)
 
 ![Architecture overview](https://raw.githubusercontent.com/MoonEyes/google-ecommerce-mcp/main/docs/diagrams/architecture-overview.png)
 
@@ -86,15 +88,15 @@ Full walkthrough with every click explained: [docs/SETUP-GOOGLE-CLOUD.md](https:
 ### 2. Install and authorize
 
 ```bash
-# with uv, straight from GitHub (recommended)
-uvx --from git+https://github.com/MoonEyes/google-ecommerce-mcp google-ecommerce-mcp setup --client-secret path/to/client_secret.json
+# with uv (recommended): nothing to install, uvx fetches the package from PyPI
+uvx google-ecommerce-mcp setup --client-secret path/to/client_secret.json
 
 # or with pip
-pip install git+https://github.com/MoonEyes/google-ecommerce-mcp
+pip install google-ecommerce-mcp
 google-ecommerce-mcp setup --client-secret path/to/client_secret.json
 ```
 
-A PyPI release (`uvx google-ecommerce-mcp`) will follow; until then, install from GitHub as above.
+Latest development version: `uvx --from git+https://github.com/MoonEyes/google-ecommerce-mcp google-ecommerce-mcp`.
 
 Your browser opens the Google consent screen. The token is then stored in your OS keyring. Check everything with `google-ecommerce-mcp check`.
 
@@ -107,7 +109,7 @@ Your browser opens the Google consent screen. The token is then stored in your O
   "mcpServers": {
     "google-ecommerce": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/MoonEyes/google-ecommerce-mcp", "google-ecommerce-mcp"],
+      "args": ["google-ecommerce-mcp"],
       "env": {
         "GA4_PROPERTY_ID": "123456789",
         "GSC_SITE_URL": "sc-domain:example.com",
@@ -125,7 +127,7 @@ Your browser opens the Google consent screen. The token is then stored in your O
 ```bash
 claude mcp add google-ecommerce -e GA4_PROPERTY_ID=123456789 -e GSC_SITE_URL=sc-domain:example.com \
   -e MERCHANT_ACCOUNT_ID=1234567890 -e GTM_CONTAINER_ID=GTM-XXXXXXX \
-  -- uvx --from git+https://github.com/MoonEyes/google-ecommerce-mcp google-ecommerce-mcp
+  -- uvx google-ecommerce-mcp
 ```
 
 Every variable is optional: a tool for a service you did not configure simply answers `not_configured`.

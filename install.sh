@@ -9,8 +9,6 @@
 # Options: sh install.sh --ga4 123 --gsc sc-domain:example.com
 set -eu
 
-SOURCE="https://github.com/MoonEyes/google-ecommerce-mcp/archive/refs/heads/main.zip"
-
 echo "google-ecommerce-mcp: macOS / Linux installer"
 
 if ! command -v uvx >/dev/null 2>&1; then
@@ -27,7 +25,7 @@ fi
 
 # When piped from curl, stdin is the script itself: read answers from the terminal instead.
 if [ -t 0 ] || [ ! -r /dev/tty ]; then
-  exec uvx --refresh --from "$SOURCE" google-ecommerce-mcp install "$@"
+  exec uvx --refresh google-ecommerce-mcp install "$@"
 else
-  exec uvx --refresh --from "$SOURCE" google-ecommerce-mcp install "$@" < /dev/tty
+  exec uvx --refresh google-ecommerce-mcp install "$@" < /dev/tty
 fi

@@ -14,7 +14,7 @@ def entry(ga4="1"):
 def test_entry_drops_empty_values_and_pins_repo():
     e = entry()
     assert e["env"] == {"GA4_PROPERTY_ID": "1"}
-    assert e["command"] == "/bin/uvx" and installer.REPO in e["args"]
+    assert e["command"] == "/bin/uvx" and e["args"] == ["google-ecommerce-mcp"]
 
 
 def test_register_creates_missing_config(tmp_path):
@@ -50,7 +50,7 @@ def test_same_entry_twice_is_idempotent(tmp_path):
 
 def test_claude_code_command():
     cmd = installer.claude_code_command("shop", {"GA4_PROPERTY_ID": "1", "GSC_SITE_URL": ""})
-    assert cmd.startswith("claude mcp add shop --scope user -e GA4_PROPERTY_ID=1 -- uvx --from ")
+    assert cmd == "claude mcp add shop --scope user -e GA4_PROPERTY_ID=1 -- uvx google-ecommerce-mcp"
 
 
 def test_install_without_any_id_stops(monkeypatch, capsys):

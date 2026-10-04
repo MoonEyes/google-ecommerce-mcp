@@ -8,7 +8,6 @@
 # Options work when the script is saved first: .\install.ps1 --ga4 123 --gsc sc-domain:example.com
 
 $ErrorActionPreference = "Stop"
-$Source = "https://github.com/MoonEyes/google-ecommerce-mcp/archive/refs/heads/main.zip"
 
 Write-Host "google-ecommerce-mcp: Windows installer" -ForegroundColor Cyan
 
@@ -22,7 +21,7 @@ if (-not (Get-Command uvx -ErrorAction SilentlyContinue)) {
     }
 }
 
-& uvx --refresh --from $Source google-ecommerce-mcp install @args
+& uvx --refresh google-ecommerce-mcp install @args
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Installer stopped with code $LASTEXITCODE. See docs/TROUBLESHOOTING.md." -ForegroundColor Yellow
 }

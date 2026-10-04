@@ -5,4 +5,4 @@ claude mcp add google-ecommerce --scope user \
   -e GSC_SITE_URL=sc-domain:example.com \
   -e MERCHANT_ACCOUNT_ID=1234567890 \
   -e GTM_CONTAINER_ID=GTM-XXXXXXX \
-  -- uvx --from git+https://github.com/MoonEyes/google-ecommerce-mcp google-ecommerce-mcp
+  -- uvx google-ecommerce-mcp

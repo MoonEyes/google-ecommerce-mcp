@@ -14,7 +14,7 @@ import shutil
 import sys
 from pathlib import Path
 
-REPO = "https://github.com/MoonEyes/google-ecommerce-mcp/archive/refs/heads/main.zip"  # no git needed
+PACKAGE = "google-ecommerce-mcp"  # published on PyPI
 
 FIELDS = [
     # (env variable, flag attribute, question, hint)
@@ -39,7 +39,7 @@ def server_entry(env: dict[str, str], uvx: str | None = None) -> dict:
     """The mcpServers entry. An absolute uvx path is used because GUI apps often lack the shell PATH."""
     return {
         "command": uvx or shutil.which("uvx") or "uvx",
-        "args": ["--from", REPO, "google-ecommerce-mcp"],
+        "args": [PACKAGE],
         "env": {key: value for key, value in env.items() if value},
     }
 
@@ -79,7 +79,7 @@ def register(config_path: Path, name: str, entry: dict, force: bool = False) -> 
 
 def claude_code_command(name: str, env: dict[str, str]) -> str:
     flags = " ".join(f"-e {key}={value}" for key, value in env.items() if value)
-    return f"claude mcp add {name} --scope user {flags} -- uvx --from {REPO} google-ecommerce-mcp".replace("  ", " ")
+    return f"claude mcp add {name} --scope user {flags} -- uvx {PACKAGE}".replace("  ", " ")
 
 
 def _ask(question: str, hint: str, current: str | None, interactive: bool) -> str:
