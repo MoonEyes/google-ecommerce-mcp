@@ -113,6 +113,12 @@ def test_write_requests_are_refused_before_any_network_call(server, monkeypatch,
     assert session.calls == []
 
 
+def test_single_product_read_is_allowed(server):
+    """Reading one Merchant product is a read; it must not be blocked (found while fixing a live feed, 05/10/2026)."""
+    assert server.is_allowed("GET", "https://merchantapi.googleapis.com/products/v1/accounts/1/products/fr~FR~5163")
+    assert not server.is_allowed("DELETE", "https://merchantapi.googleapis.com/products/v1/accounts/1/products/fr~FR~5163")
+
+
 def test_default_scopes_are_read_only():
     from google_ecommerce_mcp.config import WRITE_CAPABLE_SCOPES, scopes_for
 

@@ -59,6 +59,7 @@ ALLOWED_ENDPOINTS = [
     ("POST", r"https://searchconsole\.googleapis\.com/v1/urlInspection/index:inspect"),
     ("GET", r"https://merchantapi\.googleapis\.com/datasources/v1/accounts/[^/]+/dataSources"),
     ("GET", r"https://merchantapi\.googleapis\.com/products/v1/accounts/[^/]+/products"),
+    ("GET", r"https://merchantapi\.googleapis\.com/products/v1/accounts/[^/]+/products/[^/]+"),
     ("POST", r"https://merchantapi\.googleapis\.com/reports/v1/accounts/[^/]+/reports:search"),
     ("GET", r"https://tagmanager\.googleapis\.com/tagmanager/v2/accounts"),
     ("GET", r"https://tagmanager\.googleapis\.com/tagmanager/v2/accounts/[^/]+/containers"),

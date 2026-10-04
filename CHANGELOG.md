@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The allow-list now accepts reading a single Merchant Center product (`GET .../products/{name}`); it was refused as `blocked`.
+
 ## 0.2.0 (2026-10-04)
 
 Read-only is now enforced, not just declared (feedback from r/mcp).
