@@ -22,6 +22,10 @@ def main(argv: list[str] | None = None) -> None:
     setup.add_argument("--client-secret", required=True, help="OAuth client JSON (Desktop app) from Google Cloud Console")
     setup.add_argument("--token-file", default=os.getenv("GOOGLE_TOKEN_FILE"),
                        help="store the token in this file instead of the OS keyring")
+    setup.add_argument("--with-merchant", action="store_true",
+                       help="also request the Merchant Center scope (content). Google has no read-only one")
+    setup.add_argument("--with-indexing", action="store_true",
+                       help="also request the Indexing API scope. Google has no read-only one")
     sub.add_parser("check", help="show configuration and test the stored token")
     inst = sub.add_parser("install", help="guided install: ask ids, authorize Google, register in Claude Desktop")
     inst.add_argument("--client-secret", help="OAuth client JSON (Desktop app)")
@@ -37,13 +41,17 @@ def main(argv: list[str] | None = None) -> None:
     inst.add_argument("--skip-auth", action="store_true", help="keep the token already stored")
     inst.add_argument("--no-desktop", action="store_true", help="do not modify the Claude Desktop config")
     inst.add_argument("--force", action="store_true", help="replace an existing server entry with the same name")
+    inst.add_argument("--with-indexing", action="store_true",
+                      help="also request the Indexing API scope (write-capable; only needed by indexing_status)")
     inst.add_argument("--yes", action="store_true", help="never prompt; unanswered ids are skipped")
     args = parser.parse_args(argv)
 
     if args.command == "setup":
         from .auth import run_setup
+        from .config import scopes_for
 
-        where = run_setup(args.client_secret, args.token_file)
+        where = run_setup(args.client_secret, args.token_file,
+                          scopes_for(merchant=args.with_merchant, indexing=args.with_indexing))
         print(f"Token stored in {where}.")
         return
     if args.command == "install":

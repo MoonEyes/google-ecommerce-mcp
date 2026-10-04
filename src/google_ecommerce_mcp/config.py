@@ -5,16 +5,38 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
-# Scopes requested by `google-ecommerce-mcp setup`. All read-only, except Merchant Center:
-# Google offers no read-only scope for the Merchant API, so `content` is required. This server
-# never calls a write endpoint, but users should know the token itself could write.
-SCOPES = [
+# Scopes requested by `google-ecommerce-mcp setup`. The three below are read-only and always requested.
+READ_ONLY_SCOPES = [
     "https://www.googleapis.com/auth/analytics.readonly",
     "https://www.googleapis.com/auth/webmasters.readonly",
-    "https://www.googleapis.com/auth/content",
     "https://www.googleapis.com/auth/tagmanager.readonly",
-    "https://www.googleapis.com/auth/indexing",
 ]
+# Google offers no read-only scope for these two APIs: a token holding them could write, even though this
+# server never does. They are requested only when the user opts in to the service (least privilege).
+MERCHANT_SCOPE = "https://www.googleapis.com/auth/content"
+INDEXING_SCOPE = "https://www.googleapis.com/auth/indexing"
+WRITE_CAPABLE_SCOPES = {MERCHANT_SCOPE, INDEXING_SCOPE}
+
+# Scope each API host needs, used to tell the user exactly which scope is missing.
+SCOPE_BY_HOST = {
+    "analyticsdata.googleapis.com": "https://www.googleapis.com/auth/analytics.readonly",
+    "www.googleapis.com/webmasters": "https://www.googleapis.com/auth/webmasters.readonly",
+    "searchconsole.googleapis.com": "https://www.googleapis.com/auth/webmasters.readonly",
+    "tagmanager.googleapis.com": "https://www.googleapis.com/auth/tagmanager.readonly",
+    "merchantapi.googleapis.com": MERCHANT_SCOPE,
+    "indexing.googleapis.com": INDEXING_SCOPE,
+}
+
+
+def scopes_for(merchant: bool = False, indexing: bool = False) -> list[str]:
+    """Read-only scopes, plus the write-capable ones only for services the user enabled."""
+    scopes = list(READ_ONLY_SCOPES)
+    if merchant:
+        scopes.append(MERCHANT_SCOPE)
+    if indexing:
+        scopes.append(INDEXING_SCOPE)
+    return scopes
+
 
 KEYRING_SERVICE = "google-ecommerce-mcp"
 KEYRING_USER = "oauth-token"

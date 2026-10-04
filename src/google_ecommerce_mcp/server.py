@@ -1,9 +1,14 @@
-"""MCP tools. Every tool is read-only: no endpoint that creates, updates, publishes or deletes is ever called."""
+"""MCP tools. Every tool is read-only: no endpoint that creates, updates, publishes or deletes is ever called.
+
+The guarantee does not rest on the readOnlyHint annotation (a client may ignore it): every outgoing request is
+checked against ALLOWED_ENDPOINTS before it leaves the process, and anything else is refused without a network
+call. tests/test_server.py fails the build if a tool needs an endpoint outside that list."""
 
 from __future__ import annotations
 
 import datetime
-from urllib.parse import quote
+import re
+from urllib.parse import quote, urlsplit
 
 from typing import Annotated, Literal
 
@@ -14,7 +19,7 @@ from pydantic import Field
 
 from . import __version__
 from .auth import NotAuthenticated, TokenProvider
-from .config import NotConfigured, Settings
+from .config import SCOPE_BY_HOST, WRITE_CAPABLE_SCOPES, NotConfigured, Settings
 
 SETTINGS = Settings.from_env()
 TOKENS = TokenProvider(SETTINGS.token_file)
@@ -43,6 +48,49 @@ def tool(title: str):
     return mcp.tool(title=title, annotations=READ_ONLY)
 
 
+# ------------------------------------------------------------------ allow-list (the real read-only guarantee)
+# Every request this server may send. POST appears only on query endpoints that read data.
+# Adding a tool that needs another endpoint means adding it here, where review can see it.
+ALLOWED_ENDPOINTS = [
+    ("POST", r"https://analyticsdata\.googleapis\.com/v1beta/properties/[^/]+:runReport"),
+    ("POST", r"https://analyticsdata\.googleapis\.com/v1beta/properties/[^/]+:runRealtimeReport"),
+    ("POST", r"https://www\.googleapis\.com/webmasters/v3/sites/[^/]+/searchAnalytics/query"),
+    ("GET", r"https://www\.googleapis\.com/webmasters/v3/sites/[^/]+/sitemaps"),
+    ("POST", r"https://searchconsole\.googleapis\.com/v1/urlInspection/index:inspect"),
+    ("GET", r"https://merchantapi\.googleapis\.com/datasources/v1/accounts/[^/]+/dataSources"),
+    ("GET", r"https://merchantapi\.googleapis\.com/products/v1/accounts/[^/]+/products"),
+    ("POST", r"https://merchantapi\.googleapis\.com/reports/v1/accounts/[^/]+/reports:search"),
+    ("GET", r"https://tagmanager\.googleapis\.com/tagmanager/v2/accounts"),
+    ("GET", r"https://tagmanager\.googleapis\.com/tagmanager/v2/accounts/[^/]+/containers"),
+    ("GET", r"https://tagmanager\.googleapis\.com/tagmanager/v2/accounts/[^/]+/containers/[^/]+/workspaces"),
+    ("GET", r"https://tagmanager\.googleapis\.com/tagmanager/v2/accounts/[^/]+/containers/[^/]+/workspaces/[^/]+/(tags|triggers|variables)"),
+    ("GET", r"https://tagmanager\.googleapis\.com/tagmanager/v2/accounts/[^/]+/containers/[^/]+/versions:live"),
+    ("GET", r"https://indexing\.googleapis\.com/v3/urlNotifications/metadata"),
+    ("GET", r"https://www\.googleapis\.com/pagespeedonline/v5/runPagespeed"),
+]
+_ALLOWED = [(m, re.compile(pattern + r"$")) for m, pattern in ALLOWED_ENDPOINTS]
+
+
+def is_allowed(method: str, url: str) -> bool:
+    parts = urlsplit(url)
+    bare = f"{parts.scheme}://{parts.netloc}{parts.path}"
+    return any(method.upper() == m and rx.match(bare) for m, rx in _ALLOWED)
+
+
+class Blocked(Exception):
+    """Raised when code tries to send a request outside ALLOWED_ENDPOINTS."""
+
+
+BLOCKED_ATTEMPTS: list[tuple[str, str]] = []  # kept so the test suite can fail the build on any attempt
+
+
+def _send(method: str, url: str, **kwargs):
+    if not is_allowed(method, url):
+        BLOCKED_ATTEMPTS.append((method, url))
+        raise Blocked(f"{method} {url} is not on the read-only allow-list; request not sent")
+    return HTTP.request(method, url, **kwargs)
+
+
 # ------------------------------------------------------------------ helpers
 def _require(value: str | None, variable: str) -> str:
     if not value:
@@ -50,9 +98,36 @@ def _require(value: str | None, variable: str) -> str:
     return value
 
 
+def _now() -> str:
+    return datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
+
+
+def _scope_for(url: str) -> str | None:
+    return next((scope for host, scope in SCOPE_BY_HOST.items() if host in url), None)
+
+
+def _api_error(response, data, url: str) -> dict:
+    """Structured error: the caller learns what is missing and what to do, not just a status code."""
+    detail = data.get("error", data) if isinstance(data, dict) else data
+    text = str(detail)
+    if response.status_code == 403 and ("SCOPE_INSUFFICIENT" in text or "insufficient authentication scopes" in text):
+        scope = _scope_for(url)
+        return {"error": "missing_scope", "required_scope": scope,
+                "fix": "rerun `google-ecommerce-mcp setup` and grant this scope"
+                       + (" (add --with-merchant or --with-indexing)" if scope in WRITE_CAPABLE_SCOPES else ""),
+                "detail": detail}
+    if response.status_code == 429:
+        headers = getattr(response, "headers", None) or {}
+        return {"error": "rate_limited", "retry_after_seconds": headers.get("Retry-After"),
+                "fix": "wait and retry, or narrow the request (shorter date range, smaller limit)", "detail": detail}
+    return {"error": response.status_code, "detail": detail}
+
+
 def _call(method: str, url: str, **kwargs) -> dict:
     try:
-        response = HTTP.request(method, url, headers=TOKENS.headers(), timeout=TIMEOUT, **kwargs)
+        response = _send(method, url, headers=TOKENS.headers(), timeout=TIMEOUT, **kwargs)
+    except Blocked as exc:
+        return {"error": "blocked", "detail": str(exc)}
     except NotAuthenticated as exc:
         return {"error": "not_authenticated", "detail": str(exc)}
     except requests.RequestException as exc:
@@ -62,25 +137,32 @@ def _call(method: str, url: str, **kwargs) -> dict:
     except ValueError:
         data = {"text": response.text[:500]}
     if not response.ok:
-        detail = data.get("error", data) if isinstance(data, dict) else data
-        return {"error": response.status_code, "detail": detail}
+        return _api_error(response, data, url)
     return data
 
 
-def _guard(fn):
-    """Turn configuration errors into a readable tool result instead of a crash."""
+def _guard(freshness: str):
+    """Turn configuration errors into a readable result, and stamp every result with when it was read and how
+    fresh the underlying Google data is, so the assistant never has to guess."""
 
-    def wrapper(*args, **kwargs):
-        try:
-            return fn(*args, **kwargs)
-        except NotConfigured as exc:
-            return {"error": "not_configured", "detail": str(exc)}
+    def decorate(fn):
+        def wrapper(*args, **kwargs):
+            try:
+                result = fn(*args, **kwargs)
+            except NotConfigured as exc:
+                result = {"error": "not_configured", "detail": str(exc)}
+            if isinstance(result, dict):
+                result.setdefault("fetched_at", _now())
+                result.setdefault("freshness", freshness)
+            return result
 
-    wrapper.__name__ = fn.__name__
-    wrapper.__doc__ = fn.__doc__
-    wrapper.__annotations__ = fn.__annotations__
-    wrapper.__wrapped__ = fn
-    return wrapper
+        wrapper.__name__ = fn.__name__
+        wrapper.__doc__ = fn.__doc__
+        wrapper.__annotations__ = fn.__annotations__
+        wrapper.__wrapped__ = fn
+        return wrapper
+
+    return decorate
 
 
 def _days_ago(n: int) -> str:
@@ -91,7 +173,7 @@ def _cap(limit: int) -> int:
     return max(1, min(int(limit), MAX_ROWS))
 
 
-def _ga4_rows(resp: dict, limit: int) -> dict:
+def _ga4_rows(resp: dict, limit: int, date_range: dict | None = None) -> dict:
     if "error" in resp:
         return resp
     dims = [d["name"] for d in resp.get("dimensionHeaders", [])]
@@ -101,7 +183,10 @@ def _ga4_rows(resp: dict, limit: int) -> dict:
         item = dict(zip(dims, (v["value"] for v in row.get("dimensionValues", []))))
         item.update(zip(mets, (v["value"] for v in row.get("metricValues", []))))
         rows.append(item)
-    return {"rows": rows, "row_count": resp.get("rowCount", len(rows))}
+    out = {"rows": rows, "row_count": resp.get("rowCount", len(rows))}
+    if date_range:
+        out["date_range"] = date_range
+    return out
 
 
 def check() -> dict:
@@ -114,12 +199,19 @@ def check() -> dict:
         status["token"] = str(exc)
     except Exception as exc:  # refresh failures, revoked tokens
         status["token"] = f"error: {exc}"
+    try:
+        granted = TOKENS.granted_scopes()
+    except Exception:
+        granted = []
+    status["scopes"] = granted
+    status["write_capable_scopes"] = sorted(set(granted) & WRITE_CAPABLE_SCOPES)
     status["version"] = __version__
     return status
 
 
 # ------------------------------------------------------------------ server info
 @tool("Server status")
+@_guard("live: token tested now")
 def server_status() -> dict:
     """Which Google services are configured for this server, and whether the stored OAuth token works.
     Call it first when another tool answers not_configured or not_authenticated. Returns one boolean per
@@ -129,7 +221,7 @@ def server_status() -> dict:
 
 # ------------------------------------------------------------------ GA4
 @tool("GA4 report")
-@_guard
+@_guard("GA4 processed data; the last 24 to 48 hours can still change")
 def ga4_report(
     dimensions: Annotated[list[str], Field(description="GA4 API dimension names, e.g. sessionDefaultChannelGroup, "
                                            "landingPage, sessionSource, yearMonth, itemName")] = ["sessionDefaultChannelGroup"],
@@ -151,11 +243,12 @@ def ga4_report(
     if channel_group:
         body["dimensionFilter"] = {"filter": {"fieldName": "sessionDefaultChannelGroup",
                                               "stringFilter": {"value": channel_group}}}
-    return _ga4_rows(_call("POST", f"https://analyticsdata.googleapis.com/v1beta/properties/{prop}:runReport", json=body), limit)
+    return _ga4_rows(_call("POST", f"https://analyticsdata.googleapis.com/v1beta/properties/{prop}:runReport", json=body),
+                     limit, {"start": start_date, "end": end_date})
 
 
 @tool("GA4 realtime")
-@_guard
+@_guard("realtime: last 30 minutes")
 def ga4_realtime(
     dimensions: Annotated[list[str], Field(description="GA4 realtime dimensions, e.g. unifiedScreenName, "
                                            "country, deviceCategory")] = ["unifiedScreenName"],
@@ -166,7 +259,8 @@ def ga4_realtime(
     view is counted once and not twice. Returns {"rows": [...], "row_count": n}."""
     prop = _require(SETTINGS.ga4_property_id, "GA4_PROPERTY_ID")
     body = {"dimensions": [{"name": d} for d in dimensions], "metrics": [{"name": m} for m in metrics]}
-    return _ga4_rows(_call("POST", f"https://analyticsdata.googleapis.com/v1beta/properties/{prop}:runRealtimeReport", json=body), 100)
+    return _ga4_rows(_call("POST", f"https://analyticsdata.googleapis.com/v1beta/properties/{prop}:runRealtimeReport", json=body),
+                     100, {"start": "30 minutes ago", "end": "now"})
 
 
 # ------------------------------------------------------------------ Search Console
@@ -175,7 +269,7 @@ def _site() -> str:
 
 
 @tool("Search Console performance")
-@_guard
+@_guard("Search Console data lags about 2 days")
 def gsc_performance(
     dimensions: Annotated[list[Literal["query", "page", "country", "device", "date", "searchAppearance"]],
                           Field(description="How to split the results")] = ["query"],
@@ -188,8 +282,8 @@ def gsc_performance(
     position, split by query, page, country, device or date. Returns {"rows": [{<dimensions>, clicks, impressions,
     ctr, position}]}."""
     limit = _cap(limit)
-    body = {"startDate": start_date or _days_ago(30), "endDate": end_date or _days_ago(2),
-            "dimensions": dimensions, "rowLimit": limit}
+    date_range = {"start": start_date or _days_ago(30), "end": end_date or _days_ago(2)}
+    body = {"startDate": date_range["start"], "endDate": date_range["end"], "dimensions": dimensions, "rowLimit": limit}
     if page_contains:
         body["dimensionFilterGroups"] = [{"filters": [{"dimension": "page", "operator": "contains",
                                                        "expression": page_contains}]}]
@@ -197,11 +291,12 @@ def gsc_performance(
     if "error" in resp:
         return resp
     return {"rows": [dict(zip(dimensions, r["keys"]), clicks=r["clicks"], impressions=r["impressions"],
-                          ctr=round(r["ctr"], 4), position=round(r["position"], 1)) for r in resp.get("rows", [])]}
+                          ctr=round(r["ctr"], 4), position=round(r["position"], 1)) for r in resp.get("rows", [])],
+            "date_range": date_range}
 
 
 @tool("Search Console URL inspection")
-@_guard
+@_guard("Google's current index state; see lastCrawlTime for the crawl date")
 def gsc_inspect_url(
     url: Annotated[str, Field(description="Full URL to inspect; must belong to the configured Search Console property")],
 ) -> dict:
@@ -214,7 +309,7 @@ def gsc_inspect_url(
 
 
 @tool("Search Console sitemaps")
-@_guard
+@_guard("current state")
 def gsc_sitemaps() -> dict:
     """Sitemaps declared in Search Console, with last submission, last download, errors and warnings."""
     return _call("GET", f"https://www.googleapis.com/webmasters/v3/sites/{_site()}/sitemaps")
@@ -225,7 +320,7 @@ MERCHANT = "https://merchantapi.googleapis.com"
 
 
 @tool("Merchant Center data sources")
-@_guard
+@_guard("current state")
 def merchant_data_sources() -> dict:
     """Merchant Center data sources (feeds): labels, countries, languages, fetch URLs."""
     acc = _require(SETTINGS.merchant_account_id, "MERCHANT_ACCOUNT_ID")
@@ -233,7 +328,7 @@ def merchant_data_sources() -> dict:
 
 
 @tool("Merchant Center product issues")
-@_guard
+@_guard("current state; issues update a few hours after a feed fetch")
 def merchant_product_issues(
     limit: Annotated[int, Field(description="Maximum products returned (1 to 1000)", ge=1, le=1000)] = 50,
     only_with_issues: Annotated[bool, Field(description="True: only products with at least one issue; "
@@ -253,7 +348,10 @@ def merchant_product_issues(
             params["pageToken"] = token
         resp = _call("GET", f"{MERCHANT}/products/v1/accounts/{acc}/products", params=params)
         if "error" in resp:
-            return resp
+            if not pages:
+                return resp
+            # Keep what was already scanned: a quota hit on page 7 should not throw away pages 1 to 6.
+            return {"products": out, "scanned": scanned, "truncated": True, "partial": True, "partial_error": resp}
         pages += 1
         for product in resp.get("products", []):
             scanned += 1
@@ -274,7 +372,7 @@ def merchant_product_issues(
 
 
 @tool("Merchant Center report query")
-@_guard
+@_guard("performance tables lag about 1 day; product_view is current")
 def merchant_report_query(
     query: Annotated[str, Field(description="Merchant Center Query Language (MCQL) statement. Tables include "
                                 "product_view (must select id) and product_performance_view (clicks, impressions "
@@ -294,7 +392,7 @@ BUILT_IN_TRIGGERS = {"2147479553": "All Pages (built-in)", "2147479573": "Initia
 
 
 @tool("Tag Manager inventory")
-@_guard
+@_guard("current workspace state, which may differ from the live version")
 def gtm_inventory() -> dict:
     """Tags (type, paused, firing triggers, parameters), triggers and variables of the configured Google Tag Manager
     container's default workspace, plus the id of the live published version. Built-in trigger ids are translated,
@@ -303,30 +401,50 @@ def gtm_inventory() -> dict:
     accounts = _call("GET", f"{GTM_API}/accounts")
     if "error" in accounts:
         return accounts
+    errors: list[dict] = []
+
+    def fetch(step: str, url: str, key: str) -> list:
+        """One sub-request; on failure record which part is missing instead of returning an empty list silently."""
+        resp = _call("GET", url)
+        if "error" in resp:
+            errors.append({"step": step, **resp})
+            return []
+        return resp.get(key, [])
+
     for account in accounts.get("account", []):
-        for container in _call("GET", f"{GTM_API}/{account['path']}/containers").get("container", []):
+        for container in fetch(f"containers of {account['path']}", f"{GTM_API}/{account['path']}/containers", "container"):
             if container.get("publicId") != public_id:
                 continue
-            workspaces = _call("GET", f"{GTM_API}/{container['path']}/workspaces").get("workspace", [])
+            workspaces = fetch("workspaces", f"{GTM_API}/{container['path']}/workspaces", "workspace")
             if not workspaces:
-                return {"error": "no_workspace"}
+                return {"error": "no_workspace", "partial_errors": errors}
             base = f"{GTM_API}/{workspaces[0]['path']}"
             triggers = dict(BUILT_IN_TRIGGERS)
-            triggers.update({t["triggerId"]: t["name"] for t in _call("GET", f"{base}/triggers").get("trigger", [])})
+            triggers.update({t["triggerId"]: t["name"] for t in fetch("triggers", f"{base}/triggers", "trigger")})
             tags = [{"name": t["name"], "type": t["type"], "paused": t.get("paused", False),
                      "firing_triggers": [triggers.get(i, i) for i in t.get("firingTriggerId", [])],
                      "parameters": {p["key"]: p.get("value") for p in t.get("parameter", []) if "value" in p}}
-                    for t in _call("GET", f"{base}/tags").get("tag", [])]
+                    for t in fetch("tags", f"{base}/tags", "tag")]
+            variables = [v["name"] for v in fetch("variables", f"{base}/variables", "variable")]
             live = _call("GET", f"{GTM_API}/{container['path']}/versions:live")
-            return {"container": public_id, "workspace": workspaces[0].get("name"), "tags": tags,
-                    "triggers": sorted(set(triggers.values())),
-                    "variables": [v["name"] for v in _call("GET", f"{base}/variables").get("variable", [])],
-                    "live_version": {"id": live.get("containerVersionId"), "name": live.get("name")}}
+            if "error" in live:
+                errors.append({"step": "live version", **live})
+                live = {}
+            result = {"container": public_id, "workspace": workspaces[0].get("name"), "tags": tags,
+                      "triggers": sorted(set(triggers.values())), "variables": variables,
+                      "live_version": {"id": live.get("containerVersionId"), "name": live.get("name")}}
+            if errors:
+                result.update(partial=True, partial_errors=errors)
+            return result
+    if errors:
+        return {"error": "container_not_found", "detail": f"{public_id} not found; some accounts could not be read",
+                "partial_errors": errors}
     return {"error": "container_not_found", "detail": f"{public_id} is not visible to the authorized Google account"}
 
 
 # ------------------------------------------------------------------ Indexing API + PageSpeed
 @tool("Indexing API status")
+@_guard("current state")
 def indexing_status(
     url: Annotated[str, Field(description="Full URL to look up")],
 ) -> dict:
@@ -339,6 +457,7 @@ def indexing_status(
 
 
 @tool("PageSpeed Insights")
+@_guard("lab test run now; field_data covers the last 28 days")
 def pagespeed(
     url: Annotated[str, Field(description="Full public URL to test")],
     strategy: Annotated[Literal["mobile", "desktop"], Field(description="Device profile Lighthouse emulates")] = "mobile",
@@ -349,7 +468,9 @@ def pagespeed(
     if SETTINGS.pagespeed_api_key:
         params["key"] = SETTINGS.pagespeed_api_key
     try:
-        data = HTTP.get("https://www.googleapis.com/pagespeedonline/v5/runPagespeed", params=params, timeout=120).json()
+        data = _send("GET", "https://www.googleapis.com/pagespeedonline/v5/runPagespeed", params=params, timeout=120).json()
+    except Blocked as exc:
+        return {"error": "blocked", "detail": str(exc)}
     except (requests.RequestException, ValueError) as exc:
         return {"error": "network", "detail": str(exc)}
     if "error" in data:

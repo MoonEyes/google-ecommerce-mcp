@@ -121,9 +121,11 @@ def run(args) -> int:
             print(f"OAuth client file not found: {client_secret!r}. Create it first: docs/SETUP-GOOGLE-CLOUD.md")
             return 2
         from .auth import run_setup
+        from .config import scopes_for
 
+        scopes = scopes_for(merchant=bool(env.get("MERCHANT_ACCOUNT_ID")), indexing=getattr(args, "with_indexing", False))
         print("Your browser will open the Google consent screen. Tick every box.")
-        where = run_setup(str(Path(client_secret).expanduser()), args.token_file)
+        where = run_setup(str(Path(client_secret).expanduser()), args.token_file, scopes)
         print(f"Token stored in {where}.")
 
     # 2. Check with the values just entered

@@ -7,9 +7,14 @@ Twelve tools, all read-only. Every tool returns JSON. On failure a tool returns 
 | `not_configured` | The environment variable for this service is not set | Add it to the server `env` in your client config |
 | `not_authenticated` | No token stored | Run `google-ecommerce-mcp setup --client-secret ...` |
 | `network` | Google could not be reached | Check connectivity or proxy |
+| `missing_scope` | The token lacks the scope this API needs; `required_scope` names it | Rerun `setup` (with `--with-merchant` or `--with-indexing` for those services) |
+| `rate_limited` | Google quota hit; `retry_after_seconds` when Google sends it | Wait, or narrow the date range or `limit` |
+| `blocked` | The request is not on the read-only allow-list and was not sent | Should never happen; open an issue |
 | an HTTP status (`403`, `404`, ...) | Google refused the call; `detail` holds Google's message | See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) |
 
 Row-returning tools cap `limit` at 1,000.
+
+Every result also carries `fetched_at` (UTC time of the read) and `freshness` (how far behind Google's data is, e.g. Search Console lags about 2 days). Report tools return the `date_range` actually queried. When some sub-requests fail, `merchant_product_issues` and `gtm_inventory` return what they could read with `partial: true` and the failing part in `partial_error` / `partial_errors`.
 
 ## Contents
 

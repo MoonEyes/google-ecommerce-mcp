@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.2.0 (2026-10-04)
+
+Read-only is now enforced, not just declared (feedback from r/mcp).
+
+- **Runtime allow-list.** Every outgoing request is checked against `ALLOWED_ENDPOINTS` in `server.py` before it
+  leaves the process; anything else returns `{"error": "blocked"}` without a network call. `readOnlyHint` stays,
+  but it is only a hint a client may ignore.
+- **Build gate.** `test_every_request_is_on_the_read_only_allow_list` runs every tool and fails CI on any blocked
+  attempt; `test_allow_list_has_no_write_endpoint` fails if the list itself gains a write endpoint.
+- **Least-privilege scopes.** `setup` now requests only read-only scopes by default. The write-capable
+  `content` (Merchant Center) and `indexing` scopes need `--with-merchant` / `--with-indexing`; the installer
+  adds `content` only when a Merchant Center id is given. `server_status` lists the granted scopes and flags the
+  write-capable ones. **Existing users:** rerun `setup` to drop scopes you do not use.
+- **Structured failures.** A missing scope returns `missing_scope` with the exact `required_scope` and the fix;
+  a quota hit returns `rate_limited` with `retry_after_seconds`. Merchant pagination keeps the pages already read
+  (`partial: true`), and `gtm_inventory` reports which sub-request failed instead of returning empty lists.
+- **Explicit freshness.** Every result carries `fetched_at` (UTC) and `freshness` (how far behind Google's data
+  is); report tools also return the `date_range` actually queried.
+
 ## 0.1.4 (2026-10-04)
 
 - The server now reports its own version in the MCP handshake (it reported the `mcp` library version).

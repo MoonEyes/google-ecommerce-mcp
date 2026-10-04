@@ -48,8 +48,10 @@ The anonymous PageSpeed quota is shared by everyone and often exhausted. **APIs 
 Easiest: run the one-line installer from the [README](../README.md#quick-install). It asks for the client file and your ids (step 8), authorizes and registers the server in Claude Desktop. Manual alternative:
 
 ```bash
-uvx google-ecommerce-mcp setup --client-secret ~/Downloads/client_secret_XXXX.json
+uvx google-ecommerce-mcp setup --client-secret ~/Downloads/client_secret_XXXX.json --with-merchant
 ```
+
+Only read-only scopes are requested by default. Add `--with-merchant` if you use Merchant Center and `--with-indexing` if you need `indexing_status`: Google has no read-only scope for these two.
 
 Sign in with the Google account that has access to your GA4 property, Search Console property, Merchant Center account and GTM container, and tick every scope. The token goes to your OS keyring.
 

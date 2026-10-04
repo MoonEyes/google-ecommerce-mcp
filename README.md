@@ -89,7 +89,8 @@ Full walkthrough with every click explained: [docs/SETUP-GOOGLE-CLOUD.md](https:
 
 ```bash
 # with uv (recommended): nothing to install, uvx fetches the package from PyPI
-uvx google-ecommerce-mcp setup --client-secret path/to/client_secret.json
+uvx google-ecommerce-mcp setup --client-secret path/to/client_secret.json --with-merchant
+# read-only scopes only by default; --with-merchant / --with-indexing add the write-capable ones you need
 
 # or with pip
 pip install google-ecommerce-mcp
@@ -149,8 +150,9 @@ Every variable is optional: a tool for a service you did not configure simply an
 
 Details: [docs/SECURITY.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/SECURITY.md).
 
-- The server never calls a write endpoint (no Tag Manager publish, no feed upload, no sitemap submission). `tests/test_server.py::test_every_call_is_read_only` checks every outgoing call.
-- Scopes are read-only except **Merchant Center** (`content`) and **Indexing API** (`indexing`): Google has no read-only scope for these. The server does not use them to write, but treat the token as sensitive, or remove those scopes if you do not need the services.
+- Read-only is enforced, not just declared: every request is checked against an allow-list before it is sent, and CI fails if any tool tries an endpoint outside it. `readOnlyHint` is only a hint.
+- `setup` requests read-only scopes only. Google has no read-only scope for **Merchant Center** (`content`) or the **Indexing API** (`indexing`); they are requested only with `--with-merchant` / `--with-indexing`, and `server_status` flags them when present.
+- Every result carries `fetched_at` and `freshness`; report tools return the `date_range` queried.
 - Revoke access at any time from your [Google account permissions](https://myaccount.google.com/permissions).
 
 ## Limitations

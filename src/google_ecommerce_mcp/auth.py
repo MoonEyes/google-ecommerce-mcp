@@ -14,7 +14,7 @@ from pathlib import Path
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
-from .config import KEYRING_SERVICE, KEYRING_USER, SCOPES
+from .config import KEYRING_SERVICE, KEYRING_USER, READ_ONLY_SCOPES
 
 
 class NotAuthenticated(Exception):
@@ -64,11 +64,21 @@ class TokenProvider:
             self._creds.refresh(Request())
         return {"Authorization": f"Bearer {self._creds.token}", "Content-Type": "application/json"}
 
+    def granted_scopes(self) -> list[str]:
+        """Scopes recorded with the stored token (empty when no token is stored)."""
+        if self._creds is None:
+            raw = _read_raw(self._token_file)
+            if not raw:
+                return []
+            self._creds = Credentials.from_authorized_user_info(json.loads(raw))
+        return sorted(getattr(self._creds, "granted_scopes", None) or self._creds.scopes or [])
 
-def run_setup(client_secret: str, token_file: str | None) -> str:
-    """Interactive OAuth consent in the browser, then store the token. Returns where it was stored."""
+
+def run_setup(client_secret: str, token_file: str | None, scopes: list[str] | None = None) -> str:
+    """Interactive OAuth consent in the browser, then store the token. Returns where it was stored.
+    Only read-only scopes are requested unless the caller passes write-capable ones explicitly."""
     from google_auth_oauthlib.flow import InstalledAppFlow
 
-    flow = InstalledAppFlow.from_client_secrets_file(client_secret, SCOPES)
+    flow = InstalledAppFlow.from_client_secrets_file(client_secret, scopes or READ_ONLY_SCOPES)
     creds = flow.run_local_server(port=0, open_browser=True, prompt="consent")
     return save_token(creds.to_json(), token_file)
