@@ -126,3 +126,10 @@ def test_every_tool_is_declared_read_only_and_documented(server):
         assert t.title and len(t.description) > 60, t.name
         for name, prop in t.inputSchema.get("properties", {}).items():
             assert prop.get("description"), f"{t.name}.{name} has no description"
+
+
+def test_server_reports_its_own_version(server):
+    from google_ecommerce_mcp import __version__
+
+    options = server.mcp._mcp_server.create_initialization_options()
+    assert options.server_version == __version__ and options.instructions

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4 (2026-10-04)
+
+- The server now reports its own version in the MCP handshake (it reported the `mcp` library version).
+- Server instructions tell the assistant which tool answers which kind of question.
+- Version 0.1.3 was skipped: the number was taken by a build on Glama with the same code as 0.1.2.
+
 ## 0.1.2 (2026-10-04)
 
 - Every tool carries a title, a fuller description and the standard MCP annotations

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "google-ecommerce-mcp"
-version = "0.1.2"
+version = "0.1.4"
 description = "Read-only MCP server giving AI assistants one door to the Google services an online shop lives on: GA4, Search Console, Merchant Center, Tag Manager, Indexing API and PageSpeed."
 readme = "README.md"
 license = "MIT"

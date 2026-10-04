@@ -22,7 +22,18 @@ HTTP = requests.Session()
 TIMEOUT = 60
 MAX_ROWS = 1000
 
-mcp = FastMCP("google-ecommerce-mcp")
+mcp = FastMCP(
+    "google-ecommerce-mcp",
+    instructions=(
+        "Read-only access to the shop's Google accounts. Start with server_status to see which services are "
+        "configured. Traffic and revenue: ga4_report (ga4_realtime for the last 30 minutes). Organic search: "
+        "gsc_performance, gsc_inspect_url for one URL's index state, gsc_sitemaps. Product feeds and "
+        "disapprovals: merchant_product_issues, merchant_data_sources, merchant_report_query. Tracking setup: "
+        "gtm_inventory. Speed: pagespeed. No tool can modify anything."
+    ),
+    website_url="https://github.com/MoonEyes/google-ecommerce-mcp",
+)
+mcp._mcp_server.version = __version__  # otherwise clients see the mcp library version
 
 # Every tool only reads from Google: declared to MCP clients through the standard annotations.
 READ_ONLY = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True)
