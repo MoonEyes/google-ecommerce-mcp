@@ -45,6 +45,8 @@ The anonymous PageSpeed quota is shared by everyone and often exhausted. **APIs 
 
 ## 7. Authorize
 
+Easiest: run the one-line installer from the [README](../README.md#quick-install). It asks for the client file and your ids (step 8), authorizes and registers the server in Claude Desktop. Manual alternative:
+
 ```bash
 uvx --from git+https://github.com/MoonEyes/google-ecommerce-mcp google-ecommerce-mcp setup --client-secret ~/Downloads/client_secret_XXXX.json
 ```

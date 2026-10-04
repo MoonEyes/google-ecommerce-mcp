@@ -13,6 +13,7 @@ Interactive version: [`diagrams/architecture-overview.html`](diagrams/architectu
 | Entry point | `src/google_ecommerce_mcp/__main__.py` | `setup`, `check`, or (default) run the MCP server over stdio |
 | Configuration | `config.py` | Reads account ids from environment variables, defines the OAuth scopes |
 | Credentials | `auth.py` | Stores the refresh token in the OS keyring (or a file), refreshes access tokens in memory |
+| Installer | `installer.py` | `install` command: prompts, OAuth setup, Claude Desktop config merge with backup |
 | Tools | `server.py` | 12 FastMCP tools, one HTTP session, every call wrapped so errors come back as data |
 
 There is no database, no cache on disk, no background job and no network listener.

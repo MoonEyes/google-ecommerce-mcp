@@ -13,6 +13,20 @@ Install [uv](https://docs.astral.sh/uv/getting-started/installation/), or use an
 **`ImportError: cannot import name 'FastMCP'`.**
 The `mcp` package 2.x renamed it. This project pins `mcp<2`; reinstall in a clean environment (`uvx` does this automatically).
 
+## Installer
+
+**`irm ... | iex` is blocked by the execution policy.** Run `Set-ExecutionPolicy -Scope Process Bypass` in the same PowerShell window, then the install line again. This only affects that window.
+
+**`uvx is not on PATH` after uv was installed.** Open a new terminal (the uv installer updates PATH for new sessions) and rerun the installer.
+
+**`A server named 'google-ecommerce' already exists`.** You installed before. Rerun with `--force` to replace it, or `--name google-shop-2` to add a second shop.
+
+**`... is not valid JSON`.** Your Claude Desktop config has a syntax error (often a missing comma after a manual edit). Fix it or rename it, then rerun. The installer never overwrites a file it cannot parse.
+
+**Restore the previous Claude Desktop config.** Every change leaves `claude_desktop_config.json.bak-YYYYMMDD-HHMMSS` next to it. Copy it back over `claude_desktop_config.json`.
+
+**Update to the latest version.** Run the install line again: it refreshes the package and keeps your token (answer *No* to "Authorize again?").
+
 ## Authentication
 
 **`not_authenticated`.** No token stored for this OS user. Run `setup`. If you set `GOOGLE_TOKEN_FILE` during setup, set the same value in the client config.

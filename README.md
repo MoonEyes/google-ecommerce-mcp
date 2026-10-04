@@ -48,7 +48,27 @@ Built by [MoonEyes](https://www.mooneyeswargame.com), a small French shop sellin
 | `indexing_status` | Indexing API | What Google knows about a submitted URL |
 | `pagespeed` | PageSpeed Insights | Lighthouse performance and SEO scores, Core Web Vitals |
 
-## Setup
+## Quick install
+
+Create your Google OAuth client first ([step 1 below](#1-google-cloud-once-about-10-minutes)), then run one line. The installer installs [uv](https://docs.astral.sh/uv/) if needed, asks your ids, opens the Google consent screen and adds the server to Claude Desktop (your previous config is backed up).
+
+**Windows** (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/MoonEyes/google-ecommerce-mcp/main/install.ps1 | iex
+```
+
+**macOS / Linux**:
+
+```bash
+curl -LsSf https://raw.githubusercontent.com/MoonEyes/google-ecommerce-mcp/main/install.sh | sh
+```
+
+Then quit Claude Desktop completely and reopen it. Prefer to read a script before running it? Download it, read it, then run it with options, for example `.\install.ps1 --ga4 123456789 --gsc sc-domain:example.com --client-secret client_secret.json`. Run `google-ecommerce-mcp install --help` for every option.
+
+## Setup, step by step
+
+If you used the quick install, you only need step 1. The steps below are the manual path.
 
 ### 1. Google Cloud (once, about 10 minutes)
 
