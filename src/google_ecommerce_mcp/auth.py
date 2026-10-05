@@ -92,5 +92,5 @@ def run_setup(client_secret: str, token_file: str | None, scopes: list[str] | No
     from google_auth_oauthlib.flow import InstalledAppFlow
 
     flow = InstalledAppFlow.from_client_secrets_file(client_secret, scopes or READ_ONLY_SCOPES)
-    creds = flow.run_local_server(port=0, open_browser=True, prompt="consent")
+    creds = flow.run_local_server(port=0, open_browser=True, prompt="consent select_account")
     return save_token(creds.to_json(), token_file)

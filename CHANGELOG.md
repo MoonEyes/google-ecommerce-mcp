@@ -25,6 +25,7 @@ Responses a model can read without guessing (feedback from r/mcp).
   Enable the *Google Analytics Admin API* in your Cloud project to use it.
 - **`api_disabled` error** names the Google Cloud API to enable instead of returning a bare 403.
 - The allow-list now accepts reading a single Merchant Center product (`GET .../products/{name}`); it was refused as `blocked`.
+- `setup` now always shows the Google account chooser (`prompt=consent select_account`), so the token is no longer silently issued for whichever account the browser is signed in to.
 
 ## 0.2.0 (2026-10-04)
 
