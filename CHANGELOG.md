@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1 (2026-10-05)
+
+- An expired or revoked Google token now returns `not_authenticated` with the fix (rerun `setup`) instead of raising
+  `RefreshError` out of every tool. The message explains that apps whose OAuth consent screen is in *Testing* get
+  tokens that expire after 7 days. Found while checking 0.3.0 against a live account.
+
 ## 0.3.0 (2026-10-05)
 
 Responses a model can read without guessing (feedback from r/mcp).

@@ -18,8 +18,14 @@ from .config import KEYRING_SERVICE, KEYRING_USER, READ_ONLY_SCOPES
 
 
 class NotAuthenticated(Exception):
-    def __init__(self) -> None:
-        super().__init__("No Google token found. Run `google-ecommerce-mcp setup --client-secret <file>` first.")
+    def __init__(self, message: str = "No Google token found. Run `google-ecommerce-mcp setup --client-secret <file>` "
+                                      "first.") -> None:
+        super().__init__(message)
+
+
+EXPIRED = ("The stored Google token has expired or was revoked. Run `google-ecommerce-mcp setup --client-secret "
+           "<file>` again (rerun the install line also works). Apps whose OAuth consent screen is in Testing get "
+           "tokens that expire after 7 days: publish the app (In production) to avoid this.")
 
 
 def _read_raw(token_file: str | None) -> str | None:
@@ -61,7 +67,13 @@ class TokenProvider:
                 raise NotAuthenticated()
             self._creds = Credentials.from_authorized_user_info(json.loads(raw))
         if not self._creds.valid:
-            self._creds.refresh(Request())
+            from google.auth.exceptions import RefreshError
+
+            try:
+                self._creds.refresh(Request())
+            except RefreshError as exc:
+                self._creds = None  # read the token again next call, in case setup was rerun meanwhile
+                raise NotAuthenticated(EXPIRED if "invalid_grant" in str(exc) else f"Token refresh failed: {exc}") from exc
         return {"Authorization": f"Bearer {self._creds.token}", "Content-Type": "application/json"}
 
     def granted_scopes(self) -> list[str]:

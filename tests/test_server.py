@@ -374,3 +374,24 @@ def test_gsc_totals_failure_is_partial_not_fatal(server, monkeypatch):
     use(server, monkeypatch, [("searchAnalytics", answer)])
     result = server.gsc_performance()
     assert result["rows"] == [] and result["partial"] is True and result["partial_error"]["step"] == "totals"
+
+
+def test_expired_token_is_reported_not_raised(server, monkeypatch):
+    """Found live on 05/10/2026: a revoked refresh token raised RefreshError out of every tool."""
+    from google.auth.exceptions import RefreshError
+    from google_ecommerce_mcp.auth import TokenProvider
+
+    provider = TokenProvider(None)
+
+    class Expired:
+        valid = False
+
+        def refresh(self, request):
+            raise RefreshError("invalid_grant: Token has been expired or revoked.")
+
+    provider._creds = Expired()
+    monkeypatch.setattr(server, "TOKENS", provider)
+    session = use(server, monkeypatch, [("", FakeResponse(200, {}))])
+    result = server.ga4_report()
+    assert result["error"] == "not_authenticated" and "expired" in result["detail"] and "7 days" in result["detail"]
+    assert "setup" in result["fix"] and session.calls == [] and provider._creds is None

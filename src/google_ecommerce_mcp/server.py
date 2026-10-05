@@ -145,7 +145,8 @@ def _call(method: str, url: str, **kwargs) -> dict:
     except Blocked as exc:
         return {"error": "blocked", "detail": str(exc)}
     except NotAuthenticated as exc:
-        return {"error": "not_authenticated", "detail": str(exc)}
+        return {"error": "not_authenticated", "detail": str(exc),
+                "fix": "rerun `google-ecommerce-mcp setup --client-secret <file>` (or the install line)"}
     except requests.RequestException as exc:
         return {"error": "network", "detail": str(exc)}
     try:

@@ -31,7 +31,7 @@ The `mcp` package 2.x renamed it. This project pins `mcp<2`; reinstall in a clea
 
 **`not_authenticated`.** No token stored for this OS user. Run `setup`. If you set `GOOGLE_TOKEN_FILE` during setup, set the same value in the client config.
 
-**`invalid_grant` / `Token has been expired or revoked`.**
+**`not_authenticated` saying the token expired, or `invalid_grant` / `Token has been expired or revoked`.** If it happens every week, your OAuth consent screen is in *Testing*: Google expires those tokens after 7 days. Set it to *In production* (no verification needed for your own use), then rerun `setup`.
 - Your OAuth app is External and in *Testing*: refresh tokens expire after 7 days. Publish the app (see [SETUP-GOOGLE-CLOUD.md](SETUP-GOOGLE-CLOUD.md#3-configure-the-oauth-consent-screen)) and rerun `setup`.
 - You changed your Google password or revoked the app: rerun `setup`.
 
