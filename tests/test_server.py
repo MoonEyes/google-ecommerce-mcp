@@ -163,6 +163,7 @@ def test_missing_scope_names_the_scope_to_grant(server, monkeypatch):
     result = server.merchant_product_issues()
     assert result["error"] == "missing_scope"
     assert result["required_scope"] == "https://www.googleapis.com/auth/content" and "--with-merchant" in result["fix"]
+    assert result["missing_scopes"] == ["https://www.googleapis.com/auth/content"]
 
 
 def test_rate_limit_is_structured(server, monkeypatch):
@@ -190,6 +191,20 @@ def test_gtm_reports_which_part_failed(server, monkeypatch):
     result = server.gtm_inventory()
     assert result["tags"] and result["partial"] is True
     assert result["partial_errors"][0]["step"] == "variables"
+
+
+def test_gtm_partial_result_lists_every_missing_scope(server, monkeypatch):
+    """A scope error inside a partial result must name the scope to grant, like a single-call tool does, so the
+    caller gets a partial result plus exactly what is missing instead of having to parse each partial error."""
+    scope_error = {"error": {"code": 403, "status": "PERMISSION_DENIED",
+                             "message": "Request had insufficient authentication scopes."}}
+    rules = [r for r in GTM_RULES if r[0] != "/workspaces/1/variables"]
+    use(server, monkeypatch, [("/workspaces/1/variables", FakeResponse(403, scope_error))] + rules)
+    result = server.gtm_inventory()
+    assert result["partial"] is True and result["tags"]
+    assert result["missing_scopes"] == [p["required_scope"] for p in result["partial_errors"]
+                                        if p.get("error") == "missing_scope"]
+    assert result["missing_scopes"] and all(s.startswith("https://www.googleapis.com/auth/") for s in result["missing_scopes"])
 
 
 def test_missing_configuration_is_reported(server, monkeypatch):

@@ -123,6 +123,7 @@ def _api_error(response, data, url: str) -> dict:
     if response.status_code == 403 and ("SCOPE_INSUFFICIENT" in text or "insufficient authentication scopes" in text):
         scope = _scope_for(url)
         return {"error": "missing_scope", "required_scope": scope,
+                "missing_scopes": [scope] if scope else [],
                 "fix": "rerun `google-ecommerce-mcp setup` and grant this scope"
                        + (" (add --with-merchant or --with-indexing)" if scope in WRITE_CAPABLE_SCOPES else ""),
                 "detail": detail}
@@ -137,6 +138,16 @@ def _api_error(response, data, url: str) -> dict:
         return {"error": "rate_limited", "retry_after_seconds": headers.get("Retry-After"),
                 "fix": "wait and retry, or narrow the request (shorter date range, smaller limit)", "detail": detail}
     return {"error": response.status_code, "detail": detail}
+
+
+def _missing_scopes(errors: list[dict]) -> list[str]:
+    """Every scope named by a `missing_scope` error in a partial result, once each, in order."""
+    found: list[str] = []
+    for error in errors:
+        for scope in error.get("missing_scopes", []):
+            if scope not in found:
+                found.append(scope)
+    return found
 
 
 def _call(method: str, url: str, **kwargs) -> dict:
@@ -561,7 +572,7 @@ def gtm_inventory() -> dict:
                       "triggers": sorted(set(triggers.values())), "variables": variables,
                       "live_version": {"id": live.get("containerVersionId"), "name": live.get("name")}}
             if errors:
-                result.update(partial=True, partial_errors=errors)
+                result.update(partial=True, partial_errors=errors, missing_scopes=_missing_scopes(errors))
             return result
     if errors:
         return {"error": "container_not_found", "detail": f"{public_id} not found; some accounts could not be read",
