@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **Installers no longer move under the user.** `install.ps1` and `install.sh` install the exact package version they
+  were released with (`google-ecommerce-mcp==0.3.1`) instead of whatever PyPI serves that day, and their headers no
+  longer advertise a branch URL. The README now leads with "download, read, run", gives a one-line form pinned to an
+  exact commit, and publishes the SHA-256 of each script. `tests/test_installer_scripts.py` keeps all of it in step
+  with `pyproject.toml`. Each release must bump the version in both scripts and refresh the README pin and checksums.
+  Not covered: the uv installer the scripts call from astral.sh is still unpinned, and the server entry written into
+  Claude Desktop still runs `uvx google-ecommerce-mcp` (latest) on each start.
+
 ## 0.3.1 (2026-10-05)
 
 - An expired or revoked Google token now returns `not_authenticated` with the fix (rerun `setup`) instead of raising
