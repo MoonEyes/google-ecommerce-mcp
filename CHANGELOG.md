@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Missing scopes are a list.** A `missing_scope` error now also carries `missing_scopes` (a list holding the one
+  scope to grant), and a partial result from `gtm_inventory` lists every scope its failed sub-requests were missing, so
+  the caller gets the partial data plus exactly what to grant. `missing_scope` and `required_scope` are unchanged. Still
+  true: only the tools that make several calls (Merchant, `ga4_properties`, `gsc_performance`, `gtm_inventory`) return
+  partial results; a single-call tool whose scope is missing returns the structured error alone, and `date_range` is
+  still only on `ga4_report` and `gsc_performance`.
 - **Installers no longer move under the user.** `install.ps1` and `install.sh` install the exact package version they
   were released with (`google-ecommerce-mcp==0.3.1`) instead of whatever PyPI serves that day, and their headers no
   longer advertise a branch URL. The README now leads with "download, read, run", gives a one-line form pinned to an
