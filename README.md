@@ -56,21 +56,44 @@ Built by [MoonEyes](https://www.mooneyeswargame.com), a small French shop sellin
 
 ## Quick install
 
-Create your Google OAuth client first ([step 1 below](#1-google-cloud-once-about-10-minutes)), then run one line. The installer installs [uv](https://docs.astral.sh/uv/) if needed, asks your ids, opens the Google consent screen and adds the server to Claude Desktop (your previous config is backed up).
+Create your Google OAuth client first ([step 1 below](#1-google-cloud-once-about-10-minutes)), then run the installer. It installs [uv](https://docs.astral.sh/uv/) if needed, asks your ids, opens the Google consent screen and adds the server to Claude Desktop (your previous config is backed up). It installs the exact package version it was released with (`google-ecommerce-mcp==0.3.1`).
+
+**Recommended: download, read, run.** The URLs name an exact commit, not a branch, so the script cannot change under you.
 
 **Windows** (PowerShell):
 
 ```powershell
-irm https://raw.githubusercontent.com/MoonEyes/google-ecommerce-mcp/main/install.ps1 | iex
+Invoke-WebRequest https://raw.githubusercontent.com/MoonEyes/google-ecommerce-mcp/21928c4d20b3a939ca7d8084c6a8737d2899d2db/install.ps1 -OutFile install.ps1
+Get-Content .\install.ps1            # read it
+(Get-FileHash .\install.ps1 -Algorithm SHA256).Hash   # compare with the SHA-256 below
+.\install.ps1
 ```
 
 **macOS / Linux**:
 
 ```bash
-curl -LsSf https://raw.githubusercontent.com/MoonEyes/google-ecommerce-mcp/main/install.sh | sh
+curl -LsSf -o install.sh https://raw.githubusercontent.com/MoonEyes/google-ecommerce-mcp/21928c4d20b3a939ca7d8084c6a8737d2899d2db/install.sh
+cat install.sh                       # read it
+shasum -a 256 install.sh             # compare with the SHA-256 below
+sh install.sh
 ```
 
-Then quit Claude Desktop completely and reopen it. Prefer to read a script before running it? Download it, read it, then run it with options, for example `.\install.ps1 --ga4 123456789 --gsc sc-domain:example.com --client-secret client_secret.json`. Run `google-ecommerce-mcp install --help` for every option.
+SHA-256 of the pinned scripts:
+
+- `install.ps1`: `eb1adb179991fa9574d91948ffd639a4253094f1601a7ced2ea3ffd1225c4110`
+- `install.sh`: `e69dfb3e9e86aea30848c7012259325e811da159fa00b4cdea291730b9cb6c57`
+
+**One line, if you accept to run it without reading** (same pinned commit, so the SHA-256 above still applies):
+
+```powershell
+irm https://raw.githubusercontent.com/MoonEyes/google-ecommerce-mcp/21928c4d20b3a939ca7d8084c6a8737d2899d2db/install.ps1 | iex
+```
+
+```bash
+curl -LsSf https://raw.githubusercontent.com/MoonEyes/google-ecommerce-mcp/21928c4d20b3a939ca7d8084c6a8737d2899d2db/install.sh | sh
+```
+
+Then quit Claude Desktop completely and reopen it. To pass options, save the script first, for example `.\install.ps1 --ga4 123456789 --gsc sc-domain:example.com --client-secret client_secret.json`. Run `google-ecommerce-mcp install --help` for every option. Maintainers: each release bumps the version in both scripts, then refreshes the commit in these URLs and the checksums (`tests/test_installer_scripts.py` fails until they match).
 
 ## Setup, step by step
 

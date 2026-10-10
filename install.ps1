@@ -1,11 +1,13 @@
 # google-ecommerce-mcp installer for Windows.
 #
-#   irm https://raw.githubusercontent.com/MoonEyes/google-ecommerce-mcp/main/install.ps1 | iex
+# Save it, read it, then run it:  .\install.ps1
+# The README gives a one-line form pinned to an exact commit, and the SHA-256 of this file.
 #
 # 1. installs uv (Astral's official installer) if it is missing,
-# 2. runs `google-ecommerce-mcp install`: asks your ids, opens the Google consent screen,
+# 2. runs `google-ecommerce-mcp install`, pinned to the version this script was released with:
+#    asks your ids, opens the Google consent screen,
 #    adds the server to Claude Desktop (the previous config is backed up).
-# Options work when the script is saved first: .\install.ps1 --ga4 123 --gsc sc-domain:example.com
+# Options: .\install.ps1 --ga4 123 --gsc sc-domain:example.com
 
 $ErrorActionPreference = "Stop"
 
@@ -21,7 +23,7 @@ if (-not (Get-Command uvx -ErrorAction SilentlyContinue)) {
     }
 }
 
-& uvx --refresh google-ecommerce-mcp install @args
+& uvx --refresh google-ecommerce-mcp==0.3.1 install @args
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Installer stopped with code $LASTEXITCODE. See docs/TROUBLESHOOTING.md." -ForegroundColor Yellow
 }
