@@ -1,8 +1,8 @@
 # Releasing (maintainers)
 
-A checklist. **Nothing here has been done for the `feat/ads-connectors` branch**: no version bump, no tag, no publication. The next version suggested is **0.4.0** (new features: paid media connectors, `doctor`, guided setup). Do not publish anything until the branch is merged and reviewed.
+A checklist. Version **0.4.0** (paid media connectors, `doctor`, guided setup, client report) followed it: the version bump and the installer pins are in their own commit, the README pins that commit, and the tag is pushed only after the release pull request is merged.
 
-The current version is `0.3.1`.
+The previous version was `0.3.1`. The next release starts from `0.4.0`.
 
 ## Checklist
 
