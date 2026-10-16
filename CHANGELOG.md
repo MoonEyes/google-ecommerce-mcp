@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.4.0 (2026-10-16)
+
 ### Added
 
 - **Paid media connectors, read-only: Google Ads, Meta Ads, ChatGPT Ads (9 tools, 22 in total).** `gads_accounts`,

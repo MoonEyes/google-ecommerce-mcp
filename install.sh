@@ -27,7 +27,7 @@ fi
 
 # When piped from curl, stdin is the script itself: read answers from the terminal instead.
 if [ -t 0 ] || [ ! -r /dev/tty ]; then
-  exec uvx --refresh google-ecommerce-mcp==0.3.1 install "$@"
+  exec uvx --refresh google-ecommerce-mcp==0.4.0 install "$@"
 else
-  exec uvx --refresh google-ecommerce-mcp==0.3.1 install "$@" < /dev/tty
+  exec uvx --refresh google-ecommerce-mcp==0.4.0 install "$@" < /dev/tty
 fi
