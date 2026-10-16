@@ -23,7 +23,7 @@ if (-not (Get-Command uvx -ErrorAction SilentlyContinue)) {
     }
 }
 
-& uvx --refresh google-ecommerce-mcp==0.3.1 install @args
+& uvx --refresh google-ecommerce-mcp==0.4.0 install @args
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Installer stopped with code $LASTEXITCODE. See docs/TROUBLESHOOTING.md." -ForegroundColor Yellow
 }
