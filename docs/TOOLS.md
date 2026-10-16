@@ -1,6 +1,6 @@
 # Tool reference
 
-Thirteen tools, all read-only. Every tool returns JSON. On failure a tool returns an object with an `error` key instead of raising:
+22 tools, all read-only: 13 for Google services and 9 for paid media ([Google Ads, Meta Ads and ChatGPT Ads](#paid-media-tools)). Every tool returns JSON. On failure a tool returns an object with an `error` key instead of raising:
 
 | `error` value | Meaning | Fix |
 |---|---|---|
@@ -12,6 +12,7 @@ Thirteen tools, all read-only. Every tool returns JSON. On failure a tool return
 | `invalid_property_id` | `property_id` is not a numeric GA4 property id | Use an id from `ga4_properties` |
 | `rate_limited` | Google quota hit; `retry_after_seconds` when Google sends it | Wait, or narrow the date range or `limit` |
 | `blocked` | The request is not on the read-only allow-list and was not sent | Should never happen; open an issue |
+| `auth_failed`, `not_available`, `response_too_large`, `too_many_rows`, `resource_not_allowed`, `sensitive_resource`, `internal_error`, `invalid_*` | Paid media tools only, see [ADS.md](ADS.md#structured-errors) | See [ADS.md](ADS.md#structured-errors) |
 | an HTTP status (`403`, `404`, ...) | Google refused the call; `detail` holds Google's message | See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) |
 
 Row-returning tools cap `limit` at 1,000.
@@ -32,6 +33,7 @@ Report tools (`ga4_report`, `ga4_realtime`, `gsc_performance`) also return:
 - Merchant Center: [merchant_data_sources](#merchant_data_sources), [merchant_product_issues](#merchant_product_issues), [merchant_report_query](#merchant_report_query)
 - Tag Manager: [gtm_inventory](#gtm_inventory)
 - [indexing_status](#indexing_status), [pagespeed](#pagespeed)
+- Paid media: [gads_accounts](#gads_accounts), [gads_performance](#gads_performance), [gads_query](#gads_query), [meta_ad_accounts](#meta_ad_accounts), [meta_insights](#meta_insights), [openai_ads_account](#openai_ads_account), [openai_ads_insights](#openai_ads_insights), [openai_ads_conversions](#openai_ads_conversions), [ads_overview](#ads_overview)
 
 ---
 
@@ -270,3 +272,243 @@ PageSpeed Insights (Lighthouse) performance and SEO scores plus Core Web Vitals.
 `field_data` is the Chrome UX Report category when Google has enough real-user data, otherwise `null`.
 
 Ask: *"Mobile PageSpeed of our home page and three best-selling product pages."*
+
+---
+
+# Paid media tools
+
+Nine read-only tools for Google Ads, Meta Ads and ChatGPT Ads. Prerequisites, GAQL rules, every error and the known limits are in [ADS.md](ADS.md). The examples below show the shape of an answer with illustrative values, not real data. **These tools have been tested offline only**, against fake responses.
+
+Common to all nine:
+
+- Money is in the account currency and is never converted.
+- Every result carries `fetched_at`, `freshness` and an `attribution` block (the windows or the rule the platform applied).
+- Errors are data. Besides the Google errors above, these tools return `auth_failed`, `not_available`, `response_too_large`, `too_many_rows`, `resource_not_allowed`, `sensitive_resource`, `internal_error` and `invalid_*` codes, each with `platform`, `detail` and `fix`. `blocked` and `network` have the same meaning as above. `rate_limited` is never retried automatically.
+- **Conversions are attributed by each platform on its own, and overlap between platforms. Their sum is not deduplicated and overstates real orders.**
+
+Contents: [gads_accounts](#gads_accounts), [gads_performance](#gads_performance), [gads_query](#gads_query), [meta_ad_accounts](#meta_ad_accounts), [meta_insights](#meta_insights), [openai_ads_account](#openai_ads_account), [openai_ads_insights](#openai_ads_insights), [openai_ads_conversions](#openai_ads_conversions), [ads_overview](#ads_overview)
+
+---
+
+## gads_accounts
+
+Google Ads customer accounts the Google Ads token can read directly. No parameters. Needs the separate token from `google-ecommerce-mcp setup-ads`. Cached 5 minutes.
+
+```json
+{"customers": [{"id": "1234567890"}], "configured_customer_id": "1234567890",
+ "login_customer_id": null, "cached": false}
+```
+
+Ask: *"Which Google Ads accounts can you see?"*
+
+---
+
+## gads_performance
+
+Performance by account, campaign or ad group from fixed aggregated GAQL templates, highest spend first. Needs `GADS_CUSTOMER_ID` (or `customer_id`).
+
+| Parameter | Type | Default | Notes |
+|---|---|---|---|
+| `level` | `account`, `campaign`, `ad_group` | `campaign` | |
+| `start_date` | str | none | `YYYY-MM-DD`, required in practice (empty gives `invalid_dates`) |
+| `end_date` | str | none | `YYYY-MM-DD`, required in practice |
+| `segment` | `none`, `date`, `device`, `network` | `none` | |
+| `limit` | int | `50` | 1 to 1,000 |
+| `customer_id` | str | `""` | empty uses `GADS_CUSTOMER_ID` |
+
+```json
+{"customer_id": "1234567890", "level": "campaign", "segment": "none",
+ "rows": [{"campaign_id": "111", "campaign_name": "Shop - Search", "spend": 120.5, "impressions": 9100,
+           "clicks": 410, "conversions": 12.0, "conversion_value": 640.0, "ctr": 0.045, "cpc": 0.29,
+           "cpa": 10.04, "roas": 5.31}],
+ "row_count": 8, "truncated": false, "totals": {"spend": 301.2, "conversions": 25.0, "roas": 4.8},
+ "totals_complete": true, "currency": "EUR",
+ "date_range": {"start": "2026-09-01", "end": "2026-09-30", "timezone": "Europe/Paris", "data_complete": true},
+ "attribution": {"basis": "conversion action settings", "window": "per conversion action"}}
+```
+
+`totals` cover up to 10,000 rows (`totals_complete` says whether that was all of them). Total ROAS is the sum of values over the sum of spends. Conversions are those of the actions included in "Conversions", reported on the date of the ad interaction.
+
+Ask: *"Google Ads campaigns by spend last month, with conversions and ROAS."*
+
+---
+
+## gads_query
+
+One free read-only GAQL `SELECT`, validated before any request. Needs `GADS_CUSTOMER_ID` (or `customer_id`).
+
+| Parameter | Type | Default | Notes |
+|---|---|---|---|
+| `gaql` | str | required | e.g. `SELECT campaign.name, metrics.clicks FROM campaign WHERE segments.date DURING LAST_7_DAYS` |
+| `customer_id` | str | `""` | empty uses `GADS_CUSTOMER_ID` |
+| `limit` | int | `100` | rows returned, 1 to 1,000 |
+
+Refused: `;`, `--`, `/*`, `*/` and `\` anywhere (even inside a string), a second `SELECT` or `FROM`, `JOIN`, resources outside the reporting allow-list (`resource_not_allowed`), personal-data and billing names (`sensitive_resource`) unless `GADS_ALLOW_SENSITIVE_QUERIES=1`. A missing `LIMIT` becomes `LIMIT 10001`; a larger one is lowered to 10001. Full rules and the allowed resources: [ADS.md](ADS.md#free-gaql-queries).
+
+```json
+{"customer_id": "1234567890",
+ "rows": [{"campaign.name": "Shop - Search", "metrics.clicks": 410}],
+ "row_count": 1, "truncated": false, "read_complete": true, "batches": 1,
+ "units_note": "micros converted to currency units ...", "attribution": {"basis": "conversion action settings"}}
+```
+
+Micros fields are returned in currency units: `metrics.cost_micros` becomes `metrics.cost`.
+
+Ask: *"List the conversion actions of the account with their status."* (`conversion_action` resource)
+
+---
+
+## meta_ad_accounts
+
+Meta ad accounts the access token can read. No parameters. Needs `META_ACCESS_TOKEN` or the keyring secret. Cached 5 minutes.
+
+```json
+{"accounts": [{"id": "act_1234567890", "account_id": "1234567890", "name": "Shop FR", "account_status": 1,
+               "account_status_label": "ACTIVE", "currency": "EUR", "timezone_name": "Europe/Paris"}],
+ "count": 1, "complete": true, "configured_account_id": "1234567890", "api_version": "v26.0", "cached": false}
+```
+
+Ask: *"Which Meta ad accounts can you see, and which one is configured?"*
+
+---
+
+## meta_insights
+
+Meta Insights by level. Needs the token and `META_AD_ACCOUNT_ID` (or `account_id`).
+
+| Parameter | Type | Default | Notes |
+|---|---|---|---|
+| `level` | `account`, `campaign`, `adset`, `ad` | `account` | |
+| `start_date`, `end_date` | str | `""` | `YYYY-MM-DD`, both or neither |
+| `date_preset` | str | `""` | `today`, `yesterday`, `this_month`, `last_month`, `last_7d`, `last_28d`... exclusive with dates; all empty means `last_28d` |
+| `breakdowns` | list | `[]` | `age`, `gender`, `country`, `region`, `publisher_platform`, `platform_position`, `device_platform`, `impression_device` |
+| `attribution_windows` | list | `[]` | `1d_click`, `7d_click`, `28d_click`, `1d_view`, `1d_ev`; empty means Meta's default (7-day click + 1-day view) |
+| `time_increment` | `all_days`, `1` | `all_days` | `1` is one row per day |
+| `limit` | int | `100` | 1 to 500 |
+| `account_id` | str | `""` | digits or `act_<digits>` |
+
+```json
+{"account_id": "act_1234567890", "level": "campaign",
+ "rows": [{"campaign_id": "222", "campaign_name": "Prospecting", "spend": 210.0, "impressions": 52000,
+           "clicks": 780, "ctr": 0.015, "purchases": 9.0, "purchase_value": 540.0, "roas": 2.57}],
+ "rows_order": "spend descending (also for daily rows: sort by date_start for a time series)",
+ "truncated": false, "rows_omitted": 0, "totals": {"spend": 340.0, "purchases": 14.0, "roas": 2.4},
+ "totals_complete": true, "currency": "EUR",
+ "attribution": {"windows": ["7d_click", "1d_view"], "default_used": true, "single_total": true},
+ "purchase_measurement": {"measured": true, "note": null}}
+```
+
+- Total ROAS = sum of purchase values over sum of spends. Meta's own `purchase_roas` is kept in `meta_reported_roas`.
+- With **several** attribution windows, totals purchases, value and ROAS are `null`; read the per-window fields. They are never added.
+- With **no purchase event** in the data, purchases, value and ROAS are `null` and `purchase_measurement.note` explains: not measured is not zero.
+- At most 5 pages of 500 rows are read, following `paging.cursors.after` only; `totals_complete` is false beyond that.
+
+Ask: *"Meta spend, purchases and ROAS by campaign for the last 28 days."*
+
+---
+
+## openai_ads_account
+
+The ChatGPT Ads (OpenAI Ads) account behind `OPENAI_ADS_API_KEY`; a connection test. No parameters. Cached 5 minutes. Only `id`, `name`, `status`, `currency` and `timezone` are kept; other fields are listed by name in `raw_fields_dropped`.
+
+```json
+{"ad_account": {"id": "acct_123", "name": "Shop", "status": "active", "currency": "EUR",
+                "timezone": "Europe/Paris"},
+ "raw_fields_dropped": [], "cached": false}
+```
+
+Ask: *"Is the ChatGPT Ads connection working? Which account is it?"*
+
+---
+
+## openai_ads_insights
+
+Impressions, clicks, spend, conversions and attributed sales for the ad account or one campaign, ad group or ad. Needs `OPENAI_ADS_API_KEY`.
+
+| Parameter | Type | Default | Notes |
+|---|---|---|---|
+| `start_date`, `end_date` | str | required | `YYYY-MM-DD`, end inclusive |
+| `level` | `account`, `campaign`, `ad_group`, `ad` | `account` | |
+| `entity_id` | str | `""` | required for campaign, ad_group, ad |
+| `timezone` | str | `""` | empty uses the ad account timezone |
+| `time_granularity` | `none`, `daily`, `monthly`, `hourly` | `none` | |
+| `aggregation_level` | `""`, `ad_account`, `campaign`, `ad_group`, `ad` | `""` | |
+| `fields` | list | default metrics | canonical names, 1 to 50 |
+| `segment` | `""`, `product`, `country`, `device`, `platform` | `""` | one at most |
+| `filters`, `sort` | list | none | at most 10 and 5 |
+| `include_zero_impression_items` | bool | `false` | |
+| `attribution_window_days` | 7, 14, 30 | `30` | click window |
+| `view_through_attribution_window_days` | 0, 1 | `1` | view window |
+| `attribution_time_basis` | str | `""` | `ad_event_time` or `conversion_time` |
+| `page_size` | int | `500` | 1 to 2,000 |
+| `max_rows` | int | `1000` | 1 to 6,000, over at most 5 pages |
+| `after`, `before` | str | `""` | cursors from a previous call |
+
+```json
+{"rows": [{"impressions": 30000, "clicks": 420, "spend": 95.4, "ctr": 0.014, "conversions": 7,
+           "order_created_attributed_sales": 310.0, "order_created_attributed_sales_currency": "EUR",
+           "order_created_roas": 3.25, "cpa": 13.63}],
+ "has_more": false, "next_after": null, "complete": true, "totals_complete": true, "currency": "EUR",
+ "units": "spend, cpc and cpm are decimals in major units ...; ctr and post_click_cvr are ratios",
+ "attribution": {"click_window_days": 30, "view_window_days": 1, "time_basis": "ad_event_time"},
+ "null_means": "non calculable"}
+```
+
+`null` means "not computable", not zero. `spend`, `cpc` and `cpm` are in major units (12.50 means 12.50). Totals are recomputed here from the rows. When the API does not return the timezone of the days, `date_range.timezone_reported` is `false`. Array parameters are sent in bracket form (`fields[]`, `time_ranges[]`...).
+
+Ask: *"ChatGPT Ads spend, clicks and attributed sales for last month."*
+
+---
+
+## openai_ads_conversions
+
+Goal conversions (click-through and view-through) and attributed order value per entity, through `POST /v1/conversions/insights` (a read query). Needs `OPENAI_ADS_API_KEY`.
+
+| Parameter | Type | Default | Notes |
+|---|---|---|---|
+| `start_date`, `end_date` | str | required | whole days, 365 at most |
+| `account_timezone` | str | required | IANA name, e.g. `Europe/Paris` |
+| `aggregation_level` | `campaign`, `ad_group`, `ad` | required | |
+| `entity_ids` | list | none | 1 to 100; required when `group_by_entity` is true |
+| `group_by_entity` | bool | `true` | `false` reports the whole account (no `entity_ids`) |
+| `time_granularity` | `none`, `daily` | `none` | |
+| `breakdown` | `""`, `country`, `device` | `""` | |
+| `attribution_window_days` | 7, 14, 30 | `30` | |
+| `view_through_attribution_window_days` | 0, 1 | `1` | |
+| `attribution_time_basis` | `""`, `ad_event_time`, `conversion_time` | `""` | empty leaves the platform's own default |
+| `include_attributed_events` | bool | `false` | event aggregates; may expose order or user identifiers, a `warning` is added |
+| `event_names` | list | none | needs `include_attributed_events` |
+| `include_zero_rows` | bool | `true` | |
+
+Returns `rows`, `totals`, `currency` (the API's `account_currency`), `unix_range`, `attribution` and `null_means`. No pagination: more than 2,000 rows answers `too_many_rows`.
+
+Ask: *"Conversions by campaign on ChatGPT Ads last month, click-through vs. view-through."*
+
+---
+
+## ads_overview
+
+Google Ads, Meta and ChatGPT Ads side by side for one period. Sends no request itself: it reads the account-level summary of each configured platform.
+
+| Parameter | Type | Required |
+|---|---|---|
+| `start_date` | str (`YYYY-MM-DD`) | yes |
+| `end_date` | str (`YYYY-MM-DD`) | yes |
+
+```json
+{"warning": "Les conversions de chaque plateforme sont attribuées indépendamment et se recoupent. La somme n'est pas dédupliquée et surestime les commandes réelles.",
+ "platforms": {"google_ads": {"status": "ok", "spend": 301.2, "conversions": 25.0, "currency": "EUR"},
+               "meta": {"status": "ok", "spend": 340.0, "conversions": 14.0, "currency": "EUR"},
+               "openai_ads": {"status": "not_configured"}},
+ "attribution_side_by_side": {"google_ads": {"basis": "conversion action settings"},
+                              "meta": {"windows": ["7d_click", "1d_view"]}, "openai_ads": {}},
+ "combined": {"currency": "EUR", "spend": 641.2, "conversions_sum_not_deduplicated": 39.0, "roas": 2.9},
+ "partial": true, "not_configured": ["openai_ads"], "errors": [], "platforms_without_activity": []}
+```
+
+- `warning` is always present.
+- `combined` adds spends only when every platform that returned data has the same known currency; otherwise it is `null` and `combined_reason` says why. A platform without activity adds zeros.
+- `combined.roas` is total value over total spend, never the mean of platform ROAS. It is a ratio of claimed values, not a marketing efficiency ratio (MER): the tool does not read your revenue. Ask for `ga4_report` alongside and compare.
+- A platform that fails or is not configured gets its own block; the others are still returned (`partial: true`).
+
+Ask: *"Put Google Ads, Meta and ChatGPT Ads side by side for last month, then compare their conversions with GA4."*

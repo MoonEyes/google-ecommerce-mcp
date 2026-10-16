@@ -56,12 +56,14 @@ def test_claude_code_command():
 def test_install_without_any_id_stops(monkeypatch, capsys):
     from google_ecommerce_mcp.__main__ import main
 
+    monkeypatch.delenv("PAGESPEED_API_KEY", raising=False)  # a key in this terminal counts as a service
     assert main(["install", "--yes", "--skip-auth", "--no-desktop"]) == 2
 
 
 def test_install_end_to_end_without_google(tmp_path, monkeypatch):
     from google_ecommerce_mcp.__main__ import main
 
+    monkeypatch.delenv("PAGESPEED_API_KEY", raising=False)
     cfg = tmp_path / "claude_desktop_config.json"
     code = main(["install", "--yes", "--skip-auth", "--ga4", "123", "--gsc", "sc-domain:example.com",
                  "--token-file", str(tmp_path / "none.json"), "--config", str(cfg)])

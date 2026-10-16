@@ -75,6 +75,84 @@ Run `setup` on a machine with a browser using `--token-file`, then copy the toke
 
 **PageSpeed `Quota exceeded`.** Set `PAGESPEED_API_KEY` to your own restricted key.
 
+## Doctor says
+
+`google-ecommerce-mcp doctor [--live] [--json] [--only <services>] [--config <file>] [--name <server>]` prints a table (Service, Set up, Secret, Token, Status, Account), then "To fix" with the exact command for each problem, "Not set up", a `Result:` line and a `Next command:`. It reads this shell's environment and the server entry of your Claude Desktop config. Exit code: `0` all fine, `1` a configured service fails, `2` nothing is configured.
+
+Status column: **OK**, **FIX** (set up but something is wrong; the problem and the command are under "To fix"), **not set up**, **optional** (PageSpeed without a key).
+
+**Status "not set up", exit code 2 when every service is.** The service has no id. If you do not use it, ignore it. Otherwise run the command listed under "Not set up". If you did set variables in Claude Desktop and still see this, check that the server entry is called `google-ecommerce` or pass `--name`, and `--config` if your config file is not in the standard place. The warning "Claude Desktop config not found: only this shell's environment was read" says `doctor` did not find it.
+
+**Token "missing".** No token is stored for that service. Google services: the command is `setup` (it keeps `--with-merchant` / `--with-indexing` you already enabled). Google Ads: `setup-ads`. Meta and ChatGPT Ads: the secret column says `no`; run `google-ecommerce-mcp set-secret meta-access-token` or `set-secret openai-ads-key`. `META_ACCESS_TOKEN` / `OPENAI_ADS_API_KEY`, when set, win over the keyring.
+
+**Token "missing scope".** The stored Google token lacks the permission of that service (Merchant Center needs the extra `content` permission). Rerun the `setup` command shown. For Google Ads, run `setup-ads`. "The Google Ads token holds other Google permissions" means a file or entry was mixed up: authorize Google Ads alone, with a token file different from `GOOGLE_TOKEN_FILE`.
+
+**Token "unreadable".** The stored token cannot be read (corrupt file, no keyring backend). Rerun `setup` / `setup-ads`, or see "No keyring backend" under [Authentication](#authentication).
+
+**Status FIX with `--live` (Live column shows an error code).** The configuration looks right but the small read call failed. The problem line says why (token refused or expired, API not enabled, account not visible, rate limit, network). Look the code up in [Authentication](#authentication), [Per service](#per-service) or [Paid media errors](#paid-media-errors), run the command shown, then the `doctor --only <service> --live` line printed under it. Live `not_visible` means the call worked but the configured account is not among those the credentials can read: check the id, or add the manager id for Google Ads.
+
+**Status FIX: "must be digits" / "must look like GTM-".** The id has the wrong format (for example `G-XXXX` instead of the numeric GA4 property id). Replace it with `install --yes --skip-auth --force --<flag> <id>` as printed.
+
+**PageSpeed shows "skipped" under `--live`.** Expected: PageSpeed needs a page address and takes about 30 seconds. Ask the assistant to run `pagespeed` on a URL.
+
+**Warning "ADS_TRUST_ENV=1 ..." / "plain text in the Claude Desktop config".** Informational. `ADS_TRUST_ENV=1` is only for company proxies. A Meta token, ChatGPT Ads key or developer token written in the config is readable by anyone who can read that file: move it to the keyring (`set-secret ...`) and delete it from the config.
+
+**`install` exits with code 3.** The Claude Desktop entry already has a different value for a variable you passed (the message names them), or the config could not be used (malformed JSON, larger than 5 MB, UTF-16, read-only: the message says which). Nothing was changed and no authorization was started. Rerun with `--force` to replace the values; `--force` never deletes a variable. Close Claude Desktop first if the file is read-only.
+
+**`install` exits with code 2.** Refused before any authorization, for example `GADS_TOKEN_FILE` is the same file as the Google token file. Choose another file for Google Ads (or unset `GADS_TOKEN_FILE` to use the keyring).
+
+**`install` exits with code 130.** You pressed Ctrl-C (or the input closed). It lists what was already done; rerun it, it is safe to repeat.
+
+**doctor shows `***` for an id.** The value is malformed (a Google Ads customer id must have exactly 10 digits, a Meta ad account id 3 to 20). `doctor` then proposes an `install ... --force` command with the right flag.
+
+**Ids appear as `123***890`.** Expected: ids are masked; no secret is ever printed (also in `--json`).
+
+## Paid media errors
+
+Google Ads, Meta Ads and ChatGPT Ads. Full list of codes: [ADS.md](ADS.md#structured-errors). These connectors were tested offline only, so a real-account surprise is possible: include the tool's error object in an issue.
+
+**`not_configured` on a paid media tool.** The `detail` names the missing setting. Google Ads: `GADS_CUSTOMER_ID`. Meta: `META_ACCESS_TOKEN` (or `google-ecommerce-mcp set-secret meta-access-token`) and `META_AD_ACCOUNT_ID`. ChatGPT Ads: `OPENAI_ADS_API_KEY` (or `set-secret openai-ads-key`). Put ids in the client config `env`, secrets in the keyring.
+
+**`auth_failed` on Google Ads.** No Google Ads token, an expired one, or the account cannot read this customer. Run `google-ecommerce-mcp setup-ads --client-secret <file>` again. If the consent screen of your OAuth client is in *Testing*, the token expires after 7 days: publish the app. If you reach the customer through a manager account, set `GADS_LOGIN_CUSTOMER_ID`.
+
+**`auth_failed` on Meta.** The token is invalid or expired (Graph codes 102, 190, 463, 467). Create a new system user token with `ads_read` and store it again with `set-secret meta-access-token`. Remember that `META_ACCESS_TOKEN`, when set, wins over the keyring: unset the old one.
+
+**`auth_failed` on ChatGPT Ads.** The key is wrong or revoked. Create a new one in Ads Manager and store it with `set-secret openai-ads-key`.
+
+**`missing_scope`.** Google Ads: run `setup-ads` and grant the Google Ads scope (`required_scope` names it). Meta: the token lacks `ads_read` or access to the ad account (`required_permission`); regenerate it and assign the ad account to the system user.
+
+**`rate_limited`.** The platform quota is hit. Wait `retry_after_seconds` if it is given, then shorten the period, lower `limit`, or ask for `level=account` instead of `ad`. Meta answers also carry `usage` with the percentages Meta reports. Nothing is retried automatically.
+
+**`not_available`.** Google Ads: enable the *Google Ads API* in the Cloud project of your OAuth client, check the customer id (digits) and `GADS_API_VERSION` (default `v26`). Meta: check `META_AD_ACCOUNT_ID`, `META_API_VERSION` (default `v26.0`) and that the token can see the account (`meta_ad_accounts`). ChatGPT Ads: the endpoint or account is not available to this key.
+
+**`blocked`.** The request was refused before being sent: outside the platform's read-only allow-list, a secret or a `method` parameter in the URL, or the platform answered with a redirect (never followed). It should not happen with the shipped tools; send the `detail` in an issue.
+
+**`network`.** The platform could not be reached. Check the connection. Behind a corporate proxy, set `ADS_TRUST_ENV=1` in the server `env` (uses `HTTPS_PROXY`, `NO_PROXY` and `REQUESTS_CA_BUNDLE`). With `ADS_TRUST_ENV=1`, a `REQUESTS_CA_BUNDLE` pointing to a missing file also gives `network`: fix the path or unset the variable. The value must be exactly `1`.
+
+**`response_too_large`.** The answer exceeds 20 MB and was not read. Shorten the period, lower the `LIMIT` of `gads_query`, or select fewer fields.
+
+**`too_many_rows`** (ChatGPT Ads). `openai_ads_conversions` allows 2,000 rows and has no pagination. Pass fewer `entity_ids`, a shorter period, or fewer `event_names`.
+
+**`resource_not_allowed`** (`gads_query`). The `FROM` resource, a field prefix or a `customer.*` field is not on the reporting allow-list. Use `gads_performance`, or a listed resource ([ADS.md](ADS.md#free-gaql-queries)). Only `GADS_ALLOW_SENSITIVE_QUERIES=1` lifts the list.
+
+**`sensitive_resource`** (`gads_query`). The query names a personal-data or billing resource (search terms, click ids, user lists, leads, calls, `payments_*`, `billing_*`...). Use aggregated fields. `GADS_ALLOW_SENSITIVE_QUERIES=1` lifts the check; personal data may then reach the conversation.
+
+**`invalid_gaql`.** The query is not one plain `SELECT`: `;`, `--`, `/*`, `*/` or a backslash anywhere (even in a string), a second `SELECT` or `FROM`, `JOIN`, a malformed `LIMIT`, an unbalanced quote or non-ASCII characters outside strings. Rewrite it; the `fix` repeats the shape.
+
+**`invalid_dates`.** `gads_performance` needs `start_date` and `end_date` (`YYYY-MM-DD`, start on or before end); `openai_ads_*` and `ads_overview` too. `meta_insights` takes both dates, or a `date_preset`, not both.
+
+**Other `invalid_*`** (`invalid_customer_id`, `invalid_argument`, `invalid_entity_id`, `invalid_timezone`, `invalid_attribution`, `invalid_fields`...). A parameter was refused before any request; `detail` says which and `fix` how.
+
+**`internal_error`.** An unexpected failure inside a connector, reported as data with secrets masked. Retry once; if it persists, open an issue with the object.
+
+**Meta purchases, value and ROAS are `null`.** Either several `attribution_windows` were requested (their purchases overlap, so there is no single total: read `purchases_by_window`), or the account sends no purchase event (`purchase_measurement.measured` is `false`). Check the pixel or Conversions API purchase event in Events Manager. `null` is not zero.
+
+**ChatGPT Ads values are `null`.** `null` means "not computable" (for example a ratio with no click), not zero. `spend`, `cpc` and `cpm` are in major units of the account currency.
+
+**`ads_overview` returns `combined: null`.** The platforms that returned data do not share one known currency, so spends are not added (no conversion is ever made); `combined_reason` says which. Query each platform's own tool instead.
+
+**The platforms' conversions do not match each other or GA4.** Expected. Each platform attributes independently with its own window and date rule, and the sum is not deduplicated. See [ADS.md](ADS.md#read-this-first-attribution).
+
 ## Still stuck
 
 Open an [issue](https://github.com/MoonEyes/google-ecommerce-mcp/issues) with the output of `google-ecommerce-mcp check` and the tool's error object. Remove ids you consider private.

@@ -19,7 +19,7 @@ from pydantic import Field
 
 from . import __version__
 from .auth import NotAuthenticated, TokenProvider
-from . import metrics
+from . import ads_config, ads_overview, google_ads, meta_ads, metrics, openai_ads
 from .config import API_BY_HOST, SCOPE_BY_HOST, WRITE_CAPABLE_SCOPES, NotConfigured, Settings
 
 SETTINGS = Settings.from_env()
@@ -36,7 +36,10 @@ mcp = FastMCP(
         "the GA4 properties the account can read, to find a property id. Organic search: "
         "gsc_performance, gsc_inspect_url for one URL's index state, gsc_sitemaps. Product feeds and "
         "disapprovals: merchant_product_issues, merchant_data_sources, merchant_report_query. Tracking setup: "
-        "gtm_inventory. Speed: pagespeed. No tool can modify anything. Report results carry totals, the unit and "
+        "gtm_inventory. Speed: pagespeed. Paid media, when configured: gads_performance / gads_query (Google Ads), "
+        "meta_insights (Meta Ads), openai_ads_insights (ChatGPT Ads) and ads_overview to put them side by side; "
+        "each platform counts conversions with its own attribution, so never add them up as real orders. "
+        "No tool can modify anything. Report results carry totals, the unit and "
         "definition of each metric, and a date_range with its timezone and data_complete: when data_complete is "
         "false, the days from settling_from can still change, so do not compare them with complete days."
     ),
@@ -262,6 +265,8 @@ def check() -> dict:
         granted = []
     status["scopes"] = granted
     status["write_capable_scopes"] = sorted(set(granted) & WRITE_CAPABLE_SCOPES)
+    status["ads"] = ads_config.AdsSettings.from_env().status()  # booleans only, never a secret value
+    status["ads_write_capable_scope"] = ads_config.ADS_SCOPE_NOTE
     status["version"] = __version__
     return status
 
@@ -622,3 +627,9 @@ def pagespeed(
             "cls": audits["cumulative-layout-shift"]["displayValue"],
             "tbt": audits["total-blocking-time"]["displayValue"],
             "field_data": data.get("loadingExperience", {}).get("overall_category")}
+
+
+# ------------------------------------------------------------------ paid media (Google Ads, Meta Ads, ChatGPT Ads)
+# Each module owns its allow-list and its HTTP client (see ads_common.py); nothing here sends a request.
+for _ads_module in (google_ads, meta_ads, openai_ads, ads_overview):
+    _ads_module.register(mcp)

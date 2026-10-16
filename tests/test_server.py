@@ -243,7 +243,7 @@ def test_gtm_maps_built_in_triggers(server, monkeypatch):
 
 def test_tools_are_registered_with_real_signatures(server):
     tools = {t.name: t for t in asyncio.run(server.mcp.list_tools())}
-    assert len(tools) == 13
+    assert len(tools) == 22  # 13 Google tools + 9 paid-media tools
     assert "property_id" in tools["ga4_report"].inputSchema["properties"]
     assert "channel_group" in tools["ga4_report"].inputSchema["properties"]
     assert tools["gsc_inspect_url"].inputSchema["required"] == ["url"]

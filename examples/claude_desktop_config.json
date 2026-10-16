@@ -8,7 +8,10 @@
         "GSC_SITE_URL": "sc-domain:example.com",
         "MERCHANT_ACCOUNT_ID": "1234567890",
         "GTM_CONTAINER_ID": "GTM-XXXXXXX",
-        "PAGESPEED_API_KEY": ""
+        "PAGESPEED_API_KEY": "",
+        "GADS_CUSTOMER_ID": "1234567890",
+        "GADS_LOGIN_CUSTOMER_ID": "",
+        "META_AD_ACCOUNT_ID": "act_1234567890"
       }
     }
   }

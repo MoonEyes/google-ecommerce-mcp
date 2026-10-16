@@ -1,0 +1,1899 @@
+{
+ "meta": {
+  "client": "Boutique Exemple",
+  "lang": "fr",
+  "currency": "EUR",
+  "generated_at": "2026-10-05",
+  "prepared_by": "Agence Exemple",
+  "sample": true,
+  "brand": {
+   "name": "Boutique Exemple",
+   "accent": "#1F6F5B"
+  },
+  "ga4_attribution_model": "Basé sur les données (déclaré par l'agence)"
+ },
+ "periods": {
+  "current": [
+   "2026-09-01",
+   "2026-09-30"
+  ],
+  "previous": [
+   "2026-08-01",
+   "2026-08-31"
+  ],
+  "yoy": [
+   "2025-09-01",
+   "2025-09-30"
+  ]
+ },
+ "goals": {
+  "revenue": 25000,
+  "orders": 175,
+  "aov": 150,
+  "conversion_rate": 0.02
+ },
+ "sources": {
+  "ga4": {
+   "kpi": {
+    "current": {
+     "rows": [
+      {
+       "date": "2026-09-01",
+       "sessions": 280,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 582.4
+      },
+      {
+       "date": "2026-09-02",
+       "sessions": 287,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1019.2
+      },
+      {
+       "date": "2026-09-03",
+       "sessions": 294,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 728.0
+      },
+      {
+       "date": "2026-09-04",
+       "sessions": 301,
+       "ecommercePurchases": 8,
+       "purchaseRevenue": 1164.8
+      },
+      {
+       "date": "2026-09-05",
+       "sessions": 308,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 873.6
+      },
+      {
+       "date": "2026-09-06",
+       "sessions": 315,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 582.4
+      },
+      {
+       "date": "2026-09-07",
+       "sessions": 282,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1019.2
+      },
+      {
+       "date": "2026-09-08",
+       "sessions": 289,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 728.0
+      },
+      {
+       "date": "2026-09-09",
+       "sessions": 296,
+       "ecommercePurchases": 8,
+       "purchaseRevenue": 1164.8
+      },
+      {
+       "date": "2026-09-10",
+       "sessions": 303,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 873.6
+      },
+      {
+       "date": "2026-09-11",
+       "sessions": 310,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 582.4
+      },
+      {
+       "date": "2026-09-12",
+       "sessions": 317,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1019.2
+      },
+      {
+       "date": "2026-09-13",
+       "sessions": 284,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 728.0
+      },
+      {
+       "date": "2026-09-14",
+       "sessions": 291,
+       "ecommercePurchases": 8,
+       "purchaseRevenue": 1164.8
+      },
+      {
+       "date": "2026-09-15",
+       "sessions": 298,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 873.6
+      },
+      {
+       "date": "2026-09-16",
+       "sessions": 305,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 582.4
+      },
+      {
+       "date": "2026-09-17",
+       "sessions": 312,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1019.2
+      },
+      {
+       "date": "2026-09-18",
+       "sessions": 319,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 728.0
+      },
+      {
+       "date": "2026-09-19",
+       "sessions": 286,
+       "ecommercePurchases": 8,
+       "purchaseRevenue": 1164.8
+      },
+      {
+       "date": "2026-09-20",
+       "sessions": 293,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 873.6
+      },
+      {
+       "date": "2026-09-21",
+       "sessions": 300,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 582.4
+      },
+      {
+       "date": "2026-09-22",
+       "sessions": 307,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1019.2
+      },
+      {
+       "date": "2026-09-23",
+       "sessions": 314,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 728.0
+      },
+      {
+       "date": "2026-09-24",
+       "sessions": 281,
+       "ecommercePurchases": 8,
+       "purchaseRevenue": 1164.8
+      },
+      {
+       "date": "2026-09-25",
+       "sessions": 288,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 873.6
+      },
+      {
+       "date": "2026-09-26",
+       "sessions": 295,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 582.4
+      },
+      {
+       "date": "2026-09-27",
+       "sessions": 302,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1019.2
+      },
+      {
+       "date": "2026-09-28",
+       "sessions": 309,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 728.0
+      },
+      {
+       "date": "2026-09-29",
+       "sessions": 316,
+       "ecommercePurchases": 8,
+       "purchaseRevenue": 1164.8
+      },
+      {
+       "date": "2026-09-30",
+       "sessions": 283,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 873.6
+      }
+     ],
+     "row_count": 30,
+     "truncated": false,
+     "totals": {
+      "sessions": 8965,
+      "ecommercePurchases": 180,
+      "purchaseRevenue": 26208.0,
+      "firstTimePurchasers": 118
+     },
+     "currency": "EUR",
+     "property_id": "000000000",
+     "metrics": {
+      "purchaseRevenue": {
+       "unit": "EUR",
+       "definition": "Revenue from purchase events."
+      }
+     },
+     "date_range": {
+      "start": "2026-09-01",
+      "end": "2026-09-30",
+      "timezone": "Europe/Paris",
+      "data_complete": true
+     }
+    },
+    "previous": {
+     "rows": [
+      {
+       "date": "2026-08-01",
+       "sessions": 270,
+       "ecommercePurchases": 3,
+       "purchaseRevenue": 432.6
+      },
+      {
+       "date": "2026-08-02",
+       "sessions": 277,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 865.2
+      },
+      {
+       "date": "2026-08-03",
+       "sessions": 284,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 576.8
+      },
+      {
+       "date": "2026-08-04",
+       "sessions": 291,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1009.4
+      },
+      {
+       "date": "2026-08-05",
+       "sessions": 298,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 721.0
+      },
+      {
+       "date": "2026-08-06",
+       "sessions": 305,
+       "ecommercePurchases": 3,
+       "purchaseRevenue": 432.6
+      },
+      {
+       "date": "2026-08-07",
+       "sessions": 272,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 865.2
+      },
+      {
+       "date": "2026-08-08",
+       "sessions": 279,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 576.8
+      },
+      {
+       "date": "2026-08-09",
+       "sessions": 286,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1009.4
+      },
+      {
+       "date": "2026-08-10",
+       "sessions": 293,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 721.0
+      },
+      {
+       "date": "2026-08-11",
+       "sessions": 300,
+       "ecommercePurchases": 3,
+       "purchaseRevenue": 432.6
+      },
+      {
+       "date": "2026-08-12",
+       "sessions": 307,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 865.2
+      },
+      {
+       "date": "2026-08-13",
+       "sessions": 274,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 576.8
+      },
+      {
+       "date": "2026-08-14",
+       "sessions": 281,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1009.4
+      },
+      {
+       "date": "2026-08-15",
+       "sessions": 288,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 721.0
+      },
+      {
+       "date": "2026-08-16",
+       "sessions": 295,
+       "ecommercePurchases": 3,
+       "purchaseRevenue": 432.6
+      },
+      {
+       "date": "2026-08-17",
+       "sessions": 302,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 865.2
+      },
+      {
+       "date": "2026-08-18",
+       "sessions": 309,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 576.8
+      },
+      {
+       "date": "2026-08-19",
+       "sessions": 276,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1009.4
+      },
+      {
+       "date": "2026-08-20",
+       "sessions": 283,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 721.0
+      },
+      {
+       "date": "2026-08-21",
+       "sessions": 290,
+       "ecommercePurchases": 3,
+       "purchaseRevenue": 432.6
+      },
+      {
+       "date": "2026-08-22",
+       "sessions": 297,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 865.2
+      },
+      {
+       "date": "2026-08-23",
+       "sessions": 304,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 576.8
+      },
+      {
+       "date": "2026-08-24",
+       "sessions": 271,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1009.4
+      },
+      {
+       "date": "2026-08-25",
+       "sessions": 278,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 721.0
+      },
+      {
+       "date": "2026-08-26",
+       "sessions": 285,
+       "ecommercePurchases": 3,
+       "purchaseRevenue": 432.6
+      },
+      {
+       "date": "2026-08-27",
+       "sessions": 292,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 865.2
+      },
+      {
+       "date": "2026-08-28",
+       "sessions": 299,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 576.8
+      },
+      {
+       "date": "2026-08-29",
+       "sessions": 306,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1009.4
+      },
+      {
+       "date": "2026-08-30",
+       "sessions": 273,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 721.0
+      },
+      {
+       "date": "2026-08-31",
+       "sessions": 280,
+       "ecommercePurchases": 3,
+       "purchaseRevenue": 432.6
+      }
+     ],
+     "row_count": 31,
+     "truncated": false,
+     "totals": {
+      "sessions": 8945,
+      "ecommercePurchases": 153,
+      "purchaseRevenue": 22062.6
+     },
+     "currency": "EUR",
+     "property_id": "000000000",
+     "metrics": {
+      "purchaseRevenue": {
+       "unit": "EUR",
+       "definition": "Revenue from purchase events."
+      }
+     },
+     "date_range": {
+      "start": "2026-08-01",
+      "end": "2026-08-31",
+      "timezone": "Europe/Paris",
+      "data_complete": true
+     }
+    },
+    "yoy": {
+     "rows": [
+      {
+       "date": "2025-09-01",
+       "sessions": 240,
+       "ecommercePurchases": 3,
+       "purchaseRevenue": 435.9
+      },
+      {
+       "date": "2025-09-02",
+       "sessions": 247,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 871.8
+      },
+      {
+       "date": "2025-09-03",
+       "sessions": 254,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 581.2
+      },
+      {
+       "date": "2025-09-04",
+       "sessions": 261,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1017.1
+      },
+      {
+       "date": "2025-09-05",
+       "sessions": 268,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 726.5
+      },
+      {
+       "date": "2025-09-06",
+       "sessions": 275,
+       "ecommercePurchases": 3,
+       "purchaseRevenue": 435.9
+      },
+      {
+       "date": "2025-09-07",
+       "sessions": 242,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 871.8
+      },
+      {
+       "date": "2025-09-08",
+       "sessions": 249,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 581.2
+      },
+      {
+       "date": "2025-09-09",
+       "sessions": 256,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1017.1
+      },
+      {
+       "date": "2025-09-10",
+       "sessions": 263,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 726.5
+      },
+      {
+       "date": "2025-09-11",
+       "sessions": 270,
+       "ecommercePurchases": 3,
+       "purchaseRevenue": 435.9
+      },
+      {
+       "date": "2025-09-12",
+       "sessions": 277,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 871.8
+      },
+      {
+       "date": "2025-09-13",
+       "sessions": 244,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 581.2
+      },
+      {
+       "date": "2025-09-14",
+       "sessions": 251,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1017.1
+      },
+      {
+       "date": "2025-09-15",
+       "sessions": 258,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 726.5
+      },
+      {
+       "date": "2025-09-16",
+       "sessions": 265,
+       "ecommercePurchases": 3,
+       "purchaseRevenue": 435.9
+      },
+      {
+       "date": "2025-09-17",
+       "sessions": 272,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 871.8
+      },
+      {
+       "date": "2025-09-18",
+       "sessions": 279,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 581.2
+      },
+      {
+       "date": "2025-09-19",
+       "sessions": 246,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1017.1
+      },
+      {
+       "date": "2025-09-20",
+       "sessions": 253,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 726.5
+      },
+      {
+       "date": "2025-09-21",
+       "sessions": 260,
+       "ecommercePurchases": 3,
+       "purchaseRevenue": 435.9
+      },
+      {
+       "date": "2025-09-22",
+       "sessions": 267,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 871.8
+      },
+      {
+       "date": "2025-09-23",
+       "sessions": 274,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 581.2
+      },
+      {
+       "date": "2025-09-24",
+       "sessions": 241,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1017.1
+      },
+      {
+       "date": "2025-09-25",
+       "sessions": 248,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 726.5
+      },
+      {
+       "date": "2025-09-26",
+       "sessions": 255,
+       "ecommercePurchases": 3,
+       "purchaseRevenue": 435.9
+      },
+      {
+       "date": "2025-09-27",
+       "sessions": 262,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 871.8
+      },
+      {
+       "date": "2025-09-28",
+       "sessions": 269,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 581.2
+      },
+      {
+       "date": "2025-09-29",
+       "sessions": 276,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1017.1
+      },
+      {
+       "date": "2025-09-30",
+       "sessions": 243,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 726.5
+      }
+     ],
+     "row_count": 30,
+     "truncated": false,
+     "totals": {
+      "sessions": 7765,
+      "ecommercePurchases": 150,
+      "purchaseRevenue": 21795.0
+     },
+     "currency": "EUR",
+     "property_id": "000000000",
+     "metrics": {
+      "purchaseRevenue": {
+       "unit": "EUR",
+       "definition": "Revenue from purchase events."
+      }
+     },
+     "date_range": {
+      "start": "2025-09-01",
+      "end": "2025-09-30",
+      "timezone": "Europe/Paris",
+      "data_complete": true
+     }
+    }
+   },
+   "funnel": {
+    "current": {
+     "rows": [
+      {
+       "eventName": "page_view",
+       "eventCount": 31200
+      },
+      {
+       "eventName": "view_item",
+       "eventCount": 4140
+      },
+      {
+       "eventName": "add_to_cart",
+       "eventCount": 720
+      },
+      {
+       "eventName": "begin_checkout",
+       "eventCount": 310
+      },
+      {
+       "eventName": "purchase",
+       "eventCount": 180
+      }
+     ],
+     "row_count": 5,
+     "truncated": false,
+     "totals": {
+      "eventCount": 36550,
+      "sessions": 8965
+     },
+     "currency": "EUR",
+     "property_id": "000000000",
+     "date_range": {
+      "start": "2026-09-01",
+      "end": "2026-09-30",
+      "timezone": "Europe/Paris",
+      "data_complete": true
+     }
+    },
+    "previous": {
+     "rows": [
+      {
+       "eventName": "page_view",
+       "eventCount": 30100
+      },
+      {
+       "eventName": "view_item",
+       "eventCount": 3980
+      },
+      {
+       "eventName": "add_to_cart",
+       "eventCount": 716
+      },
+      {
+       "eventName": "begin_checkout",
+       "eventCount": 297
+      },
+      {
+       "eventName": "purchase",
+       "eventCount": 153
+      }
+     ],
+     "row_count": 5,
+     "truncated": false,
+     "totals": {
+      "eventCount": 35246,
+      "sessions": 8945
+     },
+     "currency": "EUR",
+     "property_id": "000000000",
+     "date_range": {
+      "start": "2026-08-01",
+      "end": "2026-08-31",
+      "timezone": "Europe/Paris",
+      "data_complete": true
+     }
+    }
+   },
+   "channels": {
+    "current": {
+     "rows": [
+      {
+       "sessionDefaultChannelGroup": "Organic Search",
+       "sessions": 3410,
+       "ecommercePurchases": 62,
+       "purchaseRevenue": 9060.0
+      },
+      {
+       "sessionDefaultChannelGroup": "Paid Search",
+       "sessions": 2280,
+       "ecommercePurchases": 49,
+       "purchaseRevenue": 7120.0
+      },
+      {
+       "sessionDefaultChannelGroup": "Email",
+       "sessions": 780,
+       "ecommercePurchases": 31,
+       "purchaseRevenue": 4480.0
+      },
+      {
+       "sessionDefaultChannelGroup": "Direct",
+       "sessions": 1650,
+       "ecommercePurchases": 26,
+       "purchaseRevenue": 4438.0
+      },
+      {
+       "sessionDefaultChannelGroup": "Organic Social",
+       "sessions": 845,
+       "ecommercePurchases": 12,
+       "purchaseRevenue": 1110.0
+      }
+     ],
+     "row_count": 5,
+     "truncated": false,
+     "totals": {
+      "sessions": 8965,
+      "ecommercePurchases": 180,
+      "purchaseRevenue": 26208.0
+     },
+     "currency": "EUR",
+     "property_id": "000000000",
+     "date_range": {
+      "start": "2026-09-01",
+      "end": "2026-09-30",
+      "timezone": "Europe/Paris",
+      "data_complete": true
+     }
+    },
+    "previous": {
+     "rows": [
+      {
+       "sessionDefaultChannelGroup": "Organic Search",
+       "sessions": 3250,
+       "ecommercePurchases": 51,
+       "purchaseRevenue": 7900.0
+      },
+      {
+       "sessionDefaultChannelGroup": "Paid Search",
+       "sessions": 2350,
+       "ecommercePurchases": 47,
+       "purchaseRevenue": 7300.0
+      },
+      {
+       "sessionDefaultChannelGroup": "Email",
+       "sessions": 690,
+       "ecommercePurchases": 24,
+       "purchaseRevenue": 3600.0
+      },
+      {
+       "sessionDefaultChannelGroup": "Direct",
+       "sessions": 1720,
+       "ecommercePurchases": 21,
+       "purchaseRevenue": 1762.6
+      },
+      {
+       "sessionDefaultChannelGroup": "Organic Social",
+       "sessions": 935,
+       "ecommercePurchases": 10,
+       "purchaseRevenue": 1500.0
+      }
+     ],
+     "row_count": 5,
+     "truncated": false,
+     "totals": {
+      "sessions": 8945,
+      "ecommercePurchases": 153,
+      "purchaseRevenue": 22062.6
+     },
+     "currency": "EUR",
+     "property_id": "000000000",
+     "date_range": {
+      "start": "2026-08-01",
+      "end": "2026-08-31",
+      "timezone": "Europe/Paris",
+      "data_complete": true
+     }
+    }
+   },
+   "products": {
+    "current": {
+     "rows": [
+      {
+       "itemName": "Donjon modulaire, kit 24 pièces",
+       "itemsPurchased": 46,
+       "itemRevenue": 4140.0
+      },
+      {
+       "itemName": "Décor de taverne, set complet",
+       "itemsPurchased": 38,
+       "itemRevenue": 3420.0
+      },
+      {
+       "itemName": "Ruines extérieures, pack de 12",
+       "itemsPurchased": 27,
+       "itemRevenue": 2160.0
+      },
+      {
+       "itemName": "Forêt enchantée, 8 arbres",
+       "itemsPurchased": 22,
+       "itemRevenue": 1540.0
+      },
+      {
+       "itemName": "Tour de guet",
+       "itemsPurchased": 19,
+       "itemRevenue": 1330.0
+      },
+      {
+       "itemName": "Grotte souterraine",
+       "itemsPurchased": 11,
+       "itemRevenue": 880.0
+      },
+      {
+       "itemName": "Pont en bois, lot de 4",
+       "itemsPurchased": 6,
+       "itemRevenue": 240.0
+      },
+      {
+       "itemName": "Table de jeu pliable",
+       "itemsPurchased": 3,
+       "itemRevenue": 300.0
+      }
+     ],
+     "row_count": 8,
+     "truncated": false,
+     "totals": {
+      "itemsPurchased": 172,
+      "itemRevenue": 14010.0
+     },
+     "currency": "EUR",
+     "property_id": "000000000",
+     "date_range": {
+      "start": "2026-09-01",
+      "end": "2026-09-30",
+      "timezone": "Europe/Paris",
+      "data_complete": true
+     }
+    },
+    "previous": {
+     "rows": [
+      {
+       "itemName": "Donjon modulaire, kit 24 pièces",
+       "itemsPurchased": 39,
+       "itemRevenue": 3500.0
+      },
+      {
+       "itemName": "Décor de taverne, set complet",
+       "itemsPurchased": 46,
+       "itemRevenue": 4100.0
+      },
+      {
+       "itemName": "Ruines extérieures, pack de 12",
+       "itemsPurchased": 27,
+       "itemRevenue": 2150.0
+      },
+      {
+       "itemName": "Forêt enchantée, 8 arbres",
+       "itemsPurchased": 20,
+       "itemRevenue": 1400.0
+      },
+      {
+       "itemName": "Tour de guet",
+       "itemsPurchased": 21,
+       "itemRevenue": 1470.0
+      },
+      {
+       "itemName": "Grotte souterraine",
+       "itemsPurchased": 9,
+       "itemRevenue": 720.0
+      },
+      {
+       "itemName": "Pont en bois, lot de 4",
+       "itemsPurchased": 3,
+       "itemRevenue": 130.0
+      },
+      {
+       "itemName": "Table de jeu pliable",
+       "itemsPurchased": 5,
+       "itemRevenue": 480.0
+      }
+     ],
+     "row_count": 8,
+     "truncated": false,
+     "totals": {
+      "itemsPurchased": 170,
+      "itemRevenue": 13950.0
+     },
+     "currency": "EUR",
+     "property_id": "000000000",
+     "date_range": {
+      "start": "2026-08-01",
+      "end": "2026-08-31",
+      "timezone": "Europe/Paris",
+      "data_complete": true
+     }
+    }
+   }
+  },
+  "search_console": {
+   "totals": {
+    "current": {
+     "rows": [
+      {
+       "date": "2026-09-01",
+       "clicks": 50,
+       "impressions": 1950,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-02",
+       "clicks": 51,
+       "impressions": 1989,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-03",
+       "clicks": 53,
+       "impressions": 2067,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-04",
+       "clicks": 54,
+       "impressions": 2106,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-05",
+       "clicks": 55,
+       "impressions": 2145,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-06",
+       "clicks": 43,
+       "impressions": 1677,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-07",
+       "clicks": 44,
+       "impressions": 1716,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-08",
+       "clicks": 57,
+       "impressions": 2223,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-09",
+       "clicks": 56,
+       "impressions": 2184,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-10",
+       "clicks": 56,
+       "impressions": 2184,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-11",
+       "clicks": 55,
+       "impressions": 2145,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-12",
+       "clicks": 53,
+       "impressions": 2067,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-13",
+       "clicks": 39,
+       "impressions": 1521,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-14",
+       "clicks": 37,
+       "impressions": 1443,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-15",
+       "clicks": 48,
+       "impressions": 1872,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-16",
+       "clicks": 47,
+       "impressions": 1833,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-17",
+       "clicks": 45,
+       "impressions": 1755,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-18",
+       "clicks": 33,
+       "impressions": 1287,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-19",
+       "clicks": 32,
+       "impressions": 1248,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-20",
+       "clicks": 19,
+       "impressions": 741,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-21",
+       "clicks": 19,
+       "impressions": 741,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-22",
+       "clicks": 32,
+       "impressions": 1248,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-23",
+       "clicks": 44,
+       "impressions": 1716,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-24",
+       "clicks": 45,
+       "impressions": 1755,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-25",
+       "clicks": 46,
+       "impressions": 1794,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-26",
+       "clicks": 47,
+       "impressions": 1833,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-27",
+       "clicks": 36,
+       "impressions": 1404,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-28",
+       "clicks": 38,
+       "impressions": 1482,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-29",
+       "clicks": 52,
+       "impressions": 2028,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-09-30",
+       "clicks": 54,
+       "impressions": 2106,
+       "ctr": 0.0256,
+       "position": 11.2
+      }
+     ],
+     "totals": {
+      "clicks": 1340,
+      "impressions": 52000,
+      "ctr": 0.0258,
+      "position": 11.2
+     },
+     "date_range": {
+      "start": "2026-09-01",
+      "end": "2026-09-30",
+      "timezone": "America/Los_Angeles",
+      "data_complete": true
+     }
+    },
+    "previous": {
+     "rows": [
+      {
+       "date": "2026-08-01",
+       "clicks": 41,
+       "impressions": 1599,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-02",
+       "clicks": 43,
+       "impressions": 1677,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-03",
+       "clicks": 44,
+       "impressions": 1716,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-04",
+       "clicks": 45,
+       "impressions": 1755,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-05",
+       "clicks": 46,
+       "impressions": 1794,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-06",
+       "clicks": 36,
+       "impressions": 1404,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-07",
+       "clicks": 37,
+       "impressions": 1443,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-08",
+       "clicks": 47,
+       "impressions": 1833,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-09",
+       "clicks": 47,
+       "impressions": 1833,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-10",
+       "clicks": 46,
+       "impressions": 1794,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-11",
+       "clicks": 45,
+       "impressions": 1755,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-12",
+       "clicks": 44,
+       "impressions": 1716,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-13",
+       "clicks": 32,
+       "impressions": 1248,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-14",
+       "clicks": 31,
+       "impressions": 1209,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-15",
+       "clicks": 40,
+       "impressions": 1560,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-16",
+       "clicks": 39,
+       "impressions": 1521,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-17",
+       "clicks": 38,
+       "impressions": 1482,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-18",
+       "clicks": 37,
+       "impressions": 1443,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-19",
+       "clicks": 36,
+       "impressions": 1404,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-20",
+       "clicks": 25,
+       "impressions": 975,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-21",
+       "clicks": 25,
+       "impressions": 975,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-22",
+       "clicks": 36,
+       "impressions": 1404,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-23",
+       "clicks": 36,
+       "impressions": 1404,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-24",
+       "clicks": 37,
+       "impressions": 1443,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-25",
+       "clicks": 38,
+       "impressions": 1482,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-26",
+       "clicks": 40,
+       "impressions": 1560,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-27",
+       "clicks": 30,
+       "impressions": 1170,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-28",
+       "clicks": 32,
+       "impressions": 1248,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-29",
+       "clicks": 44,
+       "impressions": 1716,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-30",
+       "clicks": 45,
+       "impressions": 1755,
+       "ctr": 0.0256,
+       "position": 11.2
+      },
+      {
+       "date": "2026-08-31",
+       "clicks": 48,
+       "impressions": 1872,
+       "ctr": 0.0256,
+       "position": 11.2
+      }
+     ],
+     "totals": {
+      "clicks": 1210,
+      "impressions": 49800,
+      "ctr": 0.0243,
+      "position": 11.9
+     }
+    }
+   },
+   "queries": {
+    "current": {
+     "rows": [
+      {
+       "query": "decor de jeu de role",
+       "clicks": 412,
+       "impressions": 9840,
+       "ctr": 0.0419,
+       "position": 6.2
+      },
+      {
+       "query": "decors imprimes 3d",
+       "clicks": 268,
+       "impressions": 7120,
+       "ctr": 0.0376,
+       "position": 8.9
+      },
+      {
+       "query": "scenographie table de jeu",
+       "clicks": 171,
+       "impressions": 5200,
+       "ctr": 0.0329,
+       "position": 11.4
+      },
+      {
+       "query": "donjon modulaire",
+       "clicks": 134,
+       "impressions": 4060,
+       "ctr": 0.033,
+       "position": 9.1
+      },
+      {
+       "query": "terrain pour figurines",
+       "clicks": 97,
+       "impressions": 4800,
+       "ctr": 0.0202,
+       "position": 14.7
+      }
+     ],
+     "truncated": false
+    },
+    "previous": {
+     "rows": [
+      {
+       "query": "decor de jeu de role",
+       "clicks": 350,
+       "impressions": 9100,
+       "ctr": 0.0385,
+       "position": 6.8
+      },
+      {
+       "query": "decors imprimes 3d",
+       "clicks": 301,
+       "impressions": 7300,
+       "ctr": 0.0412,
+       "position": 8.1
+      },
+      {
+       "query": "scenographie table de jeu",
+       "clicks": 193,
+       "impressions": 5100,
+       "ctr": 0.0378,
+       "position": 10.8
+      },
+      {
+       "query": "donjon modulaire",
+       "clicks": 99,
+       "impressions": 3900,
+       "ctr": 0.0254,
+       "position": 12.2
+      },
+      {
+       "query": "terrain pour figurines",
+       "clicks": 132,
+       "impressions": 4700,
+       "ctr": 0.0281,
+       "position": 13.1
+      }
+     ],
+     "truncated": false
+    }
+   },
+   "pages": {
+    "current": {
+     "rows": [
+      {
+       "page": "https://boutique.example.invalid/",
+       "clicks": 420,
+       "impressions": 12000,
+       "ctr": 0.035,
+       "position": 7.5
+      },
+      {
+       "page": "https://boutique.example.invalid/donjon-modulaire",
+       "clicks": 210,
+       "impressions": 6100,
+       "ctr": 0.0344,
+       "position": 8.8
+      },
+      {
+       "page": "https://boutique.example.invalid/taverne",
+       "clicks": 150,
+       "impressions": 5200,
+       "ctr": 0.0288,
+       "position": 10.1
+      }
+     ]
+    },
+    "previous": {
+     "rows": [
+      {
+       "page": "https://boutique.example.invalid/",
+       "clicks": 400,
+       "impressions": 11500,
+       "ctr": 0.0348,
+       "position": 7.9
+      },
+      {
+       "page": "https://boutique.example.invalid/donjon-modulaire",
+       "clicks": 160,
+       "impressions": 5800,
+       "ctr": 0.0276,
+       "position": 9.6
+      },
+      {
+       "page": "https://boutique.example.invalid/taverne",
+       "clicks": 190,
+       "impressions": 5300,
+       "ctr": 0.0358,
+       "position": 9.4
+      }
+     ]
+    }
+   }
+  },
+  "merchant_center": {
+   "product_issues": {
+    "products": [
+     {
+      "offer_id": "A1",
+      "feed_label": "FR",
+      "title": "Pont en bois",
+      "issues": [
+       {
+        "code": "item_weight_too_high",
+        "severity": "DISAPPROVED",
+        "description": "Poids du produit trop eleve",
+        "destination": "SHOPPING_ADS"
+       }
+      ]
+     },
+     {
+      "offer_id": "A2",
+      "feed_label": "FR",
+      "title": "Tour en ruine",
+      "issues": [
+       {
+        "code": "item_weight_too_high",
+        "severity": "DISAPPROVED",
+        "description": "Poids du produit trop eleve",
+        "destination": "SHOPPING_ADS"
+       }
+      ]
+     },
+     {
+      "offer_id": "A3",
+      "feed_label": "FR",
+      "title": "Table pliable",
+      "issues": [
+       {
+        "code": "image_too_small",
+        "severity": "DISAPPROVED",
+        "description": "Image trop petite",
+        "destination": "SHOPPING_ADS"
+       },
+       {
+        "code": "missing_gtin",
+        "severity": "DEMOTED",
+        "description": "Identifiant produit absent",
+        "destination": "SHOPPING_ADS"
+       }
+      ]
+     }
+    ],
+    "scanned": 2580,
+    "truncated": false
+   },
+   "statuses": {
+    "approved": 2432,
+    "limited": 38,
+    "disapproved": 112,
+    "previous": {
+     "approved": 2447,
+     "limited": 35,
+     "disapproved": 103
+    }
+   },
+   "performance": {
+    "results": [
+     {
+      "productPerformanceView": {
+       "offerId": "A9",
+       "title": "Donjon modulaire, kit 24 pièces",
+       "clicks": "212",
+       "impressions": "8410"
+      }
+     },
+     {
+      "productPerformanceView": {
+       "offerId": "A8",
+       "title": "Décor de taverne, set complet",
+       "clicks": "131",
+       "impressions": "6020"
+      }
+     }
+    ]
+   }
+  },
+  "google_ads": {
+   "current": {
+    "customer_id": "0000000000",
+    "level": "account",
+    "segment": "none",
+    "rows": [],
+    "row_count": 1,
+    "truncated": false,
+    "totals": {
+     "spend": 4820.0,
+     "impressions": 203000,
+     "clicks": 6310,
+     "conversions": 142.0,
+     "conversion_value": 17430.0,
+     "ctr": 0.0311,
+     "cpc": 0.76,
+     "cpa": 33.94,
+     "roas": 3.62
+    },
+    "totals_complete": true,
+    "currency": "EUR",
+    "date_range": {
+     "start": "2026-09-01",
+     "end": "2026-09-30",
+     "timezone": "Europe/Paris",
+     "data_complete": true
+    },
+    "attribution": {
+     "basis": "conversion action settings",
+     "window": "per conversion action"
+    }
+   },
+   "previous": {
+    "rows": [],
+    "totals": {
+     "spend": 4500.0,
+     "impressions": 190000,
+     "clicks": 6000,
+     "conversions": 130.0,
+     "conversion_value": 16000.0,
+     "roas": 3.56
+    },
+    "totals_complete": true,
+    "currency": "EUR"
+   }
+  },
+  "meta_ads": {
+   "account_id": "act_0000000000",
+   "level": "account",
+   "rows": [],
+   "totals": {
+    "spend": 3150.0,
+    "impressions": 264000,
+    "clicks": 2900,
+    "reach": 52400,
+    "frequency": 4.2,
+    "ctr": 0.011,
+    "cpc": 1.09,
+    "cpm": 11.9,
+    "purchases": 96.0,
+    "purchase_value": 9070.0,
+    "roas": 2.88,
+    "cpa": 32.8,
+    "no_activity": false
+   },
+   "totals_complete": true,
+   "currency": "EUR",
+   "attribution": {
+    "windows": [
+     "7d_click",
+     "1d_view"
+    ],
+    "default_used": true,
+    "single_total": true
+   },
+   "purchase_measurement": {
+    "measured": true,
+    "note": null
+   }
+  },
+  "openai_ads": {
+   "rows": [],
+   "totals": {
+    "impressions": 41000,
+    "clicks": 910,
+    "spend": 640.0,
+    "conversions": 18,
+    "order_created_attributed_sales": 2310.0,
+    "ctr": 0.0222,
+    "cpc": 0.7,
+    "cpm": 15.6,
+    "cpa": 35.6,
+    "order_created_roas": 3.61
+   },
+   "complete": true,
+   "totals_complete": true,
+   "currency": "EUR",
+   "attribution": {
+    "click_window_days": 30,
+    "view_window_days": 1,
+    "time_basis": "ad_event_time"
+   }
+  },
+  "ads_overview": {
+   "current": {
+    "warning": "Les conversions de chaque plateforme sont attribuées indépendamment et se recoupent. La somme n'est pas dédupliquée et surestime les commandes réelles.",
+    "platforms": {
+     "google_ads": {
+      "platform": "google_ads",
+      "status": "ok",
+      "spend": 4820.0,
+      "conversions": 142.0,
+      "currency": "EUR"
+     },
+     "meta": {
+      "platform": "meta",
+      "status": "ok",
+      "spend": 3150.0,
+      "conversions": 96.0,
+      "currency": "EUR"
+     },
+     "openai_ads": {
+      "platform": "openai_ads",
+      "status": "ok",
+      "spend": 640.0,
+      "conversions": 18,
+      "currency": "EUR"
+     }
+    },
+    "combined": {
+     "currency": "EUR",
+     "platforms_included": [
+      "google_ads",
+      "meta",
+      "openai_ads"
+     ],
+     "spend": 8610.0,
+     "conversions_sum_not_deduplicated": 256.0,
+     "roas": 3.33,
+     "totals_complete": true
+    },
+    "partial": false,
+    "not_configured": [],
+    "errors": [],
+    "platforms_without_activity": []
+   },
+   "previous": {
+    "warning": "Les conversions de chaque plateforme sont attribuées indépendamment et se recoupent. La somme n'est pas dédupliquée et surestime les commandes réelles.",
+    "platforms": {},
+    "combined": {
+     "currency": "EUR",
+     "spend": 7940.0,
+     "platforms_included": [
+      "google_ads",
+      "meta",
+      "openai_ads"
+     ]
+    }
+   }
+  },
+  "web_vitals": {
+   "pages": [
+    {
+     "url": "https://boutique.example.invalid/",
+     "strategy": "mobile",
+     "performance": 61,
+     "seo": 92,
+     "lcp": "3.9 s",
+     "cls": "0.02",
+     "tbt": "380 ms",
+     "field_data": "AVERAGE",
+     "field": {
+      "lcp": 2.3,
+      "inp": 240,
+      "cls": 0.05
+     },
+     "field_previous": {
+      "lcp": 2.5,
+      "inp": 210,
+      "cls": 0.05
+     }
+    },
+    {
+     "url": "https://boutique.example.invalid/donjon-modulaire",
+     "strategy": "mobile",
+     "performance": 54,
+     "seo": 95,
+     "lcp": "4.4 s",
+     "cls": "0.11",
+     "tbt": "520 ms",
+     "field_data": null
+    }
+   ]
+  },
+  "gtm_inventory": {
+   "container": "GTM-XXXXXXX",
+   "workspace": "Default Workspace",
+   "tags": [
+    {
+     "name": "GA4 config",
+     "type": "googtag",
+     "paused": false,
+     "firing_triggers": [
+      "All Pages (built-in)"
+     ],
+     "parameters": {
+      "tagId": "G-XXXX"
+     }
+    },
+    {
+     "name": "GA4 purchase",
+     "type": "gaawe",
+     "paused": false,
+     "firing_triggers": [
+      "purchase"
+     ],
+     "parameters": {
+      "eventName": "purchase"
+     }
+    },
+    {
+     "name": "Ancien pixel",
+     "type": "html",
+     "paused": true,
+     "firing_triggers": [],
+     "parameters": {}
+    }
+   ],
+   "triggers": [
+    "All Pages (built-in)",
+    "purchase"
+   ],
+   "variables": [
+    "Page URL"
+   ],
+   "live_version": {
+    "id": "12",
+    "name": "v12"
+   }
+  },
+  "ga4_realtime": {
+   "rows": [],
+   "row_count": 0,
+   "totals": {
+    "activeUsers": 3,
+    "screenPageViews": 7
+   }
+  }
+ },
+ "errors": [],
+ "events": [
+  {
+   "date": "2026-09-18",
+   "end": "2026-09-22",
+   "label": "Rupture de stock du decor de taverne.",
+   "item": "Décor de taverne, set complet"
+  },
+  {
+   "date": "2026-09-05",
+   "label": "Lancement de la campagne Meta de rentree."
+  },
+  {
+   "date": "2026-09-27",
+   "label": "Nouvelle version du conteneur GTM publiee (v12)."
+  }
+ ],
+ "notes": "## Ce que nous avons fait\n- Mise a jour du flux produits\n- **Nouvelles** photos sur 12 fiches"
+}
