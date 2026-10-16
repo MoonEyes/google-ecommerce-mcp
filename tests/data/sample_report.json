@@ -1,0 +1,967 @@
+{
+ "meta": {
+  "client": "Boutique Exemple",
+  "lang": "fr",
+  "currency": "EUR",
+  "generated_at": "2026-10-05",
+  "prepared_by": "Agence Exemple",
+  "sample": true,
+  "brand": {
+   "name": "Boutique Exemple",
+   "accent": "#1F6F5B"
+  }
+ },
+ "periods": {
+  "current": [
+   "2026-09-01",
+   "2026-09-30"
+  ],
+  "previous": [
+   "2026-08-01",
+   "2026-08-31"
+  ],
+  "yoy": [
+   "2025-09-01",
+   "2025-09-30"
+  ]
+ },
+ "goals": {
+  "revenue": 25000,
+  "orders": 175,
+  "aov": 150,
+  "conversion_rate": 0.02
+ },
+ "sources": {
+  "ga4": {
+   "kpi": {
+    "current": {
+     "rows": [
+      {
+       "date": "2026-09-01",
+       "sessions": 280,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 582.4
+      },
+      {
+       "date": "2026-09-02",
+       "sessions": 287,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1019.2
+      },
+      {
+       "date": "2026-09-03",
+       "sessions": 294,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 728.0
+      },
+      {
+       "date": "2026-09-04",
+       "sessions": 301,
+       "ecommercePurchases": 8,
+       "purchaseRevenue": 1164.8
+      },
+      {
+       "date": "2026-09-05",
+       "sessions": 308,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 873.6
+      },
+      {
+       "date": "2026-09-06",
+       "sessions": 315,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 582.4
+      },
+      {
+       "date": "2026-09-07",
+       "sessions": 282,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1019.2
+      },
+      {
+       "date": "2026-09-08",
+       "sessions": 289,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 728.0
+      },
+      {
+       "date": "2026-09-09",
+       "sessions": 296,
+       "ecommercePurchases": 8,
+       "purchaseRevenue": 1164.8
+      },
+      {
+       "date": "2026-09-10",
+       "sessions": 303,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 873.6
+      },
+      {
+       "date": "2026-09-11",
+       "sessions": 310,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 582.4
+      },
+      {
+       "date": "2026-09-12",
+       "sessions": 317,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1019.2
+      },
+      {
+       "date": "2026-09-13",
+       "sessions": 284,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 728.0
+      },
+      {
+       "date": "2026-09-14",
+       "sessions": 291,
+       "ecommercePurchases": 8,
+       "purchaseRevenue": 1164.8
+      },
+      {
+       "date": "2026-09-15",
+       "sessions": 298,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 873.6
+      },
+      {
+       "date": "2026-09-16",
+       "sessions": 305,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 582.4
+      },
+      {
+       "date": "2026-09-17",
+       "sessions": 312,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1019.2
+      },
+      {
+       "date": "2026-09-18",
+       "sessions": 319,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 728.0
+      },
+      {
+       "date": "2026-09-19",
+       "sessions": 286,
+       "ecommercePurchases": 8,
+       "purchaseRevenue": 1164.8
+      },
+      {
+       "date": "2026-09-20",
+       "sessions": 293,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 873.6
+      },
+      {
+       "date": "2026-09-21",
+       "sessions": 300,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 582.4
+      },
+      {
+       "date": "2026-09-22",
+       "sessions": 307,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1019.2
+      },
+      {
+       "date": "2026-09-23",
+       "sessions": 314,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 728.0
+      },
+      {
+       "date": "2026-09-24",
+       "sessions": 281,
+       "ecommercePurchases": 8,
+       "purchaseRevenue": 1164.8
+      },
+      {
+       "date": "2026-09-25",
+       "sessions": 288,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 873.6
+      },
+      {
+       "date": "2026-09-26",
+       "sessions": 295,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 582.4
+      },
+      {
+       "date": "2026-09-27",
+       "sessions": 302,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1019.2
+      },
+      {
+       "date": "2026-09-28",
+       "sessions": 309,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 728.0
+      },
+      {
+       "date": "2026-09-29",
+       "sessions": 316,
+       "ecommercePurchases": 8,
+       "purchaseRevenue": 1164.8
+      },
+      {
+       "date": "2026-09-30",
+       "sessions": 283,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 873.6
+      }
+     ],
+     "row_count": 30,
+     "truncated": false,
+     "totals": {
+      "sessions": 8965,
+      "ecommercePurchases": 180,
+      "purchaseRevenue": 26208.0,
+      "firstTimePurchasers": 118
+     },
+     "currency": "EUR",
+     "property_id": "000000000",
+     "metrics": {
+      "purchaseRevenue": {
+       "unit": "EUR",
+       "definition": "Revenue from purchase events."
+      }
+     },
+     "date_range": {
+      "start": "2026-09-01",
+      "end": "2026-09-30",
+      "timezone": "Europe/Paris",
+      "data_complete": true
+     }
+    },
+    "previous": {
+     "rows": [
+      {
+       "date": "2026-08-01",
+       "sessions": 270,
+       "ecommercePurchases": 3,
+       "purchaseRevenue": 432.6
+      },
+      {
+       "date": "2026-08-02",
+       "sessions": 277,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 865.2
+      },
+      {
+       "date": "2026-08-03",
+       "sessions": 284,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 576.8
+      },
+      {
+       "date": "2026-08-04",
+       "sessions": 291,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1009.4
+      },
+      {
+       "date": "2026-08-05",
+       "sessions": 298,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 721.0
+      },
+      {
+       "date": "2026-08-06",
+       "sessions": 305,
+       "ecommercePurchases": 3,
+       "purchaseRevenue": 432.6
+      },
+      {
+       "date": "2026-08-07",
+       "sessions": 272,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 865.2
+      },
+      {
+       "date": "2026-08-08",
+       "sessions": 279,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 576.8
+      },
+      {
+       "date": "2026-08-09",
+       "sessions": 286,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1009.4
+      },
+      {
+       "date": "2026-08-10",
+       "sessions": 293,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 721.0
+      },
+      {
+       "date": "2026-08-11",
+       "sessions": 300,
+       "ecommercePurchases": 3,
+       "purchaseRevenue": 432.6
+      },
+      {
+       "date": "2026-08-12",
+       "sessions": 307,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 865.2
+      },
+      {
+       "date": "2026-08-13",
+       "sessions": 274,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 576.8
+      },
+      {
+       "date": "2026-08-14",
+       "sessions": 281,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1009.4
+      },
+      {
+       "date": "2026-08-15",
+       "sessions": 288,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 721.0
+      },
+      {
+       "date": "2026-08-16",
+       "sessions": 295,
+       "ecommercePurchases": 3,
+       "purchaseRevenue": 432.6
+      },
+      {
+       "date": "2026-08-17",
+       "sessions": 302,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 865.2
+      },
+      {
+       "date": "2026-08-18",
+       "sessions": 309,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 576.8
+      },
+      {
+       "date": "2026-08-19",
+       "sessions": 276,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1009.4
+      },
+      {
+       "date": "2026-08-20",
+       "sessions": 283,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 721.0
+      },
+      {
+       "date": "2026-08-21",
+       "sessions": 290,
+       "ecommercePurchases": 3,
+       "purchaseRevenue": 432.6
+      },
+      {
+       "date": "2026-08-22",
+       "sessions": 297,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 865.2
+      },
+      {
+       "date": "2026-08-23",
+       "sessions": 304,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 576.8
+      },
+      {
+       "date": "2026-08-24",
+       "sessions": 271,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1009.4
+      },
+      {
+       "date": "2026-08-25",
+       "sessions": 278,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 721.0
+      },
+      {
+       "date": "2026-08-26",
+       "sessions": 285,
+       "ecommercePurchases": 3,
+       "purchaseRevenue": 432.6
+      },
+      {
+       "date": "2026-08-27",
+       "sessions": 292,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 865.2
+      },
+      {
+       "date": "2026-08-28",
+       "sessions": 299,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 576.8
+      },
+      {
+       "date": "2026-08-29",
+       "sessions": 306,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1009.4
+      },
+      {
+       "date": "2026-08-30",
+       "sessions": 273,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 721.0
+      },
+      {
+       "date": "2026-08-31",
+       "sessions": 280,
+       "ecommercePurchases": 3,
+       "purchaseRevenue": 432.6
+      }
+     ],
+     "row_count": 31,
+     "truncated": false,
+     "totals": {
+      "sessions": 8945,
+      "ecommercePurchases": 153,
+      "purchaseRevenue": 22062.6
+     },
+     "currency": "EUR",
+     "property_id": "000000000",
+     "metrics": {
+      "purchaseRevenue": {
+       "unit": "EUR",
+       "definition": "Revenue from purchase events."
+      }
+     },
+     "date_range": {
+      "start": "2026-08-01",
+      "end": "2026-08-31",
+      "timezone": "Europe/Paris",
+      "data_complete": true
+     }
+    },
+    "yoy": {
+     "rows": [
+      {
+       "date": "2025-09-01",
+       "sessions": 240,
+       "ecommercePurchases": 3,
+       "purchaseRevenue": 435.9
+      },
+      {
+       "date": "2025-09-02",
+       "sessions": 247,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 871.8
+      },
+      {
+       "date": "2025-09-03",
+       "sessions": 254,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 581.2
+      },
+      {
+       "date": "2025-09-04",
+       "sessions": 261,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1017.1
+      },
+      {
+       "date": "2025-09-05",
+       "sessions": 268,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 726.5
+      },
+      {
+       "date": "2025-09-06",
+       "sessions": 275,
+       "ecommercePurchases": 3,
+       "purchaseRevenue": 435.9
+      },
+      {
+       "date": "2025-09-07",
+       "sessions": 242,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 871.8
+      },
+      {
+       "date": "2025-09-08",
+       "sessions": 249,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 581.2
+      },
+      {
+       "date": "2025-09-09",
+       "sessions": 256,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1017.1
+      },
+      {
+       "date": "2025-09-10",
+       "sessions": 263,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 726.5
+      },
+      {
+       "date": "2025-09-11",
+       "sessions": 270,
+       "ecommercePurchases": 3,
+       "purchaseRevenue": 435.9
+      },
+      {
+       "date": "2025-09-12",
+       "sessions": 277,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 871.8
+      },
+      {
+       "date": "2025-09-13",
+       "sessions": 244,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 581.2
+      },
+      {
+       "date": "2025-09-14",
+       "sessions": 251,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1017.1
+      },
+      {
+       "date": "2025-09-15",
+       "sessions": 258,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 726.5
+      },
+      {
+       "date": "2025-09-16",
+       "sessions": 265,
+       "ecommercePurchases": 3,
+       "purchaseRevenue": 435.9
+      },
+      {
+       "date": "2025-09-17",
+       "sessions": 272,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 871.8
+      },
+      {
+       "date": "2025-09-18",
+       "sessions": 279,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 581.2
+      },
+      {
+       "date": "2025-09-19",
+       "sessions": 246,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1017.1
+      },
+      {
+       "date": "2025-09-20",
+       "sessions": 253,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 726.5
+      },
+      {
+       "date": "2025-09-21",
+       "sessions": 260,
+       "ecommercePurchases": 3,
+       "purchaseRevenue": 435.9
+      },
+      {
+       "date": "2025-09-22",
+       "sessions": 267,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 871.8
+      },
+      {
+       "date": "2025-09-23",
+       "sessions": 274,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 581.2
+      },
+      {
+       "date": "2025-09-24",
+       "sessions": 241,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1017.1
+      },
+      {
+       "date": "2025-09-25",
+       "sessions": 248,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 726.5
+      },
+      {
+       "date": "2025-09-26",
+       "sessions": 255,
+       "ecommercePurchases": 3,
+       "purchaseRevenue": 435.9
+      },
+      {
+       "date": "2025-09-27",
+       "sessions": 262,
+       "ecommercePurchases": 6,
+       "purchaseRevenue": 871.8
+      },
+      {
+       "date": "2025-09-28",
+       "sessions": 269,
+       "ecommercePurchases": 4,
+       "purchaseRevenue": 581.2
+      },
+      {
+       "date": "2025-09-29",
+       "sessions": 276,
+       "ecommercePurchases": 7,
+       "purchaseRevenue": 1017.1
+      },
+      {
+       "date": "2025-09-30",
+       "sessions": 243,
+       "ecommercePurchases": 5,
+       "purchaseRevenue": 726.5
+      }
+     ],
+     "row_count": 30,
+     "truncated": false,
+     "totals": {
+      "sessions": 7765,
+      "ecommercePurchases": 150,
+      "purchaseRevenue": 21795.0
+     },
+     "currency": "EUR",
+     "property_id": "000000000",
+     "metrics": {
+      "purchaseRevenue": {
+       "unit": "EUR",
+       "definition": "Revenue from purchase events."
+      }
+     },
+     "date_range": {
+      "start": "2025-09-01",
+      "end": "2025-09-30",
+      "timezone": "Europe/Paris",
+      "data_complete": true
+     }
+    }
+   }
+  },
+  "search_console": {
+   "totals": {
+    "current": {
+     "rows": [],
+     "totals": {
+      "clicks": 1340,
+      "impressions": 52000,
+      "ctr": 0.0258,
+      "position": 11.2
+     },
+     "date_range": {
+      "start": "2026-09-01",
+      "end": "2026-09-30",
+      "timezone": "America/Los_Angeles",
+      "data_complete": true
+     }
+    },
+    "previous": {
+     "rows": [],
+     "totals": {
+      "clicks": 1210,
+      "impressions": 49800,
+      "ctr": 0.0243,
+      "position": 11.9
+     }
+    }
+   },
+   "queries": {
+    "current": {
+     "rows": [
+      {
+       "query": "decor de jeu de role",
+       "clicks": 412,
+       "impressions": 9840,
+       "ctr": 0.0419,
+       "position": 6.2
+      },
+      {
+       "query": "decors imprimes 3d",
+       "clicks": 268,
+       "impressions": 7120,
+       "ctr": 0.0376,
+       "position": 8.9
+      },
+      {
+       "query": "donjon modulaire",
+       "clicks": 134,
+       "impressions": 4060,
+       "ctr": 0.033,
+       "position": 9.1
+      }
+     ]
+    },
+    "previous": {
+     "rows": [
+      {
+       "query": "decor de jeu de role",
+       "clicks": 350,
+       "impressions": 9100,
+       "ctr": 0.0385,
+       "position": 6.8
+      },
+      {
+       "query": "decors imprimes 3d",
+       "clicks": 301,
+       "impressions": 7300,
+       "ctr": 0.0412,
+       "position": 8.1
+      },
+      {
+       "query": "donjon modulaire",
+       "clicks": 134,
+       "impressions": 3900,
+       "ctr": 0.0344,
+       "position": 9.4
+      }
+     ]
+    }
+   }
+  },
+  "merchant_center": {
+   "product_issues": {
+    "products": [
+     {
+      "offer_id": "A1",
+      "feed_label": "FR",
+      "title": "Pont en bois",
+      "issues": [
+       {
+        "code": "item_weight_too_high",
+        "severity": "DISAPPROVED",
+        "description": "Poids du produit trop eleve",
+        "destination": "SHOPPING_ADS"
+       }
+      ]
+     },
+     {
+      "offer_id": "A2",
+      "feed_label": "FR",
+      "title": "Tour en ruine",
+      "issues": [
+       {
+        "code": "item_weight_too_high",
+        "severity": "DISAPPROVED",
+        "description": "Poids du produit trop eleve",
+        "destination": "SHOPPING_ADS"
+       }
+      ]
+     },
+     {
+      "offer_id": "A3",
+      "feed_label": "FR",
+      "title": "Table pliable",
+      "issues": [
+       {
+        "code": "image_too_small",
+        "severity": "DISAPPROVED",
+        "description": "Image trop petite",
+        "destination": "SHOPPING_ADS"
+       },
+       {
+        "code": "missing_gtin",
+        "severity": "DEMOTED",
+        "description": "Identifiant produit absent",
+        "destination": "SHOPPING_ADS"
+       }
+      ]
+     }
+    ],
+    "scanned": 2580,
+    "truncated": false
+   }
+  },
+  "google_ads": {
+   "current": {
+    "customer_id": "0000000000",
+    "level": "account",
+    "segment": "none",
+    "rows": [],
+    "row_count": 1,
+    "truncated": false,
+    "totals": {
+     "spend": 4820.0,
+     "impressions": 203000,
+     "clicks": 6310,
+     "conversions": 142.0,
+     "conversion_value": 17430.0,
+     "ctr": 0.0311,
+     "cpc": 0.76,
+     "cpa": 33.94,
+     "roas": 3.62
+    },
+    "totals_complete": true,
+    "currency": "EUR",
+    "date_range": {
+     "start": "2026-09-01",
+     "end": "2026-09-30",
+     "timezone": "Europe/Paris",
+     "data_complete": true
+    },
+    "attribution": {
+     "basis": "conversion action settings",
+     "window": "per conversion action"
+    }
+   },
+   "previous": {
+    "rows": [],
+    "totals": {
+     "spend": 4500.0,
+     "impressions": 190000,
+     "clicks": 6000,
+     "conversions": 130.0,
+     "conversion_value": 16000.0,
+     "roas": 3.56
+    },
+    "totals_complete": true,
+    "currency": "EUR"
+   }
+  },
+  "meta_ads": {
+   "account_id": "act_0000000000",
+   "level": "account",
+   "rows": [],
+   "totals": {
+    "spend": 3150.0,
+    "impressions": 264000,
+    "clicks": 2900,
+    "reach": 52400,
+    "frequency": 4.2,
+    "ctr": 0.011,
+    "cpc": 1.09,
+    "cpm": 11.9,
+    "purchases": 96.0,
+    "purchase_value": 9070.0,
+    "roas": 2.88,
+    "cpa": 32.8,
+    "no_activity": false
+   },
+   "totals_complete": true,
+   "currency": "EUR",
+   "attribution": {
+    "windows": [
+     "7d_click",
+     "1d_view"
+    ],
+    "default_used": true,
+    "single_total": true
+   },
+   "purchase_measurement": {
+    "measured": true,
+    "note": null
+   }
+  },
+  "openai_ads": {
+   "rows": [],
+   "totals": {
+    "impressions": 41000,
+    "clicks": 910,
+    "spend": 640.0,
+    "conversions": 18,
+    "order_created_attributed_sales": 2310.0,
+    "ctr": 0.0222,
+    "cpc": 0.7,
+    "cpm": 15.6,
+    "cpa": 35.6,
+    "order_created_roas": 3.61
+   },
+   "complete": true,
+   "totals_complete": true,
+   "currency": "EUR",
+   "attribution": {
+    "click_window_days": 30,
+    "view_window_days": 1,
+    "time_basis": "ad_event_time"
+   }
+  },
+  "ads_overview": {
+   "current": {
+    "warning": "Les conversions de chaque plateforme sont attribuées indépendamment et se recoupent. La somme n'est pas dédupliquée et surestime les commandes réelles.",
+    "platforms": {
+     "google_ads": {
+      "platform": "google_ads",
+      "status": "ok",
+      "spend": 4820.0,
+      "conversions": 142.0,
+      "currency": "EUR"
+     },
+     "meta": {
+      "platform": "meta",
+      "status": "ok",
+      "spend": 3150.0,
+      "conversions": 96.0,
+      "currency": "EUR"
+     },
+     "openai_ads": {
+      "platform": "openai_ads",
+      "status": "ok",
+      "spend": 640.0,
+      "conversions": 18,
+      "currency": "EUR"
+     }
+    },
+    "combined": {
+     "currency": "EUR",
+     "platforms_included": [
+      "google_ads",
+      "meta",
+      "openai_ads"
+     ],
+     "spend": 8610.0,
+     "conversions_sum_not_deduplicated": 256.0,
+     "roas": 3.33,
+     "totals_complete": true
+    },
+    "partial": false,
+    "not_configured": [],
+    "errors": [],
+    "platforms_without_activity": []
+   },
+   "previous": {
+    "warning": "Les conversions de chaque plateforme sont attribuées indépendamment et se recoupent. La somme n'est pas dédupliquée et surestime les commandes réelles.",
+    "platforms": {},
+    "combined": {
+     "currency": "EUR",
+     "spend": 7940.0,
+     "platforms_included": [
+      "google_ads",
+      "meta",
+      "openai_ads"
+     ]
+    }
+   }
+  }
+ },
+ "errors": [],
+ "events": [
+  {
+   "date": "2026-09-05",
+   "label": "Lancement de la campagne de rentree."
+  },
+  {
+   "date": "2026-09-18",
+   "label": "Rupture de stock du decor de taverne."
+  }
+ ],
+ "notes": "## Ce que nous avons fait\n- Mise a jour du flux produits\n- **Nouvelles** photos sur 12 fiches"
+}
