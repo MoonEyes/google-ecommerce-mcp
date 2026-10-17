@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## 0.4.1 (2026-10-17)
+
+### Fixed
+
+- `ads_overview` and the report no longer compute MER when one ad platform failed: spend would be understated.
+- A network error while refreshing a token now returns `{"error": "network"}` instead of an unhandled transport exception.
+- PageSpeed results include `field_metrics` (LCP, INP, CLS, categories, `origin_fallback`). The CLS scale (x100) is an assumption, not yet confirmed on a live response.
+- Report: a change that rounds to zero is shown as "stable"; lab values follow the report language.
+
+### Added
+
+- End-to-end tests (stdio server, pipeline, documentation) and an easy setup guide for the three ad platforms (`docs/SETUP-ADS.md`).
+- Redrawn architecture diagram showing the paid media connectors; documentation audit corrections.
+
+**The paid media connectors are still tested offline only, not yet against real accounts.**
+
 ## 0.4.0 (2026-10-16)
 
 ### Added
