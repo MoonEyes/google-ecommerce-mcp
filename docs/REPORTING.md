@@ -80,7 +80,7 @@ Products disapproved or with warnings, by issue; free-listing clicks per product
 
 ### 8. Paid media
 
-1. **MER (marketing efficiency ratio)** = total revenue / total ad spend, for the month. **Computed by the assistant**, with revenue from the back office or GA4 (stated), and spend as the sum of the platforms' spends **only if they share one currency**. The server does not compute it: it does not read the shop's back office.
+1. **MER (marketing efficiency ratio)** = total revenue / total ad spend, for the month. **Computed by the assistant**, with revenue from the back office or GA4 (stated), and spend as the sum of the platforms' spends **only if they share one currency**. The MCP tools do not compute it. The `report` command does, from GA4 revenue and the `ads_overview` combined spend, only in one currency; for back-office revenue, compute it yourself.
 2. **One sub-section per platform**, each read on its own terms. Never add the platforms' conversions or ROAS together.
 
 **Google Ads** (`gads_performance`): spend, clicks, CTR, CPC, conversions, conversion value, ROAS. Impression share and Shopping product reports are **not packaged**: use `gads_query` with the [templates in PROMPTS.md](../examples/PROMPTS.md#gaql-templates-for-gads_query). Attribution: set per conversion action in Google Ads; conversions are dated by the ad interaction.
@@ -101,7 +101,7 @@ Core Web Vitals as **field data (CrUX), 75th percentile**, with Google's thresho
 | INP | at most 200 ms | over 500 ms |
 | CLS | at most 0.1 | over 0.25 |
 
-- Tool: `pagespeed`. It returns **lab** data (Lighthouse, a simulated load) and **field** data (`field_data`, CrUX, real visitors). Do not mix them: report field data for Core Web Vitals, and use lab data to diagnose.
+- Tool: `pagespeed`. It returns **lab** data (`lcp`, `cls`, `tbt`, `performance`: Lighthouse, one simulated load) and, only when Google has enough real-user data for the URL or, failing that, for its origin (`field_metrics.origin_fallback: true`), **field** data: `field_metrics` (CrUX p75 of the last 28 days: `lcp_ms`, `inp_ms`, `cls`) and the overall category `field_data`. A low-traffic page often has no field data at all: `field_metrics` is then absent and only lab data can be shown. Do not mix them: report field data for Core Web Vitals, and use lab data to diagnose.
 
 ### 10. Data quality
 
@@ -168,7 +168,7 @@ An **event log** (promotions, stock-outs, tracking changes, campaign launches), 
 
 - **Impression share and Shopping product reports are not packaged.** They need free GAQL through `gads_query` ([templates](../examples/PROMPTS.md#gaql-templates-for-gads_query)); `shopping_performance_view` is on the allow-list of `gads_query`.
 - **No automatic comparison with the previous period.** The assistant calls each tool twice and compares.
-- **No MER computed.** The server does not read the back office; the assistant computes it from figures you give it.
+- **No MER from the back office.** The report computes MER from GA4 revenue only; a back-office MER is computed by the assistant from figures you give it.
 - **New vs. returning customers is not packaged.** Ask `ga4_report` for the `newVsReturning` dimension and `firstTimePurchasers`.
 - **Margin and targets are supplied by the user.** So are **annotations** (promotions, stock-outs, tracking changes).
 - **Incrementality and consent rate are out of scope.** The report shows consent and Consent Mode only if you give them (`meta.consent`, `meta.consent_mode`) or mention them in `notes`.
@@ -240,7 +240,7 @@ One JSON object. Every source is optional: an absent source shows as "not provid
 | `meta_ads` | `meta_insights`, periodic |
 | `openai_ads` | `openai_ads_insights`, periodic |
 | `ads_overview` | `ads_overview`, periodic |
-| `web_vitals.pages` | A list of `{"url": ..., "strategy": "mobile", **pagespeed output}`. Add the field p75 values as `field` (`{"lcp": seconds, "inp": milliseconds, "cls": score}`) and optionally `field_previous`, or pass the raw CrUX object (`field_data` / `loadingExperience.metrics`). `lcp`, `cls`, `tbt` and `performance` of a bare `pagespeed` output are lab values and are shown without a verdict |
+| `web_vitals.pages` | A list of `{"url": ..., "strategy": "mobile", **pagespeed output}`. The unmodified `pagespeed` output is enough: its `field_metrics` (present only when Google has field data for the URL or its origin) gives the p75 values judged against the thresholds; with `origin_fallback: true` the report says they are the whole site's. Without `field_metrics`, the page shows "no field data". Optionally add `field` (`{"lcp": seconds, "inp": milliseconds, "cls": score}`, which takes precedence) and `field_previous` for the change. `lcp`, `cls`, `tbt` and `performance` are lab values and are shown without a verdict, in the report's number format |
 | `gtm_inventory`, `ga4_realtime` | The unmodified tool output; used for the data-quality checks only |
 
 `openai_ads_conversions` is not an input source of the report. A sources block unknown to the generator is ignored and reported in `errors`.
@@ -249,9 +249,9 @@ One JSON object. Every source is optional: an absent source shows as "not provid
 
 - **Polarity.** Each metric has a direction. For revenue, orders, conversion rate or clicks, up is favourable. For cost per click, cost per acquisition, disapproved products or position, up is unfavourable. Spend, impressions, reach and frequency are neutral and never coloured as good or bad.
 - **Double coding.** A change is never shown by colour alone: an arrow (▲ ▼ =), a sign and a text come with it, so it still reads in black and white print.
-- **Noise.** A move under 1 % reads as stable. Larger moves are marked "not significant" (≈) when they stay within about 2 standard deviations. Counts: more than twice the square root of the sum of the two counts. Rates: about 2 standard errors of a two-proportion comparison. **Revenue** is judged on its relative change against the relative noise of the orders: 2·√(N1+N0) divided by the mean of the two order counts. **Average order value** uses a relative 5 % fallback. Without an order count the move is shown as "not tested: volume unknown". This is a **statistical approximation, not a standard**: a rule of thumb to avoid colouring noise, not proof. The words "not significant" are readable by screen readers and printed.
+- **Noise.** A move under 1 % reads as stable. Larger moves are marked "not significant" (≈) when they stay within about 2 standard deviations. Counts: more than twice the square root of the sum of the two counts. Rates: about 2 standard errors of a two-proportion comparison. **Revenue** is judged on its relative change against the relative noise of the orders: 2·√(N1+N0) divided by the mean of the two order counts. **Average order value and other ratios** (ROAS, CPA, CPC, CPM, MER, spend), and rates without denominators, use a relative 5 % fallback when no order counts are used. Without order counts, a revenue move is shown as "not tested: volume unknown". This is a **statistical approximation, not a standard**: a rule of thumb to avoid colouring noise, not proof. The words "not significant" are readable by screen readers and printed.
 - **Summary and notes.** The key messages use the same test as the change badge: a change that is not significant is never quoted as a fact, and the confidence badge of that message drops one level.
-- **Small volumes.** With fewer than 500 orders in the period, or a base under 30, the absolute change is shown next to the percentage, for example "+27 (+17,6 %)".
+- **Small volumes.** With fewer than 500 orders in the period, or a base under 30, the absolute change is shown next to the percentage, for example "+27 (+17.6%)" in English ("+27 (+17,6 %)" in French).
 - **Missing data.** A missing value shows "not provided" and a gap in a curve, never a zero.
 - **Confidence.** Each key message carries a level (high, medium, low) with its reasons, from completeness of the days, volume and provenance (an ad platform's own claim is at most medium). Confidence is capped at "medium" under 500 events.
 - **Shares.** Percentages of a total are computed with the largest-remainder method so the shown shares add up to exactly 100 %.

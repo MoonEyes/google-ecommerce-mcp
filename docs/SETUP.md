@@ -1,5 +1,7 @@
 # Setup: install one service at a time
 
+Easy setup guide: [docs/SETUP-ADS.md](SETUP-ADS.md)
+
 The single entry point for installing and checking the server. You do not need everything: install one service, check it, then add the next. Every service is optional, and a tool for a service you did not set up answers `not_configured`.
 
 > The paid media connectors are tested offline only (see [ADS.md](ADS.md#what-has-not-been-tested-against-real-accounts)). The commands below match `install --help` and `doctor --help`.
@@ -51,13 +53,13 @@ Short, no jargon. Replace the brackets.
 >
 > Hello [first name],
 >
-> To prepare your report I need read access to your accounts. I will not be able to change anything in them. Could you please do the following?
+> To prepare your report I need read access to your accounts. I only need to read them, and I will not change anything. Could you please do the following?
 >
 > 1. **Google Analytics**: add [your Google account e-mail] as a *Viewer* of your property.
-> 2. **Google Search Console**: add [your Google account e-mail] as a user of your site.
-> 3. **Google Merchant Center** (if you sell on Google Shopping): add the same address as a user.
+> 2. **Google Search Console**: add [your Google account e-mail] as a user with *Restricted* permission.
+> 3. **Google Merchant Center** (if you sell on Google Shopping): add the same address as a user with the lowest access level offered (*role name may differ*).
 > 4. **Google Ads** (if you advertise there): give [your e-mail] read-only access to the account.
-> 5. **Meta ads** (if you advertise on Facebook or Instagram): in Business Settings, add me as a partner or create a user with the *Analyst* role on the ad account.
+> 5. **Meta ads** (if you advertise on Facebook or Instagram): in Business Settings, please create a *system user* (a robot login for your business) and give it only the *Analyst* (read) role on your ad account, or add me with that role (*labels may differ*). I will then ask you to generate a token for it with the read permission only (`ads_read`); we will do that step together.
 > 6. **ChatGPT Ads** (if you advertise there): create an API key in Ads Manager and send it to me **by your password manager's secure sharing, never by plain e-mail or chat**.
 >
 > If one of these is not possible or you are not sure, tell me which and I will guide you.
@@ -68,7 +70,7 @@ Never ask a client to send a password. Never accept a token or key pasted in an 
 
 ## Recommended order, with a check after each step
 
-After each step, run the check for that service. It shows one row per service (Service, Set up, Secret, Token, Status, Account, with ids masked as `123***890`), then a "To fix" list with the exact command for each problem, a "Not set up" list, a `Result:` line and a `Next command:`.
+After each step, run the check for that service. It shows one row per service (Service, Set up, Secret, Token, Status, Account, with ids masked as `123***890`), then a "To fix" list with the exact command for each problem, a "Not set up" list, a `Result:` line and the next command to run.
 
 ```bash
 google-ecommerce-mcp doctor --only <service> --live
@@ -81,6 +83,7 @@ An excerpt of the offline output on a machine with nothing configured:
 ```text
 Service         Set up  Secret  Token          Status      Account
 ------------------------------------------------------------------
+[...]
 Google Ads      no      no      -              not set up  -
 Meta Ads        no      no      -              not set up  -
 ChatGPT Ads     no      no      -              not set up  -
@@ -89,24 +92,26 @@ Result: 0 OK, 0 to fix, 7 not set up.
 Nothing is set up yet. Start with one service: google-ecommerce-mcp install --yes --client-secret <client_secret.json> --ga4 <property id>
 ```
 
+This excerpt comes from a machine with a working OS keyring. Without a readable keyring backend (a headless Linux server, for example), the Google Ads line shows `unreadable` in the Token column even when Google Ads is not set up, and a note says the keyring is not readable: the stored tokens cannot be checked there; use `GOOGLE_TOKEN_FILE` / `GADS_TOKEN_FILE` on such machines.
+
 1. **Google Cloud and the OAuth client.** Follow [SETUP-GOOGLE-CLOUD.md](SETUP-GOOGLE-CLOUD.md) (about 10 minutes, once). Download the client JSON.
 2. **Install and authorize Google.** Run the installer (see the README, [Quick install](https://github.com/MoonEyes/google-ecommerce-mcp#quick-install): download, read, compare SHA-256, run), or `google-ecommerce-mcp install` if already installed. Give the ids you have; skip the others.
 3. **GA4:** `google-ecommerce-mcp doctor --only ga4 --live`.
 4. **Search Console:** `google-ecommerce-mcp doctor --only gsc --live`.
-5. **Merchant Center, Tag Manager, PageSpeed:** one `doctor --only ... --live` each.
+5. **Merchant Center, Tag Manager:** if you skipped an id at step 2, add it with `google-ecommerce-mcp install --yes --client-secret client_secret.json --merchant <account id>` (or `--gtm <container id>`), then run `google-ecommerce-mcp doctor --only merchant --live` (or `gtm`). PageSpeed needs no id; see the PageSpeed key below.
 6. **Paid media (optional step of `install`).** Interactive `install` asks "Set up paid media now?" after the Google questions; any paid media flag also starts it; `--skip-ads` leaves it out. Non-secret options: `--gads-customer-id`, `--gads-login-customer-id`, `--meta-account-id`; `--corporate-proxy` sets `ADS_TRUST_ENV=1` for a company proxy. Secrets are never arguments:
-   - **Google Ads:** `install --yes --client-secret client_secret.json --gads-customer-id <customer id>` opens the Google consent for the Google Ads scope alone (same OAuth client file, separate token), or run `google-ecommerce-mcp setup-ads --client-secret client_secret.json` yourself. Then `doctor --only gads --live`.
+   - **Google Ads:** first turn on the *Google Ads API* in the same Cloud project (APIs & Services > Library). Then `install --yes --client-secret client_secret.json --gads-customer-id <customer id>` opens the Google consent for the Google Ads scope alone (same OAuth client file, separate token), or run `google-ecommerce-mcp setup-ads --client-secret client_secret.json` yourself. Then `doctor --only gads --live`.
    - **Meta:** `google-ecommerce-mcp set-secret meta-access-token` (hidden prompt, OS keyring), then add the ad account id with `google-ecommerce-mcp install --yes --skip-auth --meta-account-id <ad account id>`. Then `doctor --only meta --live`.
-   - **ChatGPT Ads:** there is no id to give, so `--yes` skips it. Either run `google-ecommerce-mcp install --skip-auth` (answer `y` to the ChatGPT Ads question, then paste the key at the hidden prompt) or `google-ecommerce-mcp set-secret openai-ads-key`. Then `doctor --only openai --live`.
+   - **ChatGPT Ads:** there is no id to give, so `--yes` skips it. Either run `google-ecommerce-mcp install --skip-auth` and answer the prompts in this order: Enter at each of the four Google id questions, Enter at the (hidden) PageSpeed key prompt, `y` to "Set up paid media now?", Enter at the Google Ads and Meta questions, `y` to "Connect ChatGPT Ads", then paste the key at the hidden prompt; or run `google-ecommerce-mcp set-secret openai-ads-key`. Then `doctor --only openai --live`.
 7. **Restart Claude Desktop completely**, then run `google-ecommerce-mcp doctor --live` for the whole picture.
 
 `install` writes only non-secret identifiers to the Claude Desktop config. Before anything is written it makes a time-stamped backup (to the microsecond). It can be run again safely: a rerun keeps the variables already in the entry and adds new ones. If an existing value would change, it stops with exit code `3` and changes nothing; `--force` replaces that value (it never deletes a variable).
 
-All checks run **before** any OAuth consent or secret prompt: the config is readable, there are no conflicting values, and the Google and Google Ads token files are different. So a refusal never leaves you half-authorized. Exit codes: `0` done, `2` refused before any authorization (for example the same token file for Google and Google Ads), `3` conflict or config problem, `130` you pressed Ctrl-C (it says what was already done). A config that is malformed, larger than 5 MB, in UTF-16 or read-only gives a clear message, never a traceback. Ids are checked: a Google Ads customer id has exactly 10 digits (dashes allowed), a Meta ad account id 3 to 20 digits.
+All checks run **before** any OAuth consent or secret prompt: the config is readable, there are no conflicting values, and the Google and Google Ads token files are different. So a conflict never leaves you half-authorized. A read-only config is detected only when writing, after the consent: the message then lists what was already done and kept. Exit codes: `0` done, `2` refused before any authorization (for example the same token file for Google and Google Ads), `3` conflict or config problem, `130` you pressed Ctrl-C (it says what was already done). A config that is malformed, larger than 5 MB, in UTF-16 or read-only gives a clear message, never a traceback. Ids are checked: a Google Ads customer id has exactly 10 digits (dashes allowed), a Meta ad account id 3 to 20 digits.
 
 `--corporate-proxy` alone is enough to write `ADS_TRUST_ENV=1` into an existing entry (`install --yes --skip-auth --corporate-proxy`).
 
-The PageSpeed key is read from `--pagespeed-key` (not recommended: it stays on the command line and in your shell history), otherwise from the `PAGESPEED_API_KEY` environment variable of the terminal, otherwise from a hidden prompt when interactive. The guide step is `google-ecommerce-mcp install --skip-auth --skip-ads`.
+The PageSpeed key is read from `--pagespeed-key` (not recommended: it stays on the command line and in your shell history), otherwise from the `PAGESPEED_API_KEY` environment variable of the terminal, otherwise from a hidden prompt when interactive. The guide step is `google-ecommerce-mcp install --skip-auth --skip-ads`. To add the key later, run it, press Enter at each of the four id questions and paste the key at the hidden PageSpeed prompt.
 
 ## When it blocks
 
@@ -133,10 +138,12 @@ If you are stuck, open an issue with the output of `doctor --json` (it contains 
 
 ## Revoking each access
 
+The `uvx keyring del <service> <user>` commands below work after an install through uvx (they run the `keyring` tool without installing it permanently). If you installed with pip, plain `keyring del ...` also works. Otherwise delete the entries named `google-ecommerce-mcp` in Windows Credential Manager or macOS Keychain Access.
+
 | Access | How to revoke | Then delete the local copy |
 |---|---|---|
-| Google (GA4, Search Console, Merchant, Tag Manager, Indexing) | [Google account permissions](https://myaccount.google.com/permissions), or delete the OAuth client in Cloud Console | `keyring del google-ecommerce-mcp oauth-token` or the token file |
-| Google Ads | Same page; remove the app | `keyring del google-ecommerce-mcp oauth-token-ads` or the `GADS_TOKEN_FILE` file |
-| Meta | Revoke or regenerate the system user token in Business Settings; remove the system user if no longer needed | `keyring del google-ecommerce-mcp meta-access-token` |
-| ChatGPT Ads | Revoke the API key in Ads Manager | `keyring del google-ecommerce-mcp openai-ads-key` |
+| Google (GA4, Search Console, Merchant, Tag Manager, Indexing) | [Google account permissions](https://myaccount.google.com/permissions), or delete the OAuth client in Cloud Console | `uvx keyring del google-ecommerce-mcp oauth-token` or the token file |
+| Google Ads | Same page; remove the app | `uvx keyring del google-ecommerce-mcp oauth-token-ads` or the `GADS_TOKEN_FILE` file |
+| Meta | Revoke or regenerate the system user token in Business Settings; remove the system user if no longer needed | `uvx keyring del google-ecommerce-mcp meta-access-token` |
+| ChatGPT Ads | Revoke the API key in Ads Manager | `uvx keyring del google-ecommerce-mcp openai-ads-key` |
 | Client-side grants | The client removes you as a user in each product | n/a |

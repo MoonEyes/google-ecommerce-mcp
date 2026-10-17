@@ -1,5 +1,7 @@
 # Paid media connectors: Google Ads, Meta Ads, ChatGPT Ads
 
+Easy setup guide: [docs/SETUP-ADS.md](SETUP-ADS.md)
+
 Nine read-only tools that put your ad spend next to your GA4, Search Console and Merchant Center data. They only read reports. They cannot create, edit, pause or delete a campaign, change a budget or upload anything.
 
 > **Status: tested offline only.** Every behaviour on this page was checked against fake responses written from the platforms' documentation. The connectors have **not been run against real Google Ads, Meta or ChatGPT Ads accounts yet**. [Known unknowns](#what-has-not-been-tested-against-real-accounts) lists what to confirm on your first real query. Compare the first figures with each platform's own interface before you rely on them.

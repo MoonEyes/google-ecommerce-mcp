@@ -111,10 +111,10 @@ The report itself shows what the tools returned, so it can still hold business f
 
 - One click: [Google account > Security > Third-party connections](https://myaccount.google.com/permissions), remove your app.
 - Or delete the OAuth client in Google Cloud Console: every token issued to it stops working.
-- Then delete the local copy: `keyring del google-ecommerce-mcp oauth-token`, or delete the token file.
+- Then delete the local copy: `uvx keyring del google-ecommerce-mcp oauth-token`, or delete the token file.
 
 Paid media credentials:
 
-- Google Ads: remove the app in your [Google account permissions](https://myaccount.google.com/permissions), then `keyring del google-ecommerce-mcp oauth-token-ads` (or delete the `GADS_TOKEN_FILE` file).
-- Meta: revoke or regenerate the system user token in Business Settings, then `keyring del google-ecommerce-mcp meta-access-token`.
-- ChatGPT Ads: revoke the API key where you created it in Ads Manager, then `keyring del google-ecommerce-mcp openai-ads-key`.
+- Google Ads: remove the app in your [Google account permissions](https://myaccount.google.com/permissions), then `uvx keyring del google-ecommerce-mcp oauth-token-ads` (or delete the `GADS_TOKEN_FILE` file).
+- Meta: revoke or regenerate the system user token in Business Settings, then `uvx keyring del google-ecommerce-mcp meta-access-token`.
+- ChatGPT Ads: revoke the API key where you created it in Ads Manager, then `uvx keyring del google-ecommerce-mcp openai-ads-key`.

@@ -28,6 +28,7 @@ Built by [MoonEyes](https://www.mooneyeswargame.com), a small French shop sellin
 | [Client reporting](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/REPORTING.md) | Monthly report plan, KPI formulas, the `report` command and its input contract |
 | [Guided install prompts](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/examples/INSTALL-PROMPT.md) | A prompt to paste into Claude to be guided step by step ([French](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/examples/INSTALL-PROMPT.fr.md)) |
 | [Third-party notices](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/THIRD_PARTY_NOTICES.md) | Code ported from OpenGSC (MIT) |
+| [Easy setup guide for ad platforms](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/SETUP-ADS.md) | Google Ads, Meta Ads, ChatGPT Ads: client e-mail, numbered steps, ids, checks, revocation |
 | [Paid media guide](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/ADS.md) | Google Ads, Meta Ads, ChatGPT Ads: prerequisites step by step, GAQL rules, errors, what is untested |
 | [Google Cloud setup](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/SETUP-GOOGLE-CLOUD.md) | OAuth client, APIs to enable, where to find each id |
 | [Security model](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/SECURITY.md) | Scopes, token storage, threats, how to revoke |
@@ -178,7 +179,7 @@ SHA-256 of the pinned scripts:
 - `install.ps1`: `aa5d02aaa21684d94f8717ac2f642c1d313d509eb77617f1828810f34807c68f`
 - `install.sh`: `d01c0658bf5557e48afd2fd26f4abe5fe06979346919459b4525aea720f829b9`
 
-**One line, if you accept to run it without reading** (same pinned commit, so the SHA-256 above still applies):
+**One line, if you accept to run it without reading** (same pinned commit; this way the SHA-256 is not checked):
 
 ```powershell
 irm https://raw.githubusercontent.com/MoonEyes/google-ecommerce-mcp/75c9538e21f9b24f0c739d4d78fd3f99c3e5f6d9/install.ps1 | iex

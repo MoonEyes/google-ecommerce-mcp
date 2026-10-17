@@ -266,10 +266,16 @@ PageSpeed Insights (Lighthouse) performance and SEO scores plus Core Web Vitals.
 | `strategy` | str | `mobile` (or `desktop`) |
 
 ```json
-{"performance": 61, "seo": 92, "lcp": "3.9 s", "cls": "0.02", "tbt": "380 ms", "field_data": "AVERAGE"}
+{"performance": 61, "seo": 92, "lcp": "3.9 s", "cls": "0.02", "tbt": "380 ms", "field_data": "AVERAGE",
+ "field_metrics": {"lcp_ms": 2900, "inp_ms": 240, "cls": 0.08, "lcp_category": "AVERAGE",
+                   "inp_category": "AVERAGE", "cls_category": "FAST", "origin_fallback": false}}
 ```
 
-`field_data` is the Chrome UX Report category when Google has enough real-user data, otherwise `null`.
+- `performance`, `seo`, `lcp`, `cls`, `tbt`: **lab** values (Lighthouse, one simulated load), as text formatted by Google.
+- `field_data`: the overall Chrome UX Report (CrUX) category when Google has enough real-user data, otherwise `null`.
+- `field_metrics`: the **field** values, 75th percentile of real visits over the last 28 days (CrUX): `lcp_ms` and `inp_ms` in milliseconds, `cls` as a score (the API sends it multiplied by 100; it is divided back here), and each metric's category when Google gives one. Only the metrics Google returned are present. `origin_fallback: true` means Google had too little data for this URL and answered for the whole site (origin). The key is **absent** when Google has no field data for the URL nor its origin (low traffic): never zeros.
+
+**Not confirmed against a live response:** the unit of the three field values is assumed from Google's metric names (LCP and INP in milliseconds), and CLS is assumed to arrive multiplied by 100, so the tool divides it by 100. The API reference types percentiles as integers and does not state the scale, and the shared anonymous quota was exhausted when this was checked (2026-10-17). Compare `field_metrics.cls` with the Core Web Vitals report of Search Console before relying on it. Google's own page also announces that real-user data is planned to leave this API; if `field_metrics` disappears, take the p75 values from the Chrome UX Report API instead and pass them to the report as `web_vitals.field`.
 
 Ask: *"Mobile PageSpeed of our home page and three best-selling product pages."*
 
