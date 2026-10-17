@@ -43,7 +43,7 @@ from .. import contract as c
 from ..compare import fmt_delta_pct
 from ..i18n import fmt_date, fmt_int, fmt_money, fmt_number, fmt_pct, tr
 from ..period import parse_date, shift_year
-from ..summary import ORDER_KEYS, REVENUE_KEYS, first_num, ga4_revenue, mer
+from ..summary import ORDER_KEYS, REVENUE_KEYS, failed_platforms, first_num, ga4_revenue, mer
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..render import ReportContext
@@ -424,6 +424,13 @@ def _metric_charts(ctx: "ReportContext", shown: list[tuple[str, dict]]) -> str:
     return f'<div class="grid wide">{"".join(figures_html)}</div>' if figures_html else ""
 
 
+def _platform_names(ctx: "ReportContext", sources: Any) -> str:
+    """'Meta Ads, ChatGPT Ads' from source keys (plain text)."""
+    if isinstance(sources, str):
+        return sources
+    return ", ".join(tr(ctx.lang, f"source.{s}") for s in sources)
+
+
 def warning_text(data: dict, lang: str) -> str:
     """The attribution warning: ads_overview's own ``warning`` when present, else the fixed default text."""
     overview = c.view(data, "ads_overview")
@@ -455,7 +462,8 @@ def render_ads(data: dict, ctx: "ReportContext") -> str:
                     f'<div class="fig-value mer">{ctx.number(m.value, 1)}</div>'
                     f'<p class="meta">{detail}</p></div>')
     else:
-        reason = tr(ctx.lang, m.reason or "ads.reason.no_spend", **m.reason_args)
+        args = {k: _platform_names(ctx, v) if k == "platforms" else v for k, v in m.reason_args.items()}
+        reason = tr(ctx.lang, m.reason or "ads.reason.no_spend", **args)
         mer_card = (f'<div class="card"><div class="l">{ctx.t("ads.mer_label")}</div>'
                     f'{ctx.nodata(tr(ctx.lang, "ads.mer_none", reason=reason))}</div>')
     combined = overview.get("combined") if c.state(overview) == "ok" else None
@@ -465,6 +473,9 @@ def render_ads(data: dict, ctx: "ReportContext") -> str:
         lines = []
         if isinstance(included, list):
             lines.append(ctx.t("ads.spend_detail", count=fmt_int(len(included), ctx.lang)))
+        failed = failed_platforms(overview)
+        if failed:
+            lines.append(ctx.t("ads.spend_incomplete", platforms=_platform_names(ctx, failed)))
         prev = ctx.view("ads_overview", period="previous")
         prev_comb = prev.get("combined") if c.state(prev) == "ok" else None
         if isinstance(prev_comb, dict) and c.is_num(prev_comb.get("spend")) and prev_comb.get("currency") == cur:

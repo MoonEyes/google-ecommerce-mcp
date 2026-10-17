@@ -34,7 +34,7 @@ import requests
 from mcp.types import ToolAnnotations
 
 from . import metrics
-from .auth import NotAuthenticated
+from .auth import NotAuthenticated, TokenNetworkError
 from .config import NotConfigured
 
 log = logging.getLogger(__name__)
@@ -500,6 +500,9 @@ class AdsClient:
         ..."}; a body above max_bytes (default self.max_bytes, 20 MB) is {"error": "response_too_large"}."""
         try:
             resolved = headers() if callable(headers) else (headers or {})
+        except TokenNetworkError as exc:  # token refresh failed on the network: not an authentication problem
+            return redact({"error": "network", "platform": self.platform, "detail": str(exc),
+                           "fix": LOCAL_TRANSPORT_FIX if exc.local else NETWORK_FIX}, self._secret_list())
         except NotAuthenticated as exc:
             return redact({"error": "auth_failed", "platform": self.platform, "detail": str(exc),
                            "fix": _FIXES.get(self.platform, _DEFAULT_FIXES)["auth_failed"]}, self._secret_list())

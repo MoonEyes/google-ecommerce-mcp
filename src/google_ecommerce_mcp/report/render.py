@@ -26,7 +26,8 @@ from . import svg as svg_mod
 from .brand import Brand, build_brand
 from .compare import DeltaInfo, assess_delta, fmt_delta_pct, is_small_volume, KIND
 from .confidence import Confidence, assess
-from .i18n import (MINUS, fmt_date, fmt_int, fmt_money, fmt_month, fmt_number, fmt_pct, norm_lang, tr)
+from .i18n import (MINUS, fmt_date, fmt_int, fmt_money, fmt_month, fmt_number, fmt_pct, money_digits, norm_lang,
+                   tr)
 from .period import GSC_LAG_DAYS, Window, parse_date, parse_periods, period_warnings, previous_of, yoy_of
 from .style import css
 from .summary import build_decisions, build_messages, ga4_orders
@@ -163,16 +164,29 @@ class ReportContext:
         return assess_delta(current, previous, metric, n=n, counts=counts)
 
     def _abs_text(self, diff: float, metric: str, currency: str | None) -> str:
+        """Signed absolute change ("+38", "−0,4 pt", "+12 €"). Rounded FIRST, at the precision shown: a change
+        that rounds to zero is "stable", never "−0,0 pt" nor "+0"."""
         kind = KIND.get(metric, "amount")
-        sign = "+" if diff > 0 else MINUS if diff < 0 else ""
+        money = metric in ("revenue", "aov", "spend", "cpa", "cpc", "cpm", "conversion_value")
         if kind == "rate":
-            body = f"{fmt_number(abs(diff) * 100, 1, self.lang)}{chr(160)}{tr(self.lang, 'delta.pt')}"
+            shown, digits = abs(diff) * 100, 1
         elif kind in ("count", "any"):
-            body = fmt_int(abs(diff), self.lang)
-        elif metric in ("revenue", "aov", "spend", "cpa", "cpc", "cpm", "conversion_value"):
-            body = fmt_money(abs(diff), currency or self.currency, self.lang)
+            shown, digits = abs(diff), 0
+        elif money:
+            shown, digits = abs(diff), money_digits(abs(diff))
         else:
-            body = fmt_number(abs(diff), 1, self.lang)
+            shown, digits = abs(diff), 1
+        if float(f"{shown:.{digits}f}") == 0:
+            return tr(self.lang, "delta.stable")
+        sign = "+" if diff > 0 else MINUS
+        if kind == "rate":
+            body = f"{fmt_number(shown, 1, self.lang)}{chr(160)}{tr(self.lang, 'delta.pt')}"
+        elif kind in ("count", "any"):
+            body = fmt_int(shown, self.lang)
+        elif money:
+            body = fmt_money(shown, currency or self.currency, self.lang)
+        else:
+            body = fmt_number(shown, 1, self.lang)
         return sign + body
 
     def delta_text_raw(self, info: DeltaInfo, current: Any, previous: Any, metric: str, *,

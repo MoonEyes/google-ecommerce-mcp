@@ -11,6 +11,8 @@ import json
 import os
 from pathlib import Path
 
+import requests
+from google.auth.exceptions import TransportError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
@@ -22,6 +24,25 @@ class NotAuthenticated(Exception):
                                       "first.") -> None:
         super().__init__(message)
 
+
+class TokenNetworkError(NotAuthenticated):
+    """The access token could not be refreshed because the network failed (TransportError, SSL, timeout...).
+
+    Not an authentication problem: callers that know it (server._call, ads_common.AdsClient.call) answer
+    {"error": "network"}; it subclasses NotAuthenticated so older callers still treat it as "no token now" and never
+    let it escape. The message names the exception type only, never its text (it can hold a URL or a token)."""
+
+    def __init__(self, message: str, kind: str = "", local: bool = False) -> None:
+        super().__init__(message)
+        self.kind, self.local = kind, local
+
+
+REFRESH_NETWORK = ("The Google token could not be refreshed: network error ({kind}). Check the internet connection "
+                   "(and the proxy settings), then retry; the stored token is unchanged.")
+NETWORK_FIX = "check the internet connection (and the proxy settings), then retry"
+# What a refresh can raise when the network or TLS fails: google-auth wraps requests errors in TransportError, but
+# a raw requests error (SSLError...) or an OSError (CA bundle, socket) is caught too.
+NETWORK_ERRORS: tuple[type[BaseException], ...] = (TransportError, requests.RequestException, OSError)
 
 EXPIRED = ("The stored Google token has expired or was revoked. Run `google-ecommerce-mcp setup --client-secret "
            "<file>` again (rerun the install line also works). Apps whose OAuth consent screen is in Testing get "
@@ -71,6 +92,9 @@ class TokenProvider:
 
             try:
                 self._creds.refresh(Request())
+            except NETWORK_ERRORS as exc:  # the stored token stays loaded: the next call retries the refresh
+                raise TokenNetworkError(REFRESH_NETWORK.format(kind=type(exc).__name__),
+                                        kind=type(exc).__name__) from None
             except RefreshError as exc:
                 self._creds = None  # read the token again next call, in case setup was rerun meanwhile
                 raise NotAuthenticated(EXPIRED if "invalid_grant" in str(exc) else f"Token refresh failed: {exc}") from exc
