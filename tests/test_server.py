@@ -37,7 +37,10 @@ class FakeSession:
 
 
 @pytest.fixture
-def server(monkeypatch):
+def server(monkeypatch, tmp_path):
+    # No client registry (legacy mode) whatever exists on the machine running the tests.
+    monkeypatch.setenv("GEM_CLIENTS_FILE", str(tmp_path / "no-registry.json"))
+    monkeypatch.delenv("GEM_CLIENT", raising=False)
     for key, value in {"GA4_PROPERTY_ID": "123", "GSC_SITE_URL": "sc-domain:example.com",
                        "MERCHANT_ACCOUNT_ID": "999", "GTM_CONTAINER_ID": "GTM-TEST"}.items():
         monkeypatch.setenv(key, value)
@@ -243,15 +246,24 @@ def test_gtm_maps_built_in_triggers(server, monkeypatch):
 
 def test_tools_are_registered_with_real_signatures(server):
     tools = {t.name: t for t in asyncio.run(server.mcp.list_tools())}
-    assert len(tools) == 22  # 13 Google tools + 9 paid-media tools
+    # 13 Google tools + 9 paid-media tools + 3 client tools, plus the write tools of modules already installed
+    # (the exact frozen list lives in tests/golden_tools.json).
+    assert len(tools) >= 25
+    for name in ("server_status", "ga4_report", "pagespeed", "ads_overview", "clients_list", "client_profile",
+                 "client_check"):
+        assert name in tools, name
     assert "property_id" in tools["ga4_report"].inputSchema["properties"]
     assert "channel_group" in tools["ga4_report"].inputSchema["properties"]
     assert tools["gsc_inspect_url"].inputSchema["required"] == ["url"]
 
 
 def test_every_tool_is_declared_read_only_and_documented(server):
+    """Every tool except the *_apply ones (the only tools that write, through write_core) is read-only."""
     for t in asyncio.run(server.mcp.list_tools()):
-        assert t.annotations.readOnlyHint is True and t.annotations.destructiveHint is False, t.name
+        if t.name.endswith("_apply"):
+            assert t.annotations.readOnlyHint is False and t.annotations.destructiveHint is True, t.name
+        else:
+            assert t.annotations.readOnlyHint is True and t.annotations.destructiveHint is False, t.name
         assert t.title and len(t.description) > 60, t.name
         for name, prop in t.inputSchema.get("properties", {}).items():
             assert prop.get("description"), f"{t.name}.{name} has no description"
@@ -410,3 +422,280 @@ def test_expired_token_is_reported_not_raised(server, monkeypatch):
     result = server.ga4_report()
     assert result["error"] == "not_authenticated" and "expired" in result["detail"] and "7 days" in result["detail"]
     assert "setup" in result["fix"] and session.calls == [] and provider._creds is None
+
+
+# ------------------------------------------------------------------ 0.5.0: multi-client, PageSpeed host, GSC body
+import json as _json  # noqa: E402
+from urllib.parse import quote as _quote  # noqa: E402
+
+PAGESPEED_OK = {"lighthouseResult": {
+    "categories": {"performance": {"score": 1}, "seo": {"score": 1}},
+    "audits": {k: {"displayValue": "0"} for k in ("largest-contentful-paint", "cumulative-layout-shift",
+                                                   "total-blocking-time")}}}
+
+
+def test_pagespeed_uses_the_documented_host(server, monkeypatch):
+    session = use(server, monkeypatch, [("runPagespeed", FakeResponse(200, PAGESPEED_OK))])
+    assert server.pagespeed("https://example.com/")["performance"] == 100
+    method, url, kwargs = session.calls[0]
+    assert url == "https://pagespeedonline.googleapis.com/pagespeedonline/v5/runPagespeed"
+    assert kwargs["params"]["strategy"] == "mobile" and "emulatedFormFactor" not in kwargs["params"]
+    assert server.is_allowed("GET", url)
+    assert not server.is_allowed("GET", "https://www.googleapis.com/pagespeedonline/v5/runPagespeed")
+    from google_ecommerce_mcp.config import API_BY_HOST
+
+    assert server._api_for(url) == "PageSpeed Insights API" and "pagespeedonline.googleapis.com" in API_BY_HOST
+
+
+def test_gsc_site_is_percent_encoded_in_the_path_and_raw_in_bodies(server, monkeypatch):
+    session = use(server, monkeypatch, [("searchAnalytics", FakeResponse(200, {})), ("sitemaps", FakeResponse(200, {})),
+                                        ("index:inspect", FakeResponse(200, {}))])
+    server.gsc_performance()
+    server.gsc_sitemaps()
+    server.gsc_inspect_url("https://example.com/a")
+    assert "/sites/sc-domain%3Aexample.com/searchAnalytics/query" in session.calls[0][1]
+    assert session.calls[2][1].endswith("/sites/sc-domain%3Aexample.com/sitemaps")
+    assert session.calls[3][2]["json"]["siteUrl"] == "sc-domain:example.com"
+    assert server.site_path("https://www.example.com/") == "https%3A%2F%2Fwww.example.com%2F"
+    for method, url, _ in session.calls:
+        assert server.is_allowed(method, url), url
+
+
+def test_gsc_search_type_is_sent_as_type_never_search_type(server, monkeypatch):
+    session = use(server, monkeypatch, [("searchAnalytics", FakeResponse(200, {}))])
+    server.gsc_performance()
+    assert "type" not in session.calls[0][2]["json"] and "searchType" not in session.calls[0][2]["json"]
+    server.gsc_performance(search_type="image")
+    for _, _, kwargs in session.calls[2:]:  # rows query and totals query
+        assert kwargs["json"]["type"] == "image" and "searchType" not in kwargs["json"]
+
+
+def test_gsc_site_url_parameter_in_legacy_mode(server, monkeypatch):
+    session = use(server, monkeypatch, [("searchAnalytics", FakeResponse(200, {}))])
+    result = server.gsc_performance(site_url="https://shop.example/")
+    assert "/sites/https%3A%2F%2Fshop.example%2F/" in session.calls[0][1]
+    assert result["site_url"] == "https://shop.example/"
+
+
+# ---- legacy compatibility
+def test_legacy_results_carry_no_client_id_and_accept_default(server, monkeypatch):
+    use(server, monkeypatch, [(":runReport", FakeResponse(200, GA4_PAYLOAD))])
+    plain = server.ga4_report()
+    named = server.ga4_report(client_id="default")
+    assert "client_id" not in plain and "client_id" not in named
+    assert {k: v for k, v in plain.items() if k != "fetched_at"} == {k: v for k, v in named.items() if k != "fetched_at"}
+
+
+def test_legacy_unknown_client_is_refused_without_a_request(server, monkeypatch):
+    session = use(server, monkeypatch, [("", FakeResponse(200, {}))])
+    result = server.ga4_report(client_id="acme")
+    assert result["error"] == "unknown_client" and result["fix"] and result["detail"]
+    assert result["client_id"] == "acme" and session.calls == []
+
+
+def test_legacy_without_the_clients_module(server, monkeypatch):
+    """When clients.py is absent the server still works exactly as before; an explicit unknown id is refused."""
+    monkeypatch.setattr(server, "_clients_module", lambda: None)
+    session = use(server, monkeypatch, [(":runReport", FakeResponse(200, GA4_PAYLOAD))])
+    assert server.ga4_report()["property_id"] == "123" and "client_id" not in server.ga4_report(client_id="default")
+    refused = server.gsc_sitemaps(client_id="acme")
+    assert refused["error"] == "unknown_client" and "fix" in refused
+    assert all("sitemaps" not in url for _, url, _ in session.calls)
+
+
+def test_check_keeps_its_legacy_keys(server):
+    status = server.check()
+    assert set(status) >= {"ga4", "search_console", "merchant_center", "tag_manager", "pagespeed_api_key",
+                           "token_storage", "token", "scopes", "write_capable_scopes", "ads", "version"}
+    assert "client_id" not in status
+
+
+# ---- two registered clients, isolated
+CLIENTS = {
+    "acme": {"ga4": "111111", "gsc": "sc-domain:acme.fr", "merchant": "313131", "gtm": "GTM-ACME11",
+             "gtm_account": "7001", "token": "tok-acme-AAA"},
+    "beta": {"ga4": "222222", "gsc": "sc-domain:beta.fr", "merchant": "424242", "gtm": "GTM-BETA22",
+             "gtm_account": "7002", "token": "tok-beta-BBB"},
+}
+
+
+def _registry(tmp_path, monkeypatch, names=("acme", "beta")):
+    pytest.importorskip("google_ecommerce_mcp.clients")
+    clients = {}
+    for name in names:
+        c = CLIENTS[name]
+        clients[name] = {"label": name.title(), "sandbox": True, "accounts": {
+            "ga4": {"property_id": c["ga4"]}, "gsc": {"site_url": c["gsc"]},
+            "merchant": {"account_id": c["merchant"]},
+            "gtm": {"account_id": c["gtm_account"], "public_id": c["gtm"]}}}
+        monkeypatch.setenv(f"GEM_SECRET_{name.upper()}_GOOGLE", _json.dumps(
+            {"token": c["token"], "refresh_token": "r-" + name, "client_id": "cid", "client_secret": "cs",
+             "expiry": "2099-01-01T00:00:00Z"}))
+
+    def no_refresh(self, request):  # never reach oauth2.googleapis.com from a test
+        raise AssertionError("token refresh attempted in an offline test")
+
+    monkeypatch.setattr("google.oauth2.credentials.Credentials.refresh", no_refresh)
+    path = tmp_path / "clients.json"
+    path.write_text(_json.dumps({"version": 1, "clients": clients}), encoding="utf-8")
+    monkeypatch.setenv("GEM_CLIENTS_FILE", str(path))
+    return path
+
+
+def _client_rules(name):
+    c = CLIENTS[name]
+    return [
+        ("/workspaces/1/tags", FakeResponse(200, {"tag": [{"name": "GA4", "type": "googtag"}]})),
+        ("/workspaces/1/triggers", FakeResponse(200, {})),
+        ("/workspaces/1/variables", FakeResponse(200, {})),
+        ("/workspaces", FakeResponse(200, {"workspace": [{"path": f"accounts/{c['gtm_account']}/containers/5/workspaces/1",
+                                                          "name": "Default"}]})),
+        ("versions:live", FakeResponse(200, {"containerVersionId": "3"})),
+        ("/containers", FakeResponse(200, {"container": [{"publicId": c["gtm"], "containerId": "5",
+                                                          "path": f"accounts/{c['gtm_account']}/containers/5"}]})),
+        ("/accounts", FakeResponse(200, {"account": [
+            {"accountId": CLIENTS[o]["gtm_account"], "path": f"accounts/{CLIENTS[o]['gtm_account']}"}
+            for o in CLIENTS]})),
+        ("runPagespeed", FakeResponse(200, PAGESPEED_OK)),
+        ("", FakeResponse(200, {})),
+    ]
+
+
+def _call_every_google_tool(server, client_id):
+    c = CLIENTS[client_id]
+    return [
+        server.server_status(client_id=client_id),
+        server.ga4_report(client_id=client_id), server.ga4_realtime(client_id=client_id),
+        server.ga4_report(property_id=c["ga4"], client_id=client_id),
+        server.ga4_properties(client_id=client_id),
+        server.gsc_performance(client_id=client_id), server.gsc_sitemaps(client_id=client_id),
+        server.gsc_performance(site_url=c["gsc"], client_id=client_id),
+        server.gsc_inspect_url(f"https://{client_id}.fr/x", client_id=client_id),
+        server.merchant_data_sources(client_id=client_id), server.merchant_product_issues(client_id=client_id),
+        server.merchant_report_query(client_id=client_id), server.gtm_inventory(client_id=client_id),
+        server.indexing_status("https://example.org/", client_id=client_id),
+        server.pagespeed("https://example.org/", client_id=client_id),
+    ]
+
+
+@pytest.mark.parametrize("me,other", [("acme", "beta"), ("beta", "acme")])
+def test_two_clients_never_share_ids_nor_tokens(server, monkeypatch, tmp_path, me, other):
+    """Isolation matrix: every request made for one client carries only that client's ids and Bearer token."""
+    _registry(tmp_path, monkeypatch)
+    session = use(server, monkeypatch, _client_rules(me))
+    results = _call_every_google_tool(server, me)
+    assert len(session.calls) >= 15
+    mine, theirs = CLIENTS[me], CLIENTS[other]
+    for method, url, kwargs in session.calls:
+        assert server.is_allowed(method, url), (method, url)
+        sent = url + " " + _json.dumps({k: v for k, v in kwargs.items() if k != "timeout"}, default=str)
+        for value in (theirs["ga4"], theirs["merchant"], theirs["gtm"], theirs["token"], other + ".fr",
+                      "example.com", "GTM-TEST", "/properties/123:", "Bearer test"):
+            assert value not in sent, (value, method, url)
+        if "runPagespeed" not in url:
+            assert kwargs["headers"]["Authorization"] == f"Bearer {mine['token']}", url
+        else:
+            assert "headers" not in kwargs  # PageSpeed never receives an OAuth token
+    urls = " ".join(url for _, url, _ in session.calls)
+    assert f"/properties/{mine['ga4']}:runReport" in urls and f"/accounts/{mine['merchant']}/" in urls
+    assert _quote(mine["gsc"], safe="") in urls
+    # the containers of the other client's GTM account are never even listed
+    assert f"accounts/{theirs['gtm_account']}/containers" not in urls
+    for result in results:
+        assert result.get("client_id") == me, result
+        assert "error" not in result, result
+
+
+def test_a_client_cannot_use_another_clients_ids(server, monkeypatch, tmp_path):
+    _registry(tmp_path, monkeypatch)
+    session = use(server, monkeypatch, _client_rules("acme"))
+    for result in (server.ga4_report(property_id=CLIENTS["beta"]["ga4"], client_id="acme"),
+                   server.ga4_realtime(property_id=CLIENTS["beta"]["ga4"], client_id="acme"),
+                   server.gsc_performance(site_url=CLIENTS["beta"]["gsc"], client_id="acme"),
+                   server.gsc_sitemaps(site_url="sc-domain:beta.fr", client_id="acme"),
+                   server.gsc_inspect_url("https://beta.fr/", site_url="sc-domain:beta.fr", client_id="acme")):
+        assert result["error"] == "id_not_owned" and result["fix"] and result["detail"], result
+        assert result["client_id"] == "acme"
+        assert "222222" not in result["detail"]  # the refused id is masked
+    assert session.calls == []
+
+
+def test_registry_requires_client_id_with_two_clients(server, monkeypatch, tmp_path):
+    _registry(tmp_path, monkeypatch)
+    session = use(server, monkeypatch, [("", FakeResponse(200, {}))])
+    for result in (server.ga4_report(), server.gsc_sitemaps(), server.server_status()):
+        assert result["error"] == "client_required" and "client_id" in result["fix"]
+        assert result["fetched_at"]
+    assert server.ga4_report(client_id="nobody")["error"] == "unknown_client"
+    assert session.calls == []
+
+
+def test_registry_ignores_the_environment_ids(server, monkeypatch, tmp_path):
+    """With a registry the GA4_PROPERTY_ID... of the environment are never used (no mixing)."""
+    _registry(tmp_path, monkeypatch, names=("acme",))
+    session = use(server, monkeypatch, [(":runReport", FakeResponse(200, GA4_PAYLOAD))])
+    result = server.ga4_report()  # one client: the implicit default
+    assert result["client_id"] == "acme" and result["property_id"] == "111111"
+    assert "/properties/111111:" in session.calls[0][1]
+
+
+def test_gsc_is_multi_site_within_the_client(server, monkeypatch, tmp_path):
+    path = _registry(tmp_path, monkeypatch, names=("acme",))
+    data = _json.loads(path.read_text(encoding="utf-8"))
+    data["clients"]["acme"]["accounts"]["gsc"]["site_url"] = "https://blog.acme.fr/"
+    path.write_text(_json.dumps(data), encoding="utf-8")
+    session = use(server, monkeypatch, [("sitemaps", FakeResponse(200, {}))])
+    assert "error" not in server.gsc_sitemaps(site_url="https://blog.acme.fr/", client_id="acme")
+    assert session.calls[0][1].endswith("/sites/https%3A%2F%2Fblog.acme.fr%2F/sitemaps")
+    assert server.gsc_sitemaps(site_url="sc-domain:acme.fr", client_id="acme")["error"] == "id_not_owned"
+
+
+def test_token_providers_are_cached_per_client(server, monkeypatch, tmp_path):
+    _registry(tmp_path, monkeypatch)
+    a = server.resolve_scope("acme").tokens
+    b = server.resolve_scope("beta").tokens
+    assert a is server.resolve_scope("acme").tokens and a is not b
+    assert a.headers()["Authorization"] == "Bearer tok-acme-AAA"
+    assert b.headers()["Authorization"] == "Bearer tok-beta-BBB"
+    assert set(server._CLIENT_TOKENS) == {"acme", "beta"}
+
+
+def test_client_without_token_is_not_authenticated(server, monkeypatch, tmp_path):
+    _registry(tmp_path, monkeypatch)
+    monkeypatch.delenv("GEM_SECRET_BETA_GOOGLE")
+    import keyring
+
+    monkeypatch.setattr(keyring, "get_password", lambda *a: None)
+    session = use(server, monkeypatch, [("", FakeResponse(200, {}))])
+    result = server.merchant_data_sources(client_id="beta")
+    assert result["error"] == "not_authenticated" and "beta" in result["detail"] and session.calls == []
+
+
+def _run_tool(server, name, args):
+    result = asyncio.run(server.mcp.call_tool(name, args))
+    content = result[0] if isinstance(result, tuple) else result
+    return _json.loads(content[0].text)
+
+
+def test_client_tools(server, monkeypatch, tmp_path):
+    _registry(tmp_path, monkeypatch)
+    listed = _run_tool(server, "clients_list", {})
+    assert [c["client_id"] for c in listed["clients"]] == ["acme", "beta"] and listed["client_id_required"] is True
+    profile = _run_tool(server, "client_profile", {"client_id": "acme"})
+    assert profile["client_id"] == "acme" and profile["accounts"]["ga4"]["property_id"] == "111111"
+    text = _json.dumps(profile) + _json.dumps(listed)
+    assert "tok-acme" not in text and "tok-beta" not in text and "222222" not in _json.dumps(profile)
+    checked = _run_tool(server, "client_check", {"client_id": "beta"})
+    assert checked["client_id"] == "beta" and checked["token"] == "ok" and checked["secrets"]["google"] is True
+    assert "tok-beta" not in _json.dumps(checked)
+    assert _run_tool(server, "client_profile", {})["error"] == "client_required"
+
+
+def test_client_tools_in_legacy_mode(server):
+    from google_ecommerce_mcp import registry
+
+    listed = registry.clients_list()
+    assert listed["count"] == 1 and listed["clients"][0]["client_id"] == "default"
+    profile = registry.client_profile()
+    assert profile["client_id"] == "default" and profile["legacy"] is True
+    assert profile["accounts"]["ga4"]["property_id"] == "123"

@@ -65,7 +65,22 @@ TOOL_ARGS: dict[str, dict] = {
     "openai_ads_conversions": {**PERIOD, "account_timezone": "Europe/Paris", "aggregation_level": "campaign",
                                "group_by_entity": False},
     "ads_overview": PERIOD,
+    "clients_list": {},
+    "client_profile": {},
+    "client_check": {},
+    "gads_apply": {"plan_id": "p1", "confirmation_token": "t", "confirm": "c"},
+    "meta_apply": {"plan_id": "p1", "confirmation_token": "t", "confirm": "c"},
+    "openai_ads_apply": {"plan_id": "p1", "confirmation_token": "t", "confirm": "c"},
+    "google_apply": {"plan_id": "p1", "confirmation_token": "t", "confirm": "c"},
+    "plan_get": {"plan_id": "p1"},
+    "plan_list": {},
+    "audit_log": {},
+    "rollback_plan": {"plan_id": "p1"},
 }
+WRITE_TOOLS = {"gads_apply", "meta_apply", "openai_ads_apply", "google_apply"}
+# Client-registry and write-workflow tools carry no freshness block.
+NO_FRESHNESS = WRITE_TOOLS | {"clients_list", "client_profile", "client_check", "plan_get", "plan_list", "audit_log",
+                              "rollback_plan"}
 
 # What each tool must answer in an empty environment. None = a valid (non-error) result.
 EXPECTED_ERROR: dict[str, str | None] = {
@@ -237,14 +252,17 @@ def test_server_answers_every_tool_over_real_stdio(tmp_path, spawned):
     assert info.version == __version__  # not the mcp library version
     assert out["init"].capabilities.tools is not None
 
-    # tools/list: 22 tools, read-only annotations, valid JSON schemas
+    # tools/list: 33 tools, read-only annotations except the four *_apply tools, valid JSON schemas
     tools = {t.name: t for t in out["tools"]}
-    assert len(out["tools"]) == 22 == len(tools)
+    assert len(out["tools"]) == 33 == len(tools)
     assert set(tools) == set(TOOL_ARGS), set(tools) ^ set(TOOL_ARGS)
     for name, tool in tools.items():
         ann = tool.annotations
-        assert ann is not None and ann.readOnlyHint is True, name
-        assert ann.destructiveHint is False and ann.idempotentHint is True, name
+        assert ann is not None, name
+        if name in WRITE_TOOLS:
+            assert ann.readOnlyHint is False and ann.destructiveHint is True, name
+        else:
+            assert ann.readOnlyHint is True and ann.destructiveHint is False, name
         assert tool.description and tool.description.strip(), name
         assert tool.inputSchema.get("type") == "object", name
         jsonschema.Draft202012Validator.check_schema(tool.inputSchema)
@@ -258,8 +276,12 @@ def test_server_answers_every_tool_over_real_stdio(tmp_path, spawned):
         assert result.isError is False, (name, result.content)
         payload = _payload(result)
         assert isinstance(payload, dict), (name, payload)
-        assert "fetched_at" in payload and "freshness" in payload, (name, sorted(payload))
-        expected = EXPECTED_ERROR[name]
+        if name not in NO_FRESHNESS:
+            assert "fetched_at" in payload and "freshness" in payload, (name, sorted(payload))
+        expected = EXPECTED_ERROR.get(name, "__any__")
+        if expected == "__any__":
+            assert "Traceback" not in json.dumps(payload), name
+            continue
         if expected is None:
             assert "error" not in payload, (name, payload)
         else:
@@ -278,7 +300,7 @@ def test_server_answers_every_tool_over_real_stdio(tmp_path, spawned):
     assert "surestime" in overview["warning"]
 
     # zero real network: the only outgoing attempt is pagespeed's, and it stopped at the local proxy
-    assert proxied and all(line.startswith("CONNECT www.googleapis.com:443") for line in proxied), proxied
+    assert proxied and all(line.startswith("CONNECT pagespeedonline.googleapis.com:443") for line in proxied), proxied
     # no traceback, no unhandled exception on the server's stderr
     assert "Traceback" not in stderr, stderr
     assert "Error" not in stderr.replace("CallToolRequest", ""), stderr

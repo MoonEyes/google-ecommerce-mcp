@@ -15,6 +15,10 @@
     google-ecommerce-mcp report --input report.json --output report.html [--lang fr|en]
                                 [--brand-name NAME] [--accent #RRGGBB] [--logo logo.png] [--force]
                                               build the static client report (one HTML file, no network)
+    google-ecommerce-mcp client add|list|show|remove|enable-write|disable-write|set-secret <name> ...
+                                              several clients: guided registry of ids (never a secret)
+    google-ecommerce-mcp approve <plan_id> [--client NAME]
+                                              approve a financial / irreversible write plan out of band
 """
 
 from __future__ import annotations
@@ -86,7 +90,17 @@ def main(argv: list[str] | None = None) -> int | None:
     rep.add_argument("--accent", help="client accent colour, #RRGGBB")
     rep.add_argument("--logo", help="client logo file (PNG, JPEG or SVG, 256 KB at most)")
     rep.add_argument("--force", action="store_true", help="replace the output file if it exists")
+    from .client_cli import add_approve_subcommand, add_subcommands
+
+    add_subcommands(sub)
+    add_approve_subcommand(sub)
     args = parser.parse_args(argv)
+
+    if args.command in ("client", "approve"):
+        from .client_cli import run as run_client
+        from .client_cli import run_approve
+
+        return run_client(args) if args.command == "client" else run_approve(args)
 
     if args.command == "report":
         from .report.render import BRAND_ISSUES, ReportFileError, write_report

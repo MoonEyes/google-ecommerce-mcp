@@ -1,0 +1,329 @@
+{
+ "_comment": "Frozen tool list (tests/test_tools_golden.py). Google tools and client tools also freeze their parameter names; paid-media tools only their name, title and annotations (lots B add client_id to them). Regenerate only on a deliberate change.",
+ "tools": [
+  {
+   "name": "server_status",
+   "title": "Server status",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id"
+   ]
+  },
+  {
+   "name": "ga4_report",
+   "title": "GA4 report",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "channel_group",
+    "client_id",
+    "dimensions",
+    "end_date",
+    "limit",
+    "metrics",
+    "property_id",
+    "start_date"
+   ]
+  },
+  {
+   "name": "ga4_realtime",
+   "title": "GA4 realtime",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "dimensions",
+    "metrics",
+    "property_id"
+   ]
+  },
+  {
+   "name": "ga4_properties",
+   "title": "GA4 properties",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "max_pages"
+   ]
+  },
+  {
+   "name": "gsc_performance",
+   "title": "Search Console performance",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "dimensions",
+    "end_date",
+    "limit",
+    "page_contains",
+    "search_type",
+    "site_url",
+    "start_date"
+   ]
+  },
+  {
+   "name": "gsc_inspect_url",
+   "title": "Search Console URL inspection",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "site_url",
+    "url"
+   ]
+  },
+  {
+   "name": "gsc_sitemaps",
+   "title": "Search Console sitemaps",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "site_url"
+   ]
+  },
+  {
+   "name": "merchant_data_sources",
+   "title": "Merchant Center data sources",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id"
+   ]
+  },
+  {
+   "name": "merchant_product_issues",
+   "title": "Merchant Center product issues",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "limit",
+    "max_pages",
+    "only_with_issues"
+   ]
+  },
+  {
+   "name": "merchant_report_query",
+   "title": "Merchant Center report query",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "query"
+   ]
+  },
+  {
+   "name": "gtm_inventory",
+   "title": "Tag Manager inventory",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id"
+   ]
+  },
+  {
+   "name": "indexing_status",
+   "title": "Indexing API status",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "url"
+   ]
+  },
+  {
+   "name": "pagespeed",
+   "title": "PageSpeed Insights",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "strategy",
+    "url"
+   ]
+  },
+  {
+   "name": "gads_accounts",
+   "title": "Google Ads accounts",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   }
+  },
+  {
+   "name": "gads_performance",
+   "title": "Google Ads performance",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   }
+  },
+  {
+   "name": "gads_query",
+   "title": "Google Ads GAQL query",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   }
+  },
+  {
+   "name": "meta_ad_accounts",
+   "title": "Meta ad accounts",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   }
+  },
+  {
+   "name": "meta_insights",
+   "title": "Meta Ads insights",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   }
+  },
+  {
+   "name": "openai_ads_account",
+   "title": "OpenAI Ads account",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   }
+  },
+  {
+   "name": "openai_ads_insights",
+   "title": "OpenAI Ads insights",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   }
+  },
+  {
+   "name": "openai_ads_conversions",
+   "title": "OpenAI Ads conversions",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   }
+  },
+  {
+   "name": "ads_overview",
+   "title": "Ads overview (all platforms)",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   }
+  },
+  {
+   "name": "clients_list",
+   "title": "Clients list",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": []
+  },
+  {
+   "name": "client_profile",
+   "title": "Client profile",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id"
+   ]
+  },
+  {
+   "name": "client_check",
+   "title": "Client check",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id"
+   ]
+  }
+ ]
+}

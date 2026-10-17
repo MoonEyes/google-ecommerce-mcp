@@ -363,7 +363,7 @@ class Upstream(FakeAdapter):
             rows = gsc_rows(body.get("dimensions", []), (body["startDate"], body["endDate"]))
             limit = body.get("rowLimit")
             return {"rows": rows[:limit] if limit else rows, "responseAggregationType": "byProperty"}
-        if host == "www.googleapis.com" and path.endswith("/runPagespeed"):
+        if host in ("www.googleapis.com", "pagespeedonline.googleapis.com") and path.endswith("/runPagespeed"):
             return PAGESPEED
         if host == "merchantapi.googleapis.com":
             assert f"/accounts/{MERCHANT_ID}/" in path, path
@@ -593,7 +593,7 @@ def test_tools_to_report_full_chain(stack, tmp_path, capsys):
     assert server.BLOCKED_ATTEMPTS == [] and google_ads.CLIENT.BLOCKED_ATTEMPTS == []
     assert meta_ads.CLIENT.BLOCKED_ATTEMPTS == [] and openai_ads.CLIENT.BLOCKED_ATTEMPTS == []
     hosts = {urlsplit(u).netloc for _, u in upstream.seen}
-    assert hosts == {"analyticsdata.googleapis.com", "www.googleapis.com", "merchantapi.googleapis.com",
+    assert hosts == {"analyticsdata.googleapis.com", "www.googleapis.com", "pagespeedonline.googleapis.com", "merchantapi.googleapis.com",
                      "tagmanager.googleapis.com", "googleads.googleapis.com", "graph.facebook.com",
                      "api.ads.openai.com"}, hosts
     assert sum("/products" in u and "merchantapi" in u for _, u in upstream.seen) == 2  # both pages scanned
