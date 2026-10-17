@@ -73,10 +73,27 @@ class Mer:
     reason_args: dict
 
 
-def mer(data: dict, period: str = "current") -> Mer:
-    """MER = GA4 revenue / combined ad spend (ads_overview.combined), only when both exist in one currency.
+def failed_platforms(overview: Any) -> tuple[str, ...]:
+    """Source keys (google_ads, meta_ads, openai_ads) of the platforms an ads_overview output reports as FAILED.
 
-    Never sums anything itself: the spend is the overview's own ``combined.spend``."""
+    ads_overview adds up the spend of the platforms that answered (``combined.platforms_included``) and lists
+    the failing ones in ``errors`` (block ``status: "error"``). Their spend is unknown, so ``combined.spend`` is
+    then NOT the total ad spend. A platform that is not configured is not a failure (the shop does not use it)."""
+    if c.state(overview) != "ok":
+        return ()
+    platforms = overview.get("platforms") if isinstance(overview.get("platforms"), dict) else {}
+    listed = overview.get("errors") if isinstance(overview.get("errors"), list) else []
+    return tuple(source for key, source in PLATFORMS
+                 if key in listed or (isinstance(platforms.get(key), dict)
+                                      and platforms[key].get("status") == "error"))
+
+
+def mer(data: dict, period: str = "current") -> Mer:
+    """MER = GA4 revenue / combined ad spend (ads_overview.combined), only when both exist in one currency and
+    no platform failed (the spend of a failed platform is unknown: the ratio would be overstated).
+
+    Never sums anything itself: the spend is the overview's own ``combined.spend``. With a failed platform the
+    reason is ``ads.reason.platform_failed`` and ``reason_args["platforms"]`` is a tuple of source keys."""
     revenue, rev_cur, _ = ga4_revenue(data, period)
     overview = c.view(data, "ads_overview", None, period)
     combined = overview.get("combined") if c.state(overview) == "ok" else None
@@ -89,6 +106,9 @@ def mer(data: dict, period: str = "current") -> Mer:
         reason = overview.get("combined_reason")
         return Mer(None, revenue, None, None, "ads.reason.combined_null",
                    {"reason": str(reason)[:200] if reason else "—"})
+    failed = failed_platforms(overview)
+    if failed:
+        return Mer(None, revenue, spend, spend_cur, "ads.reason.platform_failed", {"platforms": failed})
     if spend is None:
         return Mer(None, revenue, None, None, "ads.reason.no_spend", {})
     if not rev_cur or not spend_cur:
@@ -222,7 +242,9 @@ def build_messages(data: dict, lang: str) -> list[Message]:
 
     overview = c.view(data, "ads_overview")
     combined = overview.get("combined") if c.state(overview) == "ok" else None
-    if isinstance(combined, dict) and c.is_num(combined.get("spend")) and m.value is None:
+    # Not quoted as "total ad spend" when a platform failed: the overview's sum leaves that platform out.
+    if (isinstance(combined, dict) and c.is_num(combined.get("spend")) and m.value is None
+            and not failed_platforms(overview)):
         spend = fmt_money(combined["spend"], combined.get("currency") or meta.get("currency"), lang)
         included = combined.get("platforms_included")
         n = len(included) if isinstance(included, list) else None

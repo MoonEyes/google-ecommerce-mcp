@@ -433,7 +433,9 @@ def test_cwv_lab_data_alone_has_no_verdict():
     out = section("cwv", raw)
     body = text(out)
     assert "Données de laboratoire, à ne pas comparer aux seuils" in body
-    assert "3.9 s" in body and "Pas de mesure terrain : 1 page(s) testée(s) en laboratoire seulement" in body
+    # lab values in the report's number format (French decimal comma), never the API's "3.9 s"
+    assert "3,9 s" in body and "3.9 s" not in body  # text() turns the no-break space into a space
+    assert "Pas de mesure terrain : 1 page(s) testée(s) en laboratoire seulement" in body
     for verdict in ("Bon", "À améliorer", "Mauvais", "zone «"):
         assert verdict not in body.replace("Bon jusqu", ""), verdict
     assert "<svg" not in out

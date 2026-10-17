@@ -23,7 +23,7 @@ The `mcp` package 2.x renamed it. This project pins `mcp<2`; reinstall in a clea
 
 **`... is not valid JSON`.** Your Claude Desktop config has a syntax error (often a missing comma after a manual edit). Fix it or rename it, then rerun. The installer never overwrites a file it cannot parse.
 
-**Restore the previous Claude Desktop config.** Every change leaves `claude_desktop_config.json.bak-YYYYMMDD-HHMMSS` next to it. Copy it back over `claude_desktop_config.json`.
+**Restore the previous Claude Desktop config.** Every change leaves `claude_desktop_config.json.bak-YYYYMMDD-HHMMSS-ffffff` next to it (the last part is microseconds). Copy it back over `claude_desktop_config.json`.
 
 **Update to the latest version.** Run the install line again: it refreshes the package and keeps your token (answer *No* to "Authorize again?").
 
@@ -97,7 +97,8 @@ Status column: **OK**, **FIX** (set up but something is wrong; the problem and t
 
 **Warning "ADS_TRUST_ENV=1 ..." / "plain text in the Claude Desktop config".** Informational. `ADS_TRUST_ENV=1` is only for company proxies. A Meta token, ChatGPT Ads key or developer token written in the config is readable by anyone who can read that file: move it to the keyring (`set-secret ...`) and delete it from the config.
 
-**`install` exits with code 3.** The Claude Desktop entry already has a different value for a variable you passed (the message names them), or the config could not be used (malformed JSON, larger than 5 MB, UTF-16, read-only: the message says which). Nothing was changed and no authorization was started. Rerun with `--force` to replace the values; `--force` never deletes a variable. Close Claude Desktop first if the file is read-only.
+**`install` exits with code 3.** Either the Claude Desktop entry already has a different value for a variable you passed (the message names them), or the config could not be used.
+For a conflict, nothing was changed and no authorization was started: rerun with `--force` to replace the values (it never deletes a variable). For a malformed, oversized or UTF-16 file, fix or move the file; `--force` does not help. A read-only file is detected only when writing, after the consent: remove the read-only attribute, close Claude Desktop and rerun (the token already stored is kept).
 
 **`install` exits with code 2.** Refused before any authorization, for example `GADS_TOKEN_FILE` is the same file as the Google token file. Choose another file for Google Ads (or unset `GADS_TOKEN_FILE` to use the keyring).
 

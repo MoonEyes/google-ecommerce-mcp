@@ -56,7 +56,4 @@ Diagram sources are JSON files in `docs/diagrams/`, rendered with Archify (see `
 
 ## Releasing (maintainers)
 
-1. Bump the version in `pyproject.toml`, `server.json` (`version` and `packages[0].version`) and `src/google_ecommerce_mcp/__init__.py`, and add a `CHANGELOG.md` entry.
-2. Commit, then `git tag vX.Y.Z && git push origin vX.Y.Z`.
-3. `.github/workflows/release.yml` checks the versions match, runs the tests, publishes to PyPI (trusted publishing) and to the official MCP Registry (GitHub OIDC). No token is stored anywhere.
-4. Create the GitHub release from the tag with the changelog entry as notes.
+Follow [docs/RELEASING.md](docs/RELEASING.md): the installers, the pinned commit and the SHA-256 in the README must change with the version, or `tests/test_installer_scripts.py` fails.

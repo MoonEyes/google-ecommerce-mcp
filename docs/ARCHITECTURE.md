@@ -99,10 +99,17 @@ The MCP client launches the server as a child process and talks to it over **std
 
 ## Diagram sources
 
-The diagrams are generated with Archify (MIT-licensed diagram renderer) from the JSON specifications next to them in [`docs/diagrams/`](diagrams/). Each one passed Archify's validate, deliver, check and browser-check gates at showcase quality. To change a diagram, edit the JSON and run:
+The diagrams are generated with Archify (MIT-licensed diagram renderer) from the JSON specifications next to them in [`docs/diagrams/`](diagrams/). The architecture overview passes Archify's `validate` and `deliver` gates at showcase quality (9 of 9 checks, 0 errors, 0 warnings). To change a diagram, edit the JSON, then run these commands from the Archify skill directory (Archify v2.17, which has `validate`, `render` and `deliver` but no `finalize`):
 
 ```bash
-archify finalize architecture docs/diagrams/architecture-overview.json docs/diagrams/architecture-overview.html --quality showcase
-archify finalize sequence docs/diagrams/sequence-tool-call.json docs/diagrams/sequence-tool-call.html --quality showcase
-archify finalize sequence docs/diagrams/sequence-setup.json docs/diagrams/sequence-setup.html --quality showcase
+node bin/archify.mjs validate architecture docs/diagrams/architecture-overview.json --quality showcase --json
+node bin/archify.mjs deliver architecture docs/diagrams/architecture-overview.json docs/diagrams/architecture-overview.html --quality showcase --json
+node bin/archify.mjs deliver sequence docs/diagrams/sequence-tool-call.json docs/diagrams/sequence-tool-call.html --quality showcase --json
+node bin/archify.mjs deliver sequence docs/diagrams/sequence-setup.json docs/diagrams/sequence-setup.html --quality showcase --json
+```
+
+Archify has no command-line PNG export. The PNG is a headless Edge screenshot of the delivered HTML at device scale factor 2, taken from a temporary copy of the HTML where a CSS rule hides the viewer's navigation bar, toolbar and header (`.diagram-nav`, `.toolbar`, `.header`), then cropped to the diagram, legend and cards:
+
+```bash
+msedge --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=2 --screenshot=shot.png --window-size=1500,1500 file:///.../docs/diagrams/architecture-overview.html
 ```

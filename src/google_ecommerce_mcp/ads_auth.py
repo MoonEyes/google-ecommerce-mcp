@@ -14,12 +14,13 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+import requests
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
 from .ads_common import hardened_session
 from .ads_config import ADS_SCOPE, KEYRING_USER_ADS, SECRET_ENV, get_secret
-from .auth import NotAuthenticated
+from .auth import NotAuthenticated, TokenNetworkError
 from .config import KEYRING_SERVICE
 
 __all__ = ["AdsTokenProvider", "NotAuthenticated", "run_setup_ads", "save_ads_token", "get_secret", "set_secret"]
@@ -177,10 +178,12 @@ class AdsTokenProvider:
             # Own session: no redirects followed, environment ignored unless ADS_TRUST_ENV=1 (proxy/CA only).
             try:
                 self._creds.refresh(Request(session=hardened_session(GOOGLE_TOKEN_URI)))
-            except TransportError as exc:
-                raise NotAuthenticated(REFRESH_NETWORK.format(kind=type(exc).__name__)) from None
+            except (TransportError, requests.RequestException) as exc:  # network: error code "network"
+                raise TokenNetworkError(REFRESH_NETWORK.format(kind=type(exc).__name__),
+                                        kind=type(exc).__name__) from None
             except OSError as exc:  # CA bundle missing under ADS_TRUST_ENV=1, local I/O: no message echoed
-                raise NotAuthenticated(REFRESH_LOCAL.format(kind=type(exc).__name__)) from None
+                raise TokenNetworkError(REFRESH_LOCAL.format(kind=type(exc).__name__), kind=type(exc).__name__,
+                                        local=True) from None
             except RefreshError as exc:
                 self._creds = None
                 raise NotAuthenticated(EXPIRED if "invalid_grant" in str(exc)

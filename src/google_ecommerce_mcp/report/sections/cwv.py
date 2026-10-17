@@ -5,6 +5,9 @@ or one ``pagespeed`` output. The field values are read from, in this order:
 
 * ``field``: ``{"lcp": seconds, "inp": milliseconds, "cls": score}`` (p75, given by the assistant; ``lcp_ms``
   is accepted too), with an optional ``field_previous`` of the same shape for the change;
+* ``field_metrics``: the key of a raw ``pagespeed`` output (``{"lcp_ms", "inp_ms", "cls", ...,
+  "origin_fallback"}``), present only when Google has field data for the URL or, failing that, its origin
+  (``origin_fallback: true``, noted under the page);
 * ``field_data`` or ``loadingExperience`` as the raw CrUX object of the PageSpeed API
   (``metrics.LARGEST_CONTENTFUL_PAINT_MS.percentile`` in ms, ``INTERACTION_TO_NEXT_PAINT`` in ms,
   ``CUMULATIVE_LAYOUT_SHIFT_SCORE`` x 100).
@@ -16,11 +19,12 @@ Thresholds (good up to, poor above): LCP 2.5 s / 4 s, INP 200 ms / 500 ms, CLS 0
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, Any
 
 from .. import contract as c
 from ..compare import CWV_THRESHOLDS, cwv_zone
-from ..i18n import fmt_int, fmt_number, tr
+from ..i18n import NBSP, fmt_int, fmt_number, tr
 from . import _common as h
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -67,10 +71,37 @@ def _from_crux(block: Any) -> dict[str, float | None] | None:
     return out if any(v is not None for v in out.values()) else None
 
 
+def _from_tool(block: Any) -> dict[str, float | None] | None:
+    """The ``field_metrics`` of a raw ``pagespeed`` output: {lcp_ms, inp_ms, cls} (CLS already divided by 100)."""
+    if not isinstance(block, dict):
+        return None
+    lcp = c.num(block.get("lcp_ms"))
+    out = {"lcp": lcp / 1000 if lcp is not None else None, "inp": c.num(block.get("inp_ms")),
+           "cls": c.num(block.get("cls"))}
+    return out if any(v is not None for v in out.values()) else None
+
+
 def field_values(page: dict) -> dict[str, float | None] | None:
-    """p75 field values {lcp (s), inp (ms), cls} of one page, or None when no field data was given."""
-    return (_from_simple(page.get("field")) or _from_crux(page.get("field_data"))
-            or _from_crux(page.get("loadingExperience")))
+    """p75 field values {lcp (s), inp (ms), cls} of one page, or None when no field data was given. Read from, in
+    order: ``field`` (given by the operator), ``field_metrics`` (the raw ``pagespeed`` output), a raw CrUX object
+    in ``field_data`` or ``loadingExperience``."""
+    return (_from_simple(page.get("field")) or _from_tool(page.get("field_metrics"))
+            or _from_crux(page.get("field_data")) or _from_crux(page.get("loadingExperience")))
+
+
+_LAB_NUMBER = re.compile(r"^(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?(?:\s*(\S.*))?$")
+
+
+def lab_text(value: str, lang: str) -> str:
+    """A Lighthouse displayValue ("3.1 s", "1,230 ms", "0.08", written in English by the API) in the report's
+    number format ("3,1 s" in French); any other text is returned as given."""
+    text = value.strip()
+    match = _LAB_NUMBER.match(text)
+    if not match:
+        return text
+    whole, decimals, unit = match.group(1).replace(",", ""), match.group(2) or "", match.group(3)
+    number = fmt_number(float(f"{whole}.{decimals}" if decimals else whole), len(decimals), lang)
+    return f"{number}{NBSP}{unit.strip()}" if unit else number
 
 
 def pages_of(node: Any) -> list[dict]:
@@ -127,7 +158,7 @@ def _lab_block(ctx: "ReportContext", page: dict) -> str:
         if isinstance(value, (int, float)) and c.is_num(value):
             text = fmt_number(value, 0 if float(value).is_integer() else 2, ctx.lang)
         elif isinstance(value, str) and value.strip():
-            text = value.strip()[:20]
+            text = lab_text(value, ctx.lang)[:20]
         else:
             continue
         items.append(f"<dt>{ctx.t('cwv.lab.' + key)}</dt><dd>{ctx.esc(text)}</dd>")
@@ -173,6 +204,10 @@ def render(data: dict, ctx: "ReportContext") -> str:
             parts.append(f'<div class="grid">{"".join(cards)}</div>')
         else:
             parts.append(ctx.nodata(tr(ctx.lang, "cwv.no_field")))
+        tool_field = page.get("field_metrics")
+        if (field and not _from_simple(page.get("field")) and isinstance(tool_field, dict)
+                and tool_field.get("origin_fallback") is True):
+            parts.append(h.notes([ctx.t("cwv.origin_fallback")]))
         if lab:
             parts.append(lab)
         category = page.get("field_data")

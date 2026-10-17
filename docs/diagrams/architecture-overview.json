@@ -8,39 +8,540 @@
     "locale": "en"
   },
   "components": [
-    { "id": "user", "type": "external", "label": "Shop owner", "sublabel": "asks in plain language", "pos": [40, 250], "size": [140, 64] },
-    { "id": "client", "type": "frontend", "label": "MCP client", "sublabel": "Claude Desktop / Code", "pos": [250, 250], "size": [170, 64] },
-    { "id": "server", "type": "backend", "label": "google-ecommerce-mcp", "sublabel": "12 read-only tools", "pos": [590, 212], "size": [200, 140], "tag": "Python, stdio" },
-    { "id": "keyring", "type": "database", "label": "OS keyring", "sublabel": "Credential Manager / Keychain", "pos": [600, 440], "size": [180, 64], "tag": "or GOOGLE_TOKEN_FILE" },
-    { "id": "setup", "type": "backend", "label": "setup command", "sublabel": "OAuth consent, once", "pos": [250, 440], "size": [170, 64] },
-    { "id": "oauth", "type": "security", "label": "Google OAuth", "sublabel": "token endpoint", "pos": [950, 40], "size": [200, 56] },
-    { "id": "ga4", "type": "cloud", "label": "GA4 Data API", "sublabel": "reports + realtime", "pos": [950, 125], "size": [200, 56] },
-    { "id": "gsc", "type": "cloud", "label": "Search Console API", "sublabel": "performance, inspection", "pos": [950, 205], "size": [200, 56] },
-    { "id": "merchant", "type": "cloud", "label": "Merchant API v1", "sublabel": "products, reports", "pos": [950, 285], "size": [200, 56] },
-    { "id": "gtm", "type": "cloud", "label": "Tag Manager API", "sublabel": "workspace, live version", "pos": [950, 365], "size": [200, 56] },
-    { "id": "indexing", "type": "cloud", "label": "Indexing API", "sublabel": "URL notification status", "pos": [950, 445], "size": [200, 56] },
-    { "id": "pagespeed", "type": "cloud", "label": "PageSpeed Insights", "sublabel": "Lighthouse, CWV", "pos": [950, 525], "size": [200, 56], "tag": "API key optional" }
+    {
+      "id": "user",
+      "type": "external",
+      "label": "Shop owner",
+      "sublabel": "asks in plain language",
+      "pos": [
+        40,
+        488
+      ],
+      "size": [
+        140,
+        64
+      ]
+    },
+    {
+      "id": "client",
+      "type": "frontend",
+      "label": "MCP client",
+      "sublabel": "Claude Desktop / Code",
+      "pos": [
+        250,
+        488
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "server",
+      "type": "backend",
+      "label": "google-ecommerce-mcp",
+      "sublabel": "22 read-only tools",
+      "pos": [
+        590,
+        250
+      ],
+      "size": [
+        220,
+        540
+      ],
+      "tag": "Python, stdio"
+    },
+    {
+      "id": "keyring",
+      "type": "database",
+      "label": "OS keyring",
+      "sublabel": "Credential Manager / Keychain",
+      "pos": [
+        610,
+        850
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "tag": "separate entry per platform"
+    },
+    {
+      "id": "setup",
+      "type": "backend",
+      "label": "setup / setup-ads",
+      "sublabel": "consent and hidden prompts, once",
+      "pos": [
+        250,
+        740
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "doctor",
+      "type": "backend",
+      "label": "doctor",
+      "sublabel": "checks each service",
+      "pos": [
+        250,
+        850
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "oauth",
+      "type": "security",
+      "label": "Google OAuth",
+      "sublabel": "token endpoint",
+      "pos": [
+        1010,
+        250
+      ],
+      "size": [
+        200,
+        56
+      ]
+    },
+    {
+      "id": "ga4",
+      "type": "cloud",
+      "label": "GA4 Data API",
+      "sublabel": "reports + realtime",
+      "pos": [
+        1010,
+        330
+      ],
+      "size": [
+        200,
+        56
+      ]
+    },
+    {
+      "id": "gsc",
+      "type": "cloud",
+      "label": "Search Console API",
+      "sublabel": "performance, inspection",
+      "pos": [
+        1010,
+        410
+      ],
+      "size": [
+        200,
+        56
+      ]
+    },
+    {
+      "id": "merchant",
+      "type": "cloud",
+      "label": "Merchant API v1",
+      "sublabel": "products, reports",
+      "pos": [
+        1010,
+        492
+      ],
+      "size": [
+        200,
+        56
+      ]
+    },
+    {
+      "id": "gtm",
+      "type": "cloud",
+      "label": "Tag Manager API",
+      "sublabel": "workspace, live version",
+      "pos": [
+        1010,
+        570
+      ],
+      "size": [
+        200,
+        56
+      ]
+    },
+    {
+      "id": "indexing",
+      "type": "cloud",
+      "label": "Indexing API",
+      "sublabel": "URL notification status",
+      "pos": [
+        1010,
+        650
+      ],
+      "size": [
+        200,
+        56
+      ]
+    },
+    {
+      "id": "pagespeed",
+      "type": "cloud",
+      "label": "PageSpeed Insights",
+      "sublabel": "Lighthouse, CWV",
+      "pos": [
+        1010,
+        730
+      ],
+      "size": [
+        200,
+        56
+      ],
+      "tag": "API key optional"
+    },
+    {
+      "id": "gads",
+      "type": "cloud",
+      "label": "Google Ads API",
+      "sublabel": "searchStream, GAQL-checked",
+      "pos": [
+        480,
+        60
+      ],
+      "size": [
+        200,
+        56
+      ],
+      "tag": "optional"
+    },
+    {
+      "id": "meta",
+      "type": "cloud",
+      "label": "Meta Graph API",
+      "sublabel": "Insights, ad accounts",
+      "pos": [
+        740,
+        60
+      ],
+      "size": [
+        200,
+        56
+      ],
+      "tag": "optional"
+    },
+    {
+      "id": "openai",
+      "type": "cloud",
+      "label": "ChatGPT Ads API",
+      "sublabel": "insights, conversions",
+      "pos": [
+        1000,
+        60
+      ],
+      "size": [
+        200,
+        56
+      ],
+      "tag": "optional"
+    }
   ],
   "boundaries": [
-    { "kind": "region", "label": "Your machine (stdio, no inbound port)", "wraps": ["client", "server", "keyring", "setup"] },
-    { "kind": "region", "label": "Google", "wraps": ["oauth", "ga4", "gsc", "merchant", "gtm", "indexing", "pagespeed"] }
+    {
+      "kind": "region",
+      "label": "Your machine (stdio, no inbound port)",
+      "wraps": [
+        "client",
+        "server",
+        "keyring",
+        "setup",
+        "doctor"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Google",
+      "wraps": [
+        "oauth",
+        "ga4",
+        "gsc",
+        "merchant",
+        "gtm",
+        "indexing",
+        "pagespeed"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Paid media (optional, own allow-list each)",
+      "wraps": [
+        "gads",
+        "meta",
+        "openai"
+      ]
+    }
   ],
   "connections": [
-    { "id": "ask", "from": "user", "to": "client", "label": "asks", "variant": "emphasis" },
-    { "id": "tool-call", "from": "client", "to": "server", "label": "tools/call (stdio)", "variant": "emphasis" },
-    { "id": "read-token", "from": "server", "to": "keyring", "label": "read token", "fromSide": "bottom", "toSide": "top" },
-    { "id": "store-token", "from": "setup", "to": "keyring", "label": "store token", "variant": "dashed" },
-    { "id": "refresh", "from": "server", "to": "oauth", "label": "refresh token", "variant": "security" },
-    { "id": "to-ga4", "from": "server", "to": "ga4", "label": "runReport" },
-    { "id": "to-gsc", "from": "server", "to": "gsc", "label": "query, inspect" },
-    { "id": "to-merchant", "from": "server", "to": "merchant", "label": "GET, search" },
-    { "id": "to-gtm", "from": "server", "to": "gtm", "label": "GET only" },
-    { "id": "to-indexing", "from": "server", "to": "indexing", "label": "metadata" },
-    { "id": "to-pagespeed", "from": "server", "to": "pagespeed", "label": "runPagespeed", "variant": "dashed" }
+    {
+      "id": "ask",
+      "from": "user",
+      "to": "client",
+      "label": "asks",
+      "variant": "emphasis"
+    },
+    {
+      "id": "tool-call",
+      "from": "client",
+      "to": "server",
+      "label": "tools/call (stdio)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "read-token",
+      "from": "server",
+      "to": "keyring",
+      "label": "read token",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        700,
+        820
+      ]
+    },
+    {
+      "id": "store-token",
+      "from": "setup",
+      "to": "keyring",
+      "label": "store token",
+      "variant": "dashed"
+    },
+    {
+      "id": "refresh",
+      "from": "server",
+      "to": "oauth",
+      "label": "refresh token",
+      "variant": "security",
+      "via": [
+        [
+          830,
+          520
+        ],
+        [
+          830,
+          278
+        ]
+      ],
+      "labelAt": [
+        945,
+        266
+      ]
+    },
+    {
+      "id": "to-ga4",
+      "from": "server",
+      "to": "ga4",
+      "label": "runReport",
+      "via": [
+        [
+          850,
+          520
+        ],
+        [
+          850,
+          358
+        ]
+      ],
+      "labelAt": [
+        945,
+        346
+      ]
+    },
+    {
+      "id": "to-gsc",
+      "from": "server",
+      "to": "gsc",
+      "label": "query, inspect",
+      "via": [
+        [
+          870,
+          520
+        ],
+        [
+          870,
+          438
+        ]
+      ],
+      "labelAt": [
+        945,
+        426
+      ]
+    },
+    {
+      "id": "to-merchant",
+      "from": "server",
+      "to": "merchant",
+      "label": "GET, search",
+      "route": "straight"
+    },
+    {
+      "id": "to-gtm",
+      "from": "server",
+      "to": "gtm",
+      "label": "GET only",
+      "via": [
+        [
+          870,
+          520
+        ],
+        [
+          870,
+          598
+        ]
+      ],
+      "labelAt": [
+        945,
+        586
+      ]
+    },
+    {
+      "id": "to-indexing",
+      "from": "server",
+      "to": "indexing",
+      "label": "metadata",
+      "via": [
+        [
+          850,
+          520
+        ],
+        [
+          850,
+          678
+        ]
+      ],
+      "labelAt": [
+        945,
+        666
+      ]
+    },
+    {
+      "id": "to-pagespeed",
+      "from": "server",
+      "to": "pagespeed",
+      "label": "runPagespeed",
+      "variant": "dashed",
+      "via": [
+        [
+          830,
+          520
+        ],
+        [
+          830,
+          758
+        ]
+      ],
+      "labelAt": [
+        945,
+        746
+      ]
+    },
+    {
+      "id": "to-gads",
+      "from": "server",
+      "to": "gads",
+      "label": "read queries",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "via": [
+        [
+          700,
+          200
+        ],
+        [
+          580,
+          200
+        ]
+      ],
+      "labelAt": [
+        580,
+        168
+      ]
+    },
+    {
+      "id": "to-meta",
+      "from": "server",
+      "to": "meta",
+      "label": "GET only",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "via": [
+        [
+          700,
+          185
+        ],
+        [
+          840,
+          185
+        ]
+      ],
+      "labelAt": [
+        840,
+        168
+      ]
+    },
+    {
+      "id": "to-openai",
+      "from": "server",
+      "to": "openai",
+      "label": "GET + 1 read query",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "via": [
+        [
+          700,
+          200
+        ],
+        [
+          1100,
+          200
+        ]
+      ],
+      "labelAt": [
+        1100,
+        168
+      ]
+    },
+    {
+      "id": "check",
+      "from": "doctor",
+      "to": "keyring",
+      "label": "check secrets",
+      "variant": "dashed",
+      "labelDy": 22
+    }
   ],
   "cards": [
-    { "dot": "emerald", "title": "Read-only by design", "items": ["No tool creates, updates, publishes or deletes", "A test checks every outgoing call", "Publishing GTM or uploading feeds stays a human action"] },
-    { "dot": "rose", "title": "Credentials", "items": ["OAuth token in the OS keyring by default", "Access token refreshed in memory, never written", "Merchant API needs the content scope: treat the token as sensitive"] },
-    { "dot": "cyan", "title": "Configuration", "items": ["GA4_PROPERTY_ID, GSC_SITE_URL, MERCHANT_ACCOUNT_ID, GTM_CONTAINER_ID", "Any unset service answers not_configured", "PAGESPEED_API_KEY avoids the shared quota"] }
+    {
+      "dot": "emerald",
+      "title": "Read-only by design",
+      "items": [
+        "No tool creates, updates, publishes, pauses or deletes",
+        "One allow-list per platform, checked before every call",
+        "Pausing a campaign or uploading feeds stays a human action"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Credentials",
+      "items": [
+        "OAuth tokens in the OS keyring by default",
+        "Google Ads token kept apart: its scope can write",
+        "Merchant and Indexing scopes can write too: treat tokens as sensitive"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Configuration",
+      "items": [
+        "GA4_PROPERTY_ID, GSC_SITE_URL, MERCHANT_ACCOUNT_ID, GTM_CONTAINER_ID",
+        "GADS_CUSTOMER_ID, META_AD_ACCOUNT_ID, secrets via set-secret",
+        "Any unset service answers not_configured"
+      ]
+    }
   ]
 }

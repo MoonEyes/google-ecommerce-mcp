@@ -1,6 +1,6 @@
 # Google Cloud setup, step by step
 
-You need your **own** OAuth client. It takes about 10 minutes, once. Nothing here costs money: all six APIs are free within their quotas.
+You need your **own** OAuth client. It takes about 10 minutes, once. Nothing here costs money: the Google APIs listed here are free within their quotas.
 
 ## 1. Create or pick a project
 
@@ -73,6 +73,28 @@ google-ecommerce-mcp check
 
 Every configured service should be `true` and `token` should be `ok`. Then add the server to your MCP client (see the [README](../README.md#3-add-it-to-your-mcp-client) and [`examples/`](../examples/)).
 
+## 10. Paid media (optional)
+
+Only if you want the Google Ads, Meta Ads or ChatGPT Ads tools. Full guide: [ADS.md](ADS.md); overall order and access checklist: [SETUP.md](SETUP.md).
+
+**Google Ads** uses your Google Cloud project:
+
+1. **Enable the API.** In the **same** Cloud project, **APIs & Services > Library**, enable **Google Ads API**.
+2. **OAuth client.** Create an OAuth client of type **Desktop app** (step 4). It can be the same client as for the other services; the Google Ads token stays separate from the read-only token anyway, because the Google Ads permission can write and cannot be limited.
+3. **Consent screen.** Audience **External**, and add the Google account that manages the Google Ads account as a **test user**. While the app is in *Testing*, the token expires after **7 days**. Putting the app *In production* avoids that, and for your own use Google has not required verification in the past (check Google's current rules).
+4. **Developer token: optional.** Since 9 September 2026 Google no longer requires a developer token for the Google Ads API ([Google's developer token policy](https://developers.google.com/google-ads/api/docs/api-policy/developer-token)). Leave `GADS_DEVELOPER_TOKEN` unset unless you have one.
+5. **Ids.** `GADS_CUSTOMER_ID` is the 10-digit customer id shown at the top of Google Ads (dashes are accepted). If you reach the account through a manager (MCC) account, also set `GADS_LOGIN_CUSTOMER_ID` to the manager's id.
+6. **Authorize and check:**
+
+   ```bash
+   google-ecommerce-mcp setup-ads --client-secret path/to/client_secret.json
+   google-ecommerce-mcp doctor --only gads --live
+   ```
+
+7. **Keep the client file private.** Store `client_secret*.json` outside the repository, outside OneDrive (or any synced folder) and outside any notes vault, and never paste its content into a chat.
+
+**Meta Ads** and **ChatGPT Ads** need no Google Cloud project: see [ADS.md](ADS.md#prerequisites-meta-ads) for Meta and [ADS.md](ADS.md#prerequisites-chatgpt-ads) for ChatGPT Ads.
+
 ## Permissions the Google account needs
 
 The token can only see what the signed-in account can see:
@@ -82,3 +104,4 @@ The token can only see what the signed-in account can see:
 - Merchant Center: any user role on the account.
 - Tag Manager: **Read** on the container.
 - Indexing API: **Owner** of the Search Console property.
+- Google Ads: at least read-only access to the account (or to its manager account).

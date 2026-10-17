@@ -18,7 +18,7 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from . import __version__
-from .auth import NotAuthenticated, TokenProvider
+from .auth import NETWORK_FIX, NotAuthenticated, TokenNetworkError, TokenProvider
 from . import ads_config, ads_overview, google_ads, meta_ads, metrics, openai_ads
 from .config import API_BY_HOST, SCOPE_BY_HOST, WRITE_CAPABLE_SCOPES, NotConfigured, Settings
 
@@ -158,6 +158,8 @@ def _call(method: str, url: str, **kwargs) -> dict:
         response = _send(method, url, headers=TOKENS.headers(), timeout=TIMEOUT, **kwargs)
     except Blocked as exc:
         return {"error": "blocked", "detail": str(exc)}
+    except TokenNetworkError as exc:  # token refresh failed on the network: not an authentication problem
+        return {"error": "network", "detail": str(exc), "fix": NETWORK_FIX}
     except NotAuthenticated as exc:
         return {"error": "not_authenticated", "detail": str(exc),
                 "fix": "rerun `google-ecommerce-mcp setup --client-secret <file>` (or the install line)"}
@@ -255,6 +257,8 @@ def check() -> dict:
     try:
         TOKENS.headers()
         status["token"] = "ok"
+    except TokenNetworkError as exc:
+        status["token"] = f"network error: {exc}"
     except NotAuthenticated as exc:
         status["token"] = str(exc)
     except Exception as exc:  # refresh failures, revoked tokens
@@ -621,12 +625,50 @@ def pagespeed(
         hint = "set PAGESPEED_API_KEY (Google Cloud API key with the PageSpeed Insights API enabled)" if "Quota" in message else ""
         return {"error": message, "hint": hint}
     lh, audits = data["lighthouseResult"], data["lighthouseResult"]["audits"]
-    return {"performance": round(lh["categories"]["performance"]["score"] * 100),
-            "seo": round(lh["categories"]["seo"]["score"] * 100),
-            "lcp": audits["largest-contentful-paint"]["displayValue"],
-            "cls": audits["cumulative-layout-shift"]["displayValue"],
-            "tbt": audits["total-blocking-time"]["displayValue"],
-            "field_data": data.get("loadingExperience", {}).get("overall_category")}
+    out = {"performance": round(lh["categories"]["performance"]["score"] * 100),
+           "seo": round(lh["categories"]["seo"]["score"] * 100),
+           "lcp": audits["largest-contentful-paint"]["displayValue"],
+           "cls": audits["cumulative-layout-shift"]["displayValue"],
+           "tbt": audits["total-blocking-time"]["displayValue"],
+           "field_data": data.get("loadingExperience", {}).get("overall_category")}
+    field = _field_metrics(data.get("loadingExperience"))
+    if field:
+        out["field_metrics"] = field
+    return out
+
+
+# CrUX field metrics of the PageSpeed Insights API v5 (loadingExperience.metrics.<NAME>.percentile, the 75th
+# percentile over the last 28 days). LCP and INP percentiles are in milliseconds (assumed from the metric names).
+# CUMULATIVE_LAYOUT_SHIFT_SCORE is assumed to be sent multiplied by 100 (percentile 5 means CLS 0.05): the API
+# reference types every percentile as an integer, which only makes sense for CLS if it is scaled, but neither the
+# reference page nor the "about" page states the scale, and no live response was checked (the shared anonymous
+# quota was exhausted on 2026-10-17). Divided by 100 here; confirm against a real response with PAGESPEED_API_KEY.
+CRUX_METRICS = (("lcp", "LARGEST_CONTENTFUL_PAINT_MS", "lcp_ms", 1), ("inp", "INTERACTION_TO_NEXT_PAINT", "inp_ms", 1),
+                ("cls", "CUMULATIVE_LAYOUT_SHIFT_SCORE", "cls", 100))
+
+
+def _field_metrics(experience) -> dict | None:
+    """{lcp_ms, inp_ms, cls, lcp_category, inp_category, cls_category, origin_fallback} from loadingExperience, only
+    the values Google returned; None when the API has no field data (not enough real-user traffic for the URL nor
+    for its origin)."""
+    metrics = experience.get("metrics") if isinstance(experience, dict) else None
+    if not isinstance(metrics, dict):
+        return None
+    out: dict = {}
+    for short, name, key, divisor in CRUX_METRICS:
+        entry = metrics.get(name)
+        if not isinstance(entry, dict):
+            continue
+        value = entry.get("percentile")
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            out[key] = round(value / divisor, 4) if divisor != 1 else value
+        if isinstance(entry.get("category"), str) and entry["category"]:
+            out[f"{short}_category"] = entry["category"]
+    if not any(k in out for _, _, k, _ in CRUX_METRICS):
+        return None
+    # origin_fallback: Google had too little data for this URL and answered for the whole origin instead.
+    out["origin_fallback"] = experience.get("origin_fallback") is True
+    return out
 
 
 # ------------------------------------------------------------------ paid media (Google Ads, Meta Ads, ChatGPT Ads)
