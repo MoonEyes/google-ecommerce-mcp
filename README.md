@@ -57,8 +57,8 @@ Checked on 2026-10-18 from each project's public page; they change fast, so chec
 
 | Project | License | Scope | Writing |
 |---|---|---|---|
-| [googleanalytics/google-analytics-mcp](https://github.com/googleanalytics/google-analytics-mcp) (official) | Apache-2.0 | GA4 | read-only |
-| [googleads/google-ads-mcp](https://github.com/googleads/google-ads-mcp) (official) | Apache-2.0 | Google Ads | read-only |
+| [googleanalytics/google-analytics-mcp](https://github.com/googleanalytics/google-analytics-mcp) (official) | Apache-2.0 | GA4 | reads only |
+| [googleads/google-ads-mcp](https://github.com/googleads/google-ads-mcp) (official) | Apache-2.0 | Google Ads | reads only |
 | [Meta Ads MCP](https://developers.facebook.com/documentation/ads-commerce/ads-ai-connectors/ads-mcp-server/ads-mcp-server-overview) (official, hosted by Meta, beta) | closed | Meta Ads | yes, hosted by Meta |
 | [pipeboard-co/meta-ads-mcp](https://github.com/pipeboard-co/meta-ads-mcp) | BUSL | Meta Ads | yes |
 | [stape-io/google-tag-manager-mcp-server](https://github.com/stape-io/google-tag-manager-mcp-server) | Apache-2.0 | Tag Manager | read and write |
