@@ -51,6 +51,22 @@ Built by [MoonEyes](https://www.mooneyeswargame.com), a small French shop sellin
 - **Honest about what it does not know.** Ad platforms count conversions their own way. The tools say so in every answer instead of adding up numbers that should not be added.
 - **No third party.** Requests go straight from your machine to Google, Meta and OpenAI. Nothing goes through a MoonEyes server.
 
+## How it compares
+
+Checked on 2026-10-18 from each project's public page; they change fast, so check before you decide.
+
+| Project | License | Scope | Writing |
+|---|---|---|---|
+| [googleanalytics/google-analytics-mcp](https://github.com/googleanalytics/google-analytics-mcp) (official) | Apache-2.0 | GA4 | read-only |
+| [googleads/google-ads-mcp](https://github.com/googleads/google-ads-mcp) (official) | Apache-2.0 | Google Ads | read-only |
+| [Meta Ads MCP](https://developers.facebook.com/documentation/ads-commerce/ads-ai-connectors/ads-mcp-server/ads-mcp-server-overview) (official, hosted by Meta, beta) | closed | Meta Ads | yes, hosted by Meta |
+| [pipeboard-co/meta-ads-mcp](https://github.com/pipeboard-co/meta-ads-mcp) | BUSL | Meta Ads | yes |
+| [stape-io/google-tag-manager-mcp-server](https://github.com/stape-io/google-tag-manager-mcp-server) | Apache-2.0 | Tag Manager | read and write |
+| [RoyAzran/mcp-ads](https://github.com/RoyAzran/mcp-ads) | MIT | 12+ ad and analytics platforms | see its docs |
+| **This project** | MIT | GA4, Search Console, Merchant Center, Tag Manager, PageSpeed, Google Ads, Meta Ads, ChatGPT Ads | off by default, plan, approval, journal, rollback; **never tested on a real account** |
+
+Where this one fits: you run several shops or clients from one self-hosted server and want every change shown as a diff and approved before it is sent. If you need one Google product only, or a hosted service with nothing to install, the official servers above are the better choice.
+
 ## What you can ask
 
 Each case gives the question, the tools the assistant usually calls, what you learn, and the decision it supports. The decision stays yours: by default the server shows data and changes nothing, and any change it prepares needs your approval. Ready-to-paste prompts are in [examples/PROMPTS.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/examples/PROMPTS.md).
