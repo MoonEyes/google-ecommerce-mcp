@@ -41,11 +41,14 @@ class FakeTokens:
 
 
 @pytest.fixture(autouse=True)
-def clean_env(monkeypatch, no_keyring):
+def clean_env(monkeypatch, no_keyring, tmp_path):
     for name in ENV:
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("GEM_CLIENTS_FILE", str(tmp_path / "no-registry.json"))  # legacy mode, whatever the machine
+    monkeypatch.delenv("GEM_CLIENT", raising=False)
     monkeypatch.setenv("GADS_CUSTOMER_ID", "123-456-7890")
     monkeypatch.setattr(google_ads, "TOKENS", FakeTokens())
+    monkeypatch.setattr(google_ads.CLIENT, "session", google_ads.CLIENT.session)  # use() never leaks a fake
     google_ads.CLIENT.BLOCKED_ATTEMPTS.clear()
     google_ads.CLIENT.cache.clear()
     google_ads._CURRENT_BEARER.clear()
@@ -92,6 +95,7 @@ TOOL_ARGS = {
     "gads_performance": {"level": "campaign", "start_date": "2026-01-01", "end_date": "2026-01-31",
                          "segment": "date"},
     "gads_query": {"gaql": "SELECT campaign.id, metrics.cost_micros FROM campaign"},
+    "gads_conversion_actions": {},
 }
 
 
@@ -103,7 +107,7 @@ def test_every_request_is_on_the_read_only_allow_list():
         assert "error" not in fn(**TOOL_ARGS[fn.__name__]), fn.__name__
     assert google_ads.summary("2026-01-01", "2026-01-31")["spend"] == 15.0
     assert google_ads.CLIENT.BLOCKED_ATTEMPTS == []
-    assert len(session.calls) == 4
+    assert len(session.calls) == 5
     for method, url, kwargs in session.calls:
         assert google_ads.ALLOW_LIST.is_allowed(method, url, kwargs.get("json")), (method, url)
         assert url.startswith("https://googleads.googleapis.com/v26/")
@@ -473,13 +477,15 @@ def test_register_declares_read_only_documented_tools():
     from mcp.server.fastmcp import FastMCP
 
     mcp = FastMCP("test-google-ads")
-    assert google_ads.register(mcp) == ["gads_accounts", "gads_performance", "gads_query"]
+    names = ["gads_accounts", "gads_performance", "gads_query", "gads_conversion_actions"]
+    assert google_ads.register(mcp) == names
     tools = {t.name: t for t in asyncio.run(mcp.list_tools())}
-    assert set(tools) == {"gads_accounts", "gads_performance", "gads_query"}
+    assert set(tools) == set(names)
     for t in tools.values():
         assert t.title and t.annotations.readOnlyHint is True and t.annotations.destructiveHint is False
         assert len(t.description) > 60
         assert all(p.get("description") for p in t.inputSchema.get("properties", {}).values())
+        assert "client_id" in t.inputSchema["properties"] and "client_id" not in t.inputSchema.get("required", [])
     perf = tools["gads_performance"].inputSchema["properties"]
     assert perf["level"]["enum"] == ["account", "campaign", "ad_group"]
     assert perf["segment"]["enum"] == ["none", "date", "device", "network"]
@@ -850,3 +856,98 @@ def test_response_ceiling_is_the_shared_one():
 
     assert google_ads.MAX_RESPONSE_BYTES is ads_common.MAX_RESPONSE_BYTES
     assert not hasattr(google_ads, "is_sensitive_resource") and not hasattr(google_ads, "SENSITIVE_PREFIXES")
+
+
+# ------------------------------------------------------------------ conversion actions (P1)
+CONVERSION_ROW = {"conversionAction": {
+    "resourceName": "customers/1234567890/conversionActions/9", "id": "9", "name": "Purchase", "status": "ENABLED",
+    "type": "WEBPAGE", "category": "PURCHASE", "origin": "WEBSITE", "primaryForGoal": True,
+    "includeInConversionsMetric": True, "countingType": "MANY_PER_CLICK",
+    "attributionModelSettings": {"attributionModel": "GOOGLE_SEARCH_ATTRIBUTION_DATA_DRIVEN"},
+    "clickThroughLookbackWindowDays": "30", "viewThroughLookbackWindowDays": "1",
+    "valueSettings": {"defaultValue": 1.0, "defaultCurrencyCode": "EUR", "alwaysUseDefaultValue": False}}}
+
+
+def test_conversion_actions_fixed_query_and_rows():
+    session = use([("POST", ":searchStream", FakeResponse(200, [{"results": [CONVERSION_ROW]}]))])
+    out = google_ads.gads_conversion_actions()
+    query = session.calls[0][2]["json"]["query"]
+    assert query == google_ads.check_gaql(google_ads.build_conversion_actions_query())
+    assert "FROM conversion_action WHERE conversion_action.status != 'REMOVED'" in query
+    assert "REMOVED" not in google_ads.build_conversion_actions_query(include_removed=True)
+    row = out["conversion_actions"][0]
+    assert row["name"] == "Purchase" and row["primary_for_goal"] is True
+    assert row["attribution_model"] == "GOOGLE_SEARCH_ATTRIBUTION_DATA_DRIVEN"
+    assert row["click_through_lookback_window_days"] == 30 and row["view_through_lookback_window_days"] == 1
+    assert row["default_currency_code"] == "EUR" and out["counted_in_conversions"] == 1
+    assert out["customer_id"] == "1234567890" and out["attribution"] == ATTRIBUTION and "client_id" not in out
+
+
+# ------------------------------------------------------------------ multi-client (clients.json)
+@pytest.fixture
+def registry(monkeypatch, tmp_path):
+    from clients_fakes import ACME, BETA, write_registry
+
+    path = tmp_path / "clients.json"
+    monkeypatch.setenv("GEM_CLIENTS_FILE", str(path))
+    write_registry(path, {"acme": ACME, "beta": BETA})
+    tokens = {"acme": FakeTokens(token="ya29." + "A" * 40), "beta": FakeTokens(token="ya29." + "B" * 40)}
+    monkeypatch.setattr(google_ads, "client_tokens", lambda ctx: tokens[ctx.client_id])
+    return tokens
+
+
+def test_registry_client_uses_its_own_customer_login_and_token(registry, monkeypatch):
+    monkeypatch.setenv("GADS_LOGIN_CUSTOMER_ID", "555-555-5555")  # ignored for registered clients
+    session = use(ok_rules())
+    out = google_ads.gads_performance(start_date="2026-01-01", end_date="2026-01-31", client_id="beta")
+    assert out["client_id"] == "beta" and out["customer_id"] == "2222222222"
+    _, url, kwargs = session.calls[0]
+    assert url == f"{BASE}/customers/2222222222/googleAds:searchStream"
+    assert kwargs["headers"]["Authorization"] == "Bearer ya29." + "B" * 40
+    assert kwargs["headers"]["login-customer-id"] == "9999999999"
+    assert ("ya29." + "A" * 40) not in json.dumps(session.calls, default=str)
+
+
+def test_registry_requires_a_client_and_refuses_foreign_customers(registry):
+    session = use(ok_rules())
+    assert google_ads.gads_query("SELECT customer.id FROM customer")["error"] == "client_required"
+    out = google_ads.gads_query("SELECT customer.id FROM customer", customer_id="2222222222", client_id="acme")
+    assert out["error"] == "id_not_owned" and out["client_id"] == "acme"
+    manager = google_ads.gads_conversion_actions(customer_id="9999999999", client_id="acme")  # shared MCC
+    assert manager["error"] == "id_not_owned"
+    assert google_ads.gads_accounts(client_id="nobody")["error"] == "unknown_client"
+    assert session.calls == []
+
+
+def test_registry_accounts_lists_only_the_clients_customers(registry):
+    use([("GET", "customers:listAccessibleCustomers",
+          FakeResponse(200, {"resourceNames": ["customers/1111111111", "customers/2222222222"]}))])
+    out = google_ads.gads_accounts(client_id="acme")
+    assert out["customers"] == [{"id": "1111111111"}] and out["hidden_customers"] == 1
+    assert out["configured_customer_id"] == "1111111111" and out["client_id"] == "acme"
+
+
+def test_registry_summary_and_bearer_masking_per_client(registry):
+    use(ok_rules())
+    assert google_ads.summary("2026-01-01", "2026-01-31", client_id="acme")["customer_id"] == "1111111111"
+    google_ads.gads_query("SELECT customer.id FROM customer", client_id="beta")
+    secrets = google_ads._secrets()
+    assert "A" * 40 in "".join(secrets) and "B" * 40 in "".join(secrets)
+
+
+def test_client_tokens_read_the_clients_own_secret(monkeypatch):
+    from types import SimpleNamespace
+
+    raw = json.dumps({"token": "tok-acme", "refresh_token": "r", "client_id": "c", "client_secret": "s",
+                      "expiry": "2099-01-01T00:00:00Z"})
+    asked = []
+    ctx = SimpleNamespace(client_id="acme", secret=lambda kind: asked.append(kind) or raw)
+    provider = google_ads.ClientAdsTokens(ctx)
+    assert provider.headers()["Authorization"] == "Bearer tok-acme" and asked == ["gads"]
+    empty = google_ads.ClientAdsTokens(SimpleNamespace(client_id="beta", secret=lambda kind: None))
+    with pytest.raises(NotAuthenticated, match="client 'beta'"):
+        empty.headers()
+    broken = google_ads.ClientAdsTokens(SimpleNamespace(client_id="c", secret=lambda kind: "{not json"))
+    with pytest.raises(NotAuthenticated) as info:
+        broken.headers()
+    assert "not json" not in str(info.value)

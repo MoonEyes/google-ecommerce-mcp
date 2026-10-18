@@ -23,7 +23,8 @@ from .ads_config import ADS_SCOPE, KEYRING_USER_ADS, SECRET_ENV, get_secret
 from .auth import NotAuthenticated, TokenNetworkError
 from .config import KEYRING_SERVICE
 
-__all__ = ["AdsTokenProvider", "NotAuthenticated", "run_setup_ads", "save_ads_token", "get_secret", "set_secret"]
+__all__ = ["AdsTokenProvider", "NotAuthenticated", "run_setup_ads", "run_client_setup_ads", "save_ads_token",
+           "get_secret", "set_secret"]
 
 NO_TOKEN = ("No Google Ads token found. Run `google-ecommerce-mcp setup-ads --client-secret <file>` first "
             "(it asks only for the Google Ads scope and leaves the other Google token untouched).")
@@ -205,11 +206,26 @@ def run_setup_ads(client_secret: str, token_file: str | None = None) -> str:
     token_file). Never writes the "oauth-token" entry nor GOOGLE_TOKEN_FILE. Returns where it was stored."""
     if token_file and _same_file(token_file, os.getenv("GOOGLE_TOKEN_FILE", "").strip() or None):
         raise ValueError("the Google Ads token file must differ from GOOGLE_TOKEN_FILE")
+    from .auth import validate_client_secret
+
+    config = validate_client_secret(client_secret)  # hostile file: refused before any flow or browser
     from google_auth_oauthlib.flow import InstalledAppFlow
 
-    flow = InstalledAppFlow.from_client_secrets_file(client_secret, [ADS_SCOPE])
+    flow = InstalledAppFlow.from_client_config(config, [ADS_SCOPE])  # the validated content, not a second read
     creds = flow.run_local_server(port=0, open_browser=True, prompt="consent select_account")
     return save_ads_token(creds.to_json(), token_file)
+
+
+def run_client_setup_ads(ctx: Any, client_secret: str) -> str:
+    """`setup-ads --client X`: browser consent asking ONLY for the adwords scope, stored in the client's own
+    entry ("<client_id>/gads", or the name its registry entry gives): never its Google read or write token, never
+    another client's entry. The client file is validated before any flow (auth.consent); a token holding any
+    scope other than adwords is refused, never stored (auth.check_granted). Returns where (never the value)."""
+    from .auth import check_granted, consent, store_client_token
+
+    raw = consent(client_secret, [ADS_SCOPE])
+    check_granted(raw, [ADS_SCOPE])
+    return store_client_token(ctx, "gads", raw)
 
 
 def set_secret(name: str, value: str) -> str:

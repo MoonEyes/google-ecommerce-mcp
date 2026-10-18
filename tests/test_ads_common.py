@@ -624,3 +624,307 @@ def test_hardened_session_passes_the_ca_bundle_only_on_opt_in(monkeypatch, tmp_p
     session = ads_common.hardened_session("https://oauth2.googleapis.com/token")
     assert session.verify == str(bundle) and session.trust_env is False
     assert ads_common.hardened_session("https://oauth2.googleapis.com/token", trust_env=False).verify is True
+
+
+# ------------------------------------------------------------------ write path (0.5.0)
+import dataclasses  # noqa: E402
+import itertools  # noqa: E402
+
+from google_ecommerce_mcp import write_tokens  # noqa: E402
+from google_ecommerce_mcp.ads_common import (WRITE_APPLY, WriteAllowList, WriteGrant, body_digest,  # noqa: E402
+                                             dry_run_validator, platform_dry_run_validator, request_digest)
+
+WRITE_URL = f"{HOST}/v1/customers/123/campaigns:mutate"
+VALIDATE_URL = f"{HOST}/v1/customers/123/campaignBudgets:mutate"
+WRITES = WriteAllowList([
+    ("POST", r"https://ads\.example-platform\.com/v1/customers/\d+/campaignBudgets:mutate",
+     dry_run_validator("validateOnly", True), "validate"),
+    ("POST", r"https://ads\.example-platform\.com/v1/customers/\d+/campaigns:mutate", None, "write"),
+    ("POST", r"https://ads\.example-platform\.com/v1/act_\d+/adsets",
+     platform_dry_run_validator("meta"), "validate"),
+])
+BODY = {"operations": [{"update": {"resourceName": "customers/123/campaigns/9", "status": "PAUSED"}}]}
+_OP_IDS = itertools.count(1)
+
+
+@pytest.fixture(autouse=True)
+def _write_signing_key(monkeypatch, tmp_path):
+    """Every grant is signed with a fixed test key; the in-process replay registry starts empty."""
+    monkeypatch.setenv(write_tokens.KEY_ENV, "ab" * 32)
+    monkeypatch.setenv("GEM_STATE_DIR", str(tmp_path / "state"))
+    ads_common._forget_consumed_grants()
+    yield
+    ads_common._forget_consumed_grants()
+
+
+def writer(rules=()):
+    c = AdsClient("google_ads", RULES, secrets=lambda: [TOKEN], write_allow_list=WRITES)
+    c.session = FakeSession(rules or [("", FakeResponse(200, {"results": [{}]}))])
+    return c
+
+
+def grant(sign=True, **over):
+    """A grant for (POST, WRITE_URL, BODY); fields overridden BEFORE signing (so the mac stays valid and the
+    other checks are reached). A fresh op_id each call: a grant serves once."""
+    fields = dict(client_id="acme", plan_id="p1", op_id=f"op{next(_OP_IDS)}", method="POST", url=WRITE_URL,
+                  body_digest=body_digest(BODY))
+    fields.update(over)
+    if "request_digest" not in over:
+        fields["request_digest"] = request_digest(fields["method"], fields["url"], None, BODY)
+    unsigned = WriteGrant(**fields)
+    return dataclasses.replace(unsigned, mac=write_tokens.sign_grant(unsigned)) if sign else unsigned
+
+
+def test_body_digest_is_sha256_of_canonical_sorted_json():
+    import hashlib
+
+    assert body_digest({"b": 1, "a": [1, "é"]}) == body_digest({"a": [1, "é"], "b": 1})
+    expected = hashlib.sha256('{"a":[1,"é"],"b":1}'.encode("utf-8")).hexdigest()
+    assert body_digest({"b": 1, "a": [1, "é"]}) == expected
+    assert body_digest(None) == hashlib.sha256(b"null").hexdigest()
+    assert body_digest({"a": 1}) != body_digest({"a": "1"})
+    with pytest.raises((TypeError, ValueError)):
+        body_digest({"a": float("nan")})
+    with pytest.raises(TypeError):
+        body_digest({"a": object()})
+
+
+def test_write_grant_is_frozen():
+    g = grant()
+    with pytest.raises(Exception):
+        g.url = "https://evil.example.com/"  # type: ignore[misc]
+
+
+def test_write_apply_annotations():
+    assert WRITE_APPLY.readOnlyHint is False and WRITE_APPLY.destructiveHint is True
+    assert WRITE_APPLY.idempotentHint is False and WRITE_APPLY.openWorldHint is True
+
+
+def test_write_with_a_matching_grant_is_sent_once_with_the_same_body():
+    c = writer()
+    result = c.call("POST", WRITE_URL, json=BODY, grant=grant(), headers={"Authorization": f"Bearer {TOKEN}"})
+    assert result == {"results": [{}]} and len(c.session.calls) == 1
+    method, url, kwargs = c.session.calls[0]
+    assert (method, url) == ("POST", WRITE_URL) and kwargs["json"] == BODY
+    assert body_digest(kwargs["json"]) == grant().body_digest
+    assert kwargs["allow_redirects"] is False and c.BLOCKED_ATTEMPTS == []
+
+
+def test_grant_url_query_is_bound_by_the_request_digest():
+    # Changed in M1: the query was ignored before; it is now part of request_digest.
+    c = writer()
+    query_url = WRITE_URL + "?alt=json"
+    assert "error" not in c.call("POST", query_url, json=BODY, grant=grant(url=query_url))
+    assert c.call("POST", query_url, json=BODY, grant=grant())["reason"] == "request_digest_mismatch"
+    assert c.call("POST", WRITE_URL, json=BODY,
+                  grant=grant(url=WRITE_URL + "?x=1"))["reason"] == "request_digest_mismatch"
+
+
+# Built lazily (inside the test) so signing happens with the test key of the autouse fixture.
+@pytest.mark.parametrize("bad,reason", [
+    (lambda: None, "grant_missing"),
+    (lambda: {"method": "POST", "url": WRITE_URL}, "grant_missing"),  # not a WriteGrant
+    (lambda: grant(method="PATCH"), "grant_mismatch"),
+    (lambda: grant(url=f"{HOST}/v1/customers/124/campaigns:mutate"), "grant_mismatch"),
+    (lambda: grant(url="https://evil.example.com/v1/customers/123/campaigns:mutate"), "grant_mismatch"),
+    (lambda: grant(url="not a url"), "grant_mismatch"),
+    (lambda: grant(plan_id=""), "grant_mismatch"),
+    (lambda: grant(body_digest=body_digest({"operations": []})), "digest_mismatch"),
+    (lambda: grant(body_digest=""), "grant_mismatch"),
+    (lambda: grant(body_digest="ZZ" + "é"), "digest_mismatch"),
+    (lambda: grant(sign=False), "grant_unsigned"),
+    (lambda: dataclasses.replace(grant(), mac="0" * 64), "grant_mac_invalid"),
+    (lambda: dataclasses.replace(grant(), op_id="other"), "grant_mac_invalid"),
+    (lambda: grant(request_digest=""), "request_digest_mismatch"),
+])
+def test_write_without_a_coherent_grant_is_blocked(bad, reason):
+    c = writer()
+    result = c.call("POST", WRITE_URL, json=BODY, grant=bad())
+    assert result["error"] == "blocked" and result["reason"] == reason and result["fix"]
+    assert c.session.calls == [] and c.BLOCKED_ATTEMPTS == [("POST", WRITE_URL)]
+
+
+def test_body_changed_after_the_grant_is_blocked():
+    c = writer()
+    changed = {"operations": [{"update": {"resourceName": "customers/123/campaigns/9", "status": "ENABLED"}}]}
+    result = c.call("POST", WRITE_URL, json=changed, grant=grant())
+    assert result["reason"] == "digest_mismatch" and c.session.calls == []
+
+
+def test_non_json_body_is_blocked():
+    c = writer()
+    result = c.call("POST", WRITE_URL, json={"x": float("inf")}, grant=grant())
+    assert result["reason"] == "body_not_canonical" and c.session.calls == []
+
+
+def test_grant_for_one_op_cannot_send_another_endpoint():
+    c = writer()
+    result = c.call("DELETE", WRITE_URL, json=BODY, grant=grant(method="DELETE"))
+    assert result["reason"] == "not_on_write_allow_list" and c.session.calls == []
+    result = c.call("POST", f"{HOST}/v1/customers/123/labels:mutate", json=BODY,
+                    grant=grant(url=f"{HOST}/v1/customers/123/labels:mutate"))
+    assert result["reason"] == "not_on_write_allow_list" and c.session.calls == []
+
+
+def test_validate_rule_requires_the_dry_run_flag_without_grant():
+    c = writer()
+    assert "error" not in c.call("POST", VALIDATE_URL, json=dict(BODY, validateOnly=True))
+    for body in (BODY, dict(BODY, validateOnly=False), dict(BODY, validateOnly="true"), None):
+        result = c.call("POST", VALIDATE_URL, json=body)
+        assert result["error"] == "blocked" and result["reason"] == "not_on_write_allow_list"
+    # a grant does not turn a validate rule into a write
+    assert c.call("POST", VALIDATE_URL, json=BODY, grant=grant(url=VALIDATE_URL))["error"] == "blocked"
+    meta = f"{HOST}/v1/act_1/adsets"
+    assert "error" not in c.call("POST", meta, json={"name": "x", "execution_options": ["validate_only"]})
+    assert c.call("POST", meta, json={"name": "x", "execution_options": []})["error"] == "blocked"
+    assert len(c.session.calls) == 2
+
+
+def test_validate_rule_needs_a_dry_run_validator():
+    url = r"https://a\.example\.com/v1/x"
+    with pytest.raises(ValueError, match="dry_run_validator"):
+        WriteAllowList([("POST", url, None, "validate")])
+    with pytest.raises(ValueError, match="dry_run_validator"):
+        WriteAllowList([("POST", url, lambda body: True, "validate")])
+
+    def lax_always(body):
+        return True
+
+    lax_always.dry_run_flag = ("validateOnly", True)
+    with pytest.raises(ValueError, match="refuse a body without the flag"):
+        WriteAllowList([("POST", url, lax_always, "validate")])
+    WriteAllowList([("POST", url, dry_run_validator("validateOnly", True), "validate")])
+    with pytest.raises(ValueError):
+        WriteAllowList([("POST", url, None, "delete")])
+    with pytest.raises(ValueError):
+        WriteAllowList([("POST", url, None)])  # type: ignore[list-item]
+
+
+@pytest.mark.parametrize("pattern", [
+    r".*",
+    r"https://a\.example\.com/.*",
+    r"https://a\.example\.com/v1/.+",
+    r"https://a\.example\.com/v1/x.",
+    r"https://a\.example\.com/v1/\S+",
+    r"https://a\.example\.com/v1/\D+",
+    r"https://a\.example\.com/v1/\W",
+    r"https://a\.example\.com/v1/[^x]+",
+    r"https://a\.example\.com/v1/x|https://evil\.com/y",
+    r"https://a\.example\.com/v1/(?s:x)",
+    r"https://[a-z]+\.example\.com/v1",
+    r"http://a\.example\.com/v1",
+    r"https://a\.example\.com/v1/[x",
+])
+def test_write_allow_list_refuses_jokers_and_unpinned_hosts(pattern):
+    with pytest.raises(ValueError):
+        WriteAllowList([("POST", pattern, None, "write")])
+
+
+def test_write_allow_list_accepts_strict_patterns_and_is_never_a_read_list():
+    pattern = r"https://a\.example\.com/v1/act_\d+/(adsets|ads)/[^/?]+:mutate"
+    ok = WriteAllowList([("POST", pattern, None, "write")])
+    assert ok.rules == [("POST", pattern, "write")] and ok.hosts == {"a.example.com"}
+    assert ok.match("POST", "https://a.example.com/v1/act_1/ads/9:mutate") == "write"
+    assert ok.match("POST", "https://a.example.com/v1/act_1/ads/9/x:mutate") is None
+    assert ok.is_allowed("POST", "https://a.example.com/v1/act_1/ads/9:mutate") is False
+    with pytest.raises(TypeError):
+        AdsClient("meta", ok)
+    with pytest.raises(TypeError):
+        AdsClient("meta", RULES, write_allow_list=RULES)
+
+
+@pytest.mark.parametrize("url", [
+    WRITE_URL.replace("https://", "http://"),
+    "https://ads.example-platform.com.evil.com/v1/customers/123/campaigns:mutate",
+    "https://user@ads.example-platform.com/v1/customers/123/campaigns:mutate",
+    f"{HOST}/v1/customers/123/../123/campaigns:mutate",
+    f"{HOST}/v1/customers/123%2Fcampaigns:mutate",
+    WRITE_URL + "?method=delete",
+    WRITE_URL + ";x=1",
+    " " + WRITE_URL,
+])
+def test_write_path_keeps_the_url_refusals(url):
+    c = writer()
+    result = c.call("POST", url, json=BODY, grant=grant(url=url))
+    assert result["error"] == "blocked" and c.session.calls == []
+
+
+def test_write_redirect_is_refused_and_not_followed():
+    c = writer([("campaigns:mutate", FakeResponse(302, {}, {"Location": "https://evil.example.com/x"}))])
+    result = c.call("POST", WRITE_URL, json=BODY, grant=grant(), headers={"Authorization": f"Bearer {TOKEN}"})
+    assert result["error"] == "blocked" and "redirect refused" in result["detail"]
+    assert len(c.session.calls) == 1 and TOKEN not in json.dumps(result)
+
+
+def test_write_is_never_retried_nor_cached():
+    c = writer([("campaigns:mutate", FakeResponse(503, {"error": {"message": "backend"}}))])
+    result = c.call("POST", WRITE_URL, json=BODY, grant=grant(), cache=True)
+    assert result["error"] == "api_error" and len(c.session.calls) == 1
+    c = writer()
+    c.call("POST", WRITE_URL, json=BODY, grant=grant(), cache=True)
+    second = c.call("POST", WRITE_URL, json=BODY, grant=grant(), cache=True)
+    assert "cached" not in second and len(c.session.calls) == 2
+
+
+def test_write_response_ceiling_and_secret_masking_apply():
+    big = FakeResponse(200, {"x": 1}, {"Content-Length": str(ads_common.MAX_RESPONSE_BYTES + 1)})
+    c = writer([("campaigns:mutate", big)])
+    assert c.call("POST", WRITE_URL, json=BODY, grant=grant())["error"] == "response_too_large"
+    echo = FakeResponse(400, {"error": {"message": f"bad token {TOKEN}"}})
+    c = writer([("campaigns:mutate", echo)])
+    assert TOKEN not in json.dumps(c.call("POST", WRITE_URL, json=BODY, grant=grant()))
+    secret_url = WRITE_URL + f"?k={TOKEN}"
+    result = c.call("POST", secret_url, json=BODY, grant=grant(url=secret_url))
+    assert result["error"] == "blocked" and TOKEN not in json.dumps(result) and TOKEN not in str(c.BLOCKED_ATTEMPTS)
+
+
+def test_client_without_write_list_keeps_the_read_only_behaviour():
+    c = client([("", FakeResponse(200, {}))])
+    result = c.call("POST", WRITE_URL, json=BODY, grant=grant())
+    assert result["error"] == "blocked" and "reason" not in result and c.session.calls == []
+    assert "read-only allow-list" in result["detail"]
+
+
+def test_read_path_still_works_on_a_writing_client():
+    c = writer([("/accounts", FakeResponse(200, {"data": [1]}))])
+    assert c.call("GET", f"{HOST}/v1/accounts", cache=True)["cached"] is False
+    assert c.call("GET", f"{HOST}/v1/accounts", cache=True)["cached"] is True
+
+
+# ------------------------------------------------------------------ error mapping (correction #2, meta_eco)
+@pytest.mark.parametrize("code", ["CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION", "ACTION_NOT_PERMITTED"])
+def test_map_error_project_not_approved(code):
+    data = {"error": {"code": 403, "status": "PERMISSION_DENIED", "details": [
+        {"errors": [{"errorCode": {"authorizationError": code}}]}]}}
+    out = map_error("google_ads", resp(403), data)
+    assert out["error"] == "project_not_approved"
+    assert "Explorer" in out["fix"] and "Basic" in out["fix"] and "test account" in out["fix"]
+
+
+def test_project_not_approved_is_google_ads_only():
+    data = {"error": {"message": "ACTION_NOT_PERMITTED"}}
+    assert map_error("meta", resp(403), data)["error"] == "auth_failed"
+
+
+def test_meta_eco_shares_the_meta_mapping():
+    cases = [({"error": {"code": 190}}, "auth_failed"), ({"error": {"code": 17}}, "rate_limited"),
+             ({"error": {"code": 200}}, "missing_scope"),
+             ({"error": {"code": 100, "error_subcode": 33}}, "not_available")]
+    for data, code in cases:
+        eco, meta = map_error("meta_eco", resp(400), data), map_error("meta", resp(400), data)
+        assert eco["error"] == meta["error"] == code and eco["fix"] == meta["fix"]
+        assert eco["platform"] == "meta_eco"
+
+
+def test_ads_config_write_constants(monkeypatch):
+    from google_ecommerce_mcp import ads_config
+
+    # Changed in M1: (key, expected, mode) so the flag type is part of the rule.
+    assert ads_config.DRY_RUN_FLAGS["google_ads"] == ("validateOnly", True, ads_config.DRY_RUN_EQUALS)
+    assert ads_config.DRY_RUN_FLAGS["meta"] == ("execution_options", "validate_only", ads_config.DRY_RUN_LIST)
+    assert set(ads_config.DRY_RUN_FLAGS) == set(ads_config.ADS_PLATFORMS)
+    monkeypatch.delenv("GEM_WRITE", raising=False)
+    assert ads_config.write_enabled() is False
+    for value, on in (("1", True), ("true", False), ("0", False)):
+        monkeypatch.setenv("GEM_WRITE", value)
+        assert ads_config.write_enabled() is on

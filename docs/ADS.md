@@ -2,9 +2,9 @@
 
 Easy setup guide: [docs/SETUP-ADS.md](SETUP-ADS.md)
 
-Nine read-only tools that put your ad spend next to your GA4, Search Console and Merchant Center data. They only read reports. They cannot create, edit, pause or delete a campaign, change a budget or upload anything.
+Tools that put your ad spend next to your GA4, Search Console and Merchant Center data. **They read by default**: reports, lists of campaigns, ad sets and ads, conversion actions. **They can also prepare controlled changes** (pause, daily budget, negative keywords, a new paused campaign) once you turned writing on for a client; that part is described in [Changing campaigns and budgets](#changing-campaigns-and-budgets) and in [WRITE.md](WRITE.md). Without that setting they cannot create, edit, pause or delete anything.
 
-> **Status: tested offline only.** Every behaviour on this page was checked against fake responses written from the platforms' documentation. The connectors have **not been run against real Google Ads, Meta or ChatGPT Ads accounts yet**. [Known unknowns](#what-has-not-been-tested-against-real-accounts) lists what to confirm on your first real query. Compare the first figures with each platform's own interface before you rely on them.
+> **Status: tested offline only, reading and writing.** Every behaviour on this page was checked against fake responses written from the platforms' documentation. The connectors have **not been run against real Google Ads, Meta or ChatGPT Ads accounts yet**, and **no write has ever been sent to a real account**. [Known unknowns](#what-has-not-been-tested-against-real-accounts) lists what to confirm on your first real query. Compare the first figures with each platform's own interface before you rely on them.
 
 Looking for the overall install order, the access checklist to request from a client and the revocation steps? See [SETUP.md](SETUP.md).
 
@@ -16,6 +16,8 @@ Looking for the overall install order, the access checklist to request from a cl
 - [Prerequisites: Meta Ads](#prerequisites-meta-ads)
 - [Prerequisites: ChatGPT Ads](#prerequisites-chatgpt-ads)
 - [Environment variables and commands](#environment-variables-and-commands)
+- [Several clients](#several-clients)
+- [Changing campaigns and budgets](#changing-campaigns-and-budgets)
 - [Verify with doctor](#verify-with-doctor)
 - [Tool reference](#tool-reference)
 - [Free GAQL queries](#free-gaql-queries)
@@ -37,8 +39,12 @@ Looking for the overall install order, the access checklist to request from a cl
 | `openai_ads_insights` | ChatGPT Ads | Impressions, clicks, spend, conversions, attributed sales |
 | `openai_ads_conversions` | ChatGPT Ads | Click-through and view-through goal conversions per entity |
 | `ads_overview` | All three | The three platforms side by side for one period |
+| `gads_conversion_actions` | Google Ads | Conversion actions and their counting settings |
+| `meta_campaigns`, `meta_adsets`, `meta_ads_list` | Meta Ads | Lists of campaigns, ad sets and ads with their status |
+| `openai_ads_campaigns`, `openai_ads_ad_groups`, `openai_ads_ads` | ChatGPT Ads | Lists of campaigns, ad groups and ads |
+| `gads_plan_*`, `meta_plan_*`, `openai_ads_plan_*` | all three | Prepare a change (writes nothing). Apply with `gads_apply`, `meta_apply`, `openai_ads_apply` |
 
-Each platform is optional. A platform you did not configure answers `not_configured`, and `ads_overview` still returns the others.
+Every tool, with its parameters: [TOOLS.md](TOOLS.md). Each platform is optional. A platform you did not configure answers `not_configured`, and `ads_overview` still returns the others.
 
 ## Read this first: attribution
 
@@ -60,7 +66,7 @@ You need a Google Ads account you can read, and a Google Cloud project with an O
 1. **A Google Ads customer id.** The ten digits shown at the top right of Google Ads (`123-456-7890`; dashes are accepted). If you reach the account through a manager account (MCC), note the manager's id too.
 2. **Enable the Google Ads API** in the Google Cloud project of your OAuth client (APIs & Services > Library > *Google Ads API*).
 3. **An OAuth client of type Desktop app.** The one you created for the other tools works. Download its JSON file.
-4. **Developer token: optional.** Google announced ([developer token page](https://developers.google.com/google-ads/api/docs/api-policy/developer-token)) that developer tokens were sunset on 9 September 2026: sending one is optional and ignored by the API servers, and access is tied to the Cloud project instead. If you still have a developer token, set `GADS_DEVELOPER_TOKEN` and the server sends it; if not, leave the variable unset and nothing is sent. This server cannot see which access level or quota your Cloud project has: check Google's current documentation if a call is refused (`not_available`, `auth_failed`).
+4. **No developer token needed.** Google ended developer tokens on 9 September 2026 ([developer token page](https://developers.google.com/google-ads/api/docs/api-policy/developer-token)): the API servers ignore one if sent, and access is now tied to your **Google Cloud project**. Do not apply for a token. Instead, check the access level of the Cloud project that owns your OAuth client (test, Explorer, Basic or Standard). A project at test level can only reach test accounts, and a call that needs more is answered `project_not_approved`. This server cannot see the level of your project: read Google's current documentation if a call is refused (`project_not_approved`, `not_available`, `auth_failed`). `GADS_DEVELOPER_TOKEN` is still accepted and sent if you set it, but it is not needed.
 5. **Authorize, with a separate token:**
 
    ```bash
@@ -80,7 +86,7 @@ You need a Meta Business Manager (Business Portfolio) that has access to the ad 
 
 1. **Business Manager.** Business Settings must list the ad account under *Accounts > Ad accounts*.
 2. **A Meta app of type Business** with the **Marketing API** product added, at developers.facebook.com. Meta may require extra steps (business verification, app review) depending on your account. This guide does not cover them and they were not tested.
-3. **A system user** (Business Settings > Users > System users). Give it a **read / analyst role** on the ad account, nothing more: this server only reads insights.
+3. **A system user** (Business Settings > Users > System users). Give it a **read / analyst role** on the ad account, nothing more: reading insights needs no more. (Only if you turn writing on for this client, see [WRITE.md](WRITE.md), does the token also need `ads_management`.)
 4. **A token with only the `ads_read` permission.** Generate it for the system user and the app, and tick `ads_read` only. Do not add `ads_management`.
 5. **Store the token, never in a URL:**
 
@@ -104,7 +110,7 @@ A system user token can be long-lived. Treat it like a password and revoke it in
    ```
 
    Or set `OPENAI_ADS_API_KEY` in the server `env`; the variable wins over the keyring.
-3. **Read-only scope is not confirmed.** OpenAI's documentation does not say that a key can be limited to reading. The key may be able to change campaigns and budgets. This server only sends the read requests listed below, but a leaked key is not limited by that. Use a dedicated key, keep it out of shared configs and revoke it when you stop using the connector.
+3. **Read-only scope is not confirmed.** OpenAI's documentation does not say that a key can be limited to reading. The key may be able to change campaigns and budgets, **and the same key is used for planning and applying changes if you turn writing on**. This server only sends the read requests listed below unless writing is on, but a leaked key is not limited by that. Use a dedicated key, keep it out of shared configs and revoke it when you stop using the connector.
 4. The API host is fixed in the code (`https://api.ads.openai.com/v1`). It cannot be changed through the environment or a tool parameter, so the key cannot be sent anywhere else.
 5. **Check:** ask for `openai_ads_account`, then `openai_ads_insights` for last week.
 
@@ -114,11 +120,11 @@ A system user token can be long-lived. Treat it like a password and revoke it in
 |---|---|---|
 | `GADS_CUSTOMER_ID` | none | Google Ads tools: the customer id to read |
 | `GADS_LOGIN_CUSTOMER_ID` | none | Manager (MCC) id; sent as `login-customer-id` only when set |
-| `GADS_DEVELOPER_TOKEN` | none | Optional; sent only when set |
+| `GADS_DEVELOPER_TOKEN` | none | Not needed since 9 September 2026; sent only when set |
 | `GADS_TOKEN_FILE` | keyring entry `oauth-token-ads` | Store the Google Ads token in a file instead. Must differ from `GOOGLE_TOKEN_FILE` |
 | `GADS_API_VERSION` | `v26` | Google Ads REST version, format `v26` |
 | `GADS_ALLOW_SENSITIVE_QUERIES` | unset | `1` lifts the GAQL resource lists in `gads_query` (personal data possible) |
-| `META_ACCESS_TOKEN` | keyring entry `meta-access-token` | Meta token (`ads_read` only) |
+| `META_ACCESS_TOKEN` | keyring entry `meta-access-token` | Meta token (`ads_read` for reading; `ads_management` too if you turn writing on) |
 | `META_AD_ACCOUNT_ID` | none | Ad account, digits or `act_<digits>` |
 | `META_API_VERSION` | `v26.0` | Graph API version, format `v26.0` |
 | `OPENAI_ADS_API_KEY` | keyring entry `openai-ads-key` | ChatGPT Ads advertiser key |
@@ -135,6 +141,38 @@ Settings are read at each call, not frozen at startup.
 
 The secret is read from a hidden prompt, never from the command line, so it stays out of your shell history.
 
+## Several clients
+
+With a client registry ([MULTI-CLIENT.md](MULTI-CLIENT.md)), the ids and secrets of each client are kept apart: the Google Ads customer, the Meta ad account and the ChatGPT Ads account live in the client's entry in `clients.json`, and the tokens in the keyring under `<client>/gads`, `<client>/meta` and `<client>/openai`. The variables `GADS_CUSTOMER_ID`, `GADS_LOGIN_CUSTOMER_ID`, `META_AD_ACCOUNT_ID`, `META_ACCESS_TOKEN` and `OPENAI_ADS_API_KEY` are then ignored. Commands, per client:
+
+```bash
+google-ecommerce-mcp client add acme                                   # ids, no secret
+google-ecommerce-mcp setup-ads --client acme --client-secret client_secret.json
+google-ecommerce-mcp client set-secret acme meta
+google-ecommerce-mcp client set-secret acme openai
+google-ecommerce-mcp doctor --client acme --live
+```
+
+The tools take `client_id`. A `customer_id` or `account_id` parameter must belong to that client.
+
+## Changing campaigns and budgets
+
+Off by default. Turn it on per client and per platform ([WRITE.md](WRITE.md)). What exists, and what does not:
+
+| Platform | What you can plan | Always true |
+|---|---|---|
+| Google Ads | Pause campaigns, ad groups or ads; change a daily budget; add negative keywords you provide; create one Search campaign | New things are created **paused**, with their own budget, and no bidding setting |
+| Meta Ads | Pause campaigns, ad sets or ads; change a daily budget (minor units); create a campaign, an ad set and an ad | New things are created **paused**. Bids and spend caps are not supported |
+| ChatGPT Ads | Pause campaigns, ad groups or ads; change a campaign daily budget; create a campaign | New campaigns are created **paused** |
+
+Not available in this version, on any platform: activating, deleting or archiving, bids and bidding strategies, uploading conversions or audiences, publishing. A budget change needs your approval in a terminal and respects the client's cap (`max_daily_budget_micros` in the account currency) and the 20 % per 24 hours limit.
+
+Things to know before you try:
+
+- **Google Ads** builds its changes on the REST `:mutate` endpoints and checks each plan with Google's own `validateOnly`. The `project_not_approved` error means your Google Cloud project's access level does not allow the call, see [Quotas](#quotas-access-levels-and-limits).
+- **Meta** needs a token with `ads_management`, not only `ads_read`. Creations are checked with Meta's `validate_only`; updates are checked locally. Whether Meta accepts the `Authorization: Bearer` header on these write calls is not confirmed.
+- **ChatGPT Ads** has no dry run on single entities, so its checks are local, and its key cannot be limited to reading.
+
 ## Verify with doctor
 
 After configuring a platform, check it before asking the assistant anything:
@@ -149,7 +187,7 @@ It prints a row per service (Service, Set up, Secret, Token, Status, Account; id
 
 ## Tool reference
 
-All tools are read-only (`readOnlyHint`), return JSON, and return errors as data (see [Structured errors](#structured-errors)). Every result carries `fetched_at` and `freshness`. Money is in the account currency and is **never converted**.
+The tools below are read tools (`readOnlyHint`): they return JSON and return errors as data (see [Structured errors](#structured-errors)). Every result carries `fetched_at` and `freshness`. Money is in the account currency and is **never converted**.
 
 ### gads_accounts
 
@@ -325,7 +363,8 @@ A failing tool returns an object with an `error` code, a `detail` (secrets maske
 | `missing_scope` | The token lacks a permission; Google Ads adds `required_scope`, Meta adds `required_permission` (`ads_read`) | Rerun `setup-ads`, or give `ads_read` and the ad account to the Meta token |
 | `rate_limited` | Platform quota hit. Carries `retry_after_seconds` when known and, for Meta, the parsed `usage` headers | Wait, or shorten the period and lower `limit`. No automatic retry is made |
 | `not_available` | API disabled, unknown account or version (HTTP 404/501, `SERVICE_DISABLED`), or the endpoint is not offered to this account | Enable the Google Ads API in Cloud Console; check the account id and `GADS_API_VERSION` / `META_API_VERSION` |
-| `blocked` | The request is outside the platform's read-only allow-list, would carry a secret or a `method` parameter in the URL, or the platform answered with a redirect (never followed) | Should not happen with these tools; report it with the `detail` |
+| `project_not_approved` | Google Ads only: your Google Cloud project does not have the access level this call needs (`CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION`, or `ACTION_NOT_PERMITTED` on older API versions) | Check the access level of the Cloud project that owns the OAuth client (Explorer, Basic or Standard), or use a test account |
+| `blocked` | The request is outside the platform's allow-list, would carry a secret or a `method` parameter in the URL, or the platform answered with a redirect (never followed) | Should not happen with these tools; report it with the `detail` |
 | `network` | Transport failure, including a missing CA bundle under `ADS_TRUST_ENV=1` | Check the connection; behind a proxy set `ADS_TRUST_ENV=1` |
 | `response_too_large` | The answer exceeded the 20 MB ceiling and was not loaded | Shorten the period, lower `LIMIT`, select fewer fields |
 | `too_many_rows` | ChatGPT Ads answered 413: more than 2000 rows, no partial result | Fewer `entity_ids`, a shorter period, or fewer `event_names` |
@@ -355,7 +394,7 @@ This server reads what the platforms allow; it adds its own ceilings so an answe
 | Response body | 20 MB |
 | Discovery cache | account lists and account info, 5 minutes |
 
-Platform quotas apply on top and are not visible to this server in advance: Google Ads access level and request quota (tied to your Cloud project and, if you use one, your developer token), Meta's business-use-case and ad-account rate limits (the `usage` fields of a `rate_limited` answer show what Meta reports), and OpenAI's limits for the Advertiser API. A quota hit is returned as `rate_limited` and is never retried automatically.
+Platform quotas apply on top and are not visible to this server in advance: Google Ads access level and request quota (tied to your Cloud project: developer tokens no longer exist), Meta's business-use-case and ad-account rate limits (the `usage` fields of a `rate_limited` answer show what Meta reports), and OpenAI's limits for the Advertiser API. A quota hit is returned as `rate_limited` and is never retried automatically.
 
 ## What has not been tested against real accounts
 
@@ -364,7 +403,8 @@ All tests run offline against fake responses written from each platform's docume
 - **ChatGPT Ads, `metadata.timezone` with `time_granularity=none`.** The connector requests `metadata.timezone` to report the timezone of the days. If the API does not return it in that mode, `timezone_reported` is `false` and `date_range.timezone_source` says the timezone comes from the request, or is the ad account's.
 - **Meta attribution windows.** The tool offers `1d_click`, `7d_click`, `28d_click`, `1d_view` and `1d_ev`. How Meta answers each combination, including whether longer view windows such as `7d_view` and `28d_view` exist for your account, is not confirmed (the tool does not offer them).
 - **OpenAI key scope.** Whether a ChatGPT Ads key can be limited to reading is not confirmed. Assume it cannot.
-- **ChatGPT Ads currency.** It is taken from the data (`order_created_attributed_sales_currency`, or `account_currency` for conversions). If a response carries neither, the currency is `null`, and `ads_overview` will not add that platform's spend to the others.
+- **ChatGPT Ads currency.** It is read from the account's `currency_code` first, then from the data (`order_created_attributed_sales_currency`, or `account_currency` for conversions). If none is present, the currency is `null`, and `ads_overview` will not add that platform's spend to the others.
+- **Writing, every platform.** No change has been sent to a real account. Not confirmed: that Meta accepts the Bearer header on write calls and honours `validate_only` as documented; that the Merchant, GA4, Tag Manager and Search Console writes behave as documented.
 - Real rate-limit headers and error bodies, the exact API versions (`v26`, `v26.0`) available to your accounts, and Meta business verification or app review requirements.
 
 Other known limits:

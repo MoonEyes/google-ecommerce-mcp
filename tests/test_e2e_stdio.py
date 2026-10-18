@@ -1,8 +1,8 @@
 """End to end over the real MCP protocol: the server runs as a subprocess and a real MCP client talks to it on stdio.
 
-What this proves that the unit tests do not: `python -m google_ecommerce_mcp` starts, answers initialize, lists its
-22 tools with valid JSON schemas and read-only annotations, and every tool answers a real tools/call with a
-structured dict (an expected error such as not_configured, or a valid result), never a protocol error nor a
+What this proves that the unit tests do not: `python -m google_ecommerce_mcp` starts, answers initialize, lists
+every tool of tests/golden_tools.json (same names, same order) with valid JSON schemas and read-only annotations
+except the four *_apply tools, and every tool answers a real tools/call with a structured dict (an expected error such as not_configured, or a valid result), never a protocol error nor a
 traceback on stderr.
 
 Isolation (zero real network, no real keyring, no secret):
@@ -36,7 +36,7 @@ from mcp.client import stdio as mcp_stdio  # noqa: E402
 from mcp.client.stdio import StdioServerParameters, stdio_client  # noqa: E402
 
 SRC = str(Path(__file__).resolve().parents[1] / "src")
-TOTAL_TIMEOUT = 30.0
+TOTAL_TIMEOUT = 180.0  # 78 tools, each called once over stdio
 
 # Minimal valid arguments for every tool (required parameters only, plus dates where the tool needs them to get
 # past input validation and reach its configuration check).
@@ -65,7 +65,76 @@ TOOL_ARGS: dict[str, dict] = {
     "openai_ads_conversions": {**PERIOD, "account_timezone": "Europe/Paris", "aggregation_level": "campaign",
                                "group_by_entity": False},
     "ads_overview": PERIOD,
+    "clients_list": {},
+    "client_profile": {},
+    "client_check": {},
+    "gads_apply": {"plan_id": "p1", "confirmation_token": "t", "confirm": "c"},
+    "meta_apply": {"plan_id": "p1", "confirmation_token": "t", "confirm": "c"},
+    "openai_ads_apply": {"plan_id": "p1", "confirmation_token": "t", "confirm": "c"},
+    "google_apply": {"plan_id": "p1", "confirmation_token": "t", "confirm": "c"},
+    "plan_get": {"plan_id": "p1"},
+    "plan_list": {},
+    "audit_log": {},
+    "rollback_plan": {"plan_id": "p1"},
+    # reads added by the platform waves (B1..B5)
+    "gads_conversion_actions": {},
+    "meta_campaigns": {},
+    "meta_adsets": {},
+    "meta_ads_list": {},
+    "openai_ads_campaigns": {},
+    "openai_ads_ad_groups": {"campaign_id": "cmpn_1"},
+    "openai_ads_ads": {"ad_group_id": "adgrp_1"},
+    "ga4_custom_definitions": {},
+    "ga4_key_events": {},
+    "gsc_sites": {},
+    "merchant_products": {},
+    "merchant_account_issues": {},
+    "gtm_workspace_status": {},
+    "gtm_get_tag": {"tag_id": "1", "workspace_id": "1"},
+    "gtm_get_trigger": {"trigger_id": "1", "workspace_id": "1"},
+    "gtm_get_variable": {"variable_id": "1", "workspace_id": "1"},
+    "gtm_versions": {},
+    "meta_pixel_health": {},
+    "meta_dataset_quality": {},
+    "meta_catalog_diagnostics": {},
+    "meta_catalog_products": {},
+    "meta_ig_insights": {},
+    "meta_page_insights": {},
+    # plan_* tools (readOnlyHint=True: a plan writes nothing; here GEM_WRITE is unset, so every plan is refused)
+    "ga4_plan_key_event_create": {"event_name": "purchase_test"},
+    "ga4_plan_custom_dimension_create": {"parameter_name": "plan_type", "display_name": "Plan type"},
+    "gtm_plan_workspace_create": {"name": "gem test"},
+    "gtm_plan_tag_upsert": {"workspace_id": "1", "tag": {"name": "t", "type": "html"}},
+    "gtm_plan_trigger_upsert": {"workspace_id": "1", "trigger": {"name": "t", "type": "pageview"}},
+    "gtm_plan_variable_upsert": {"workspace_id": "1", "variable": {"name": "v", "type": "c"}},
+    "gtm_plan_quick_preview": {"workspace_id": "1"},
+    "gsc_plan_sitemap_submit": {"sitemap_url": "https://shop.example/sitemap.xml"},
+    "merchant_plan_product_patch": {"product_id": "online~fr~FR~sku1", "update_mask": ["title"],
+                                    "product_attributes": {"title": "x"}},
+    "gads_plan_pause_entities": {"level": "campaign", "ids": ["1"]},
+    "gads_plan_budget_change": {"daily_budget_micros": 1_000_000},
+    "gads_plan_add_negatives": {"keywords": ["free"]},
+    "gads_plan_create_campaign": {"name": "gem test", "daily_budget_micros": 1_000_000},
+    "meta_plan_pause": {"level": "campaign", "entity_ids": ["1"]},
+    "meta_plan_budget_change": {"level": "campaign", "entity_id": "1", "daily_budget_minor": 1000},
+    "meta_plan_create_campaign": {"name": "gem test", "objective": "OUTCOME_SALES", "special_ad_categories": []},
+    "meta_plan_create_adset": {"name": "gem test", "campaign_id": "1", "optimization_goal": "LINK_CLICKS",
+                               "billing_event": "IMPRESSIONS", "countries": ["FR"], "advantage_audience": 0},
+    "meta_plan_create_ad": {"name": "gem test", "adset_id": "1", "creative_id": "1"},
+    "openai_ads_plan_pause": {"level": "campaign", "entity_ids": ["cmpn_1"]},
+    "openai_ads_plan_budget_change": {"campaign_id": "cmpn_1", "daily_budget_micros": 1_000_000},
+    "openai_ads_plan_create_campaign": {"name": "gem test", "daily_budget_micros": 1_000_000,
+                                        "start_time": 2_000_000_000},
+    "meta_eco_plan_catalog_item_update": {"product_item_id": "1"},
 }
+# The frozen tool list (tests/golden_tools.json, regenerated with --regen-golden): its size is the tool count.
+GOLDEN_TOOLS = [t["name"] for t in json.loads((Path(__file__).parent / "golden_tools.json").read_text(
+    encoding="utf-8"))["tools"]]
+WRITE_TOOLS = {"gads_apply", "meta_apply", "openai_ads_apply", "google_apply"}
+PLAN_TOOLS = {name for name in TOOL_ARGS if "_plan_" in name}
+# Client-registry, write-workflow and plan_* tools carry no freshness block.
+NO_FRESHNESS = WRITE_TOOLS | PLAN_TOOLS | {"clients_list", "client_profile", "client_check", "plan_get", "plan_list",
+                                           "audit_log", "rollback_plan"}
 
 # What each tool must answer in an empty environment. None = a valid (non-error) result.
 EXPECTED_ERROR: dict[str, str | None] = {
@@ -237,14 +306,19 @@ def test_server_answers_every_tool_over_real_stdio(tmp_path, spawned):
     assert info.version == __version__  # not the mcp library version
     assert out["init"].capabilities.tools is not None
 
-    # tools/list: 22 tools, read-only annotations, valid JSON schemas
+    # tools/list: every tool of the golden list (78 when written), read-only annotations except the four
+    # *_apply tools, valid JSON schemas
     tools = {t.name: t for t in out["tools"]}
-    assert len(out["tools"]) == 22 == len(tools)
-    assert set(tools) == set(TOOL_ARGS), set(tools) ^ set(TOOL_ARGS)
+    assert len(out["tools"]) == len(GOLDEN_TOOLS) == len(tools) == len(TOOL_ARGS)
+    assert set(tools) == set(TOOL_ARGS) == set(GOLDEN_TOOLS), set(tools) ^ set(TOOL_ARGS)
+    assert [t.name for t in out["tools"]] == GOLDEN_TOOLS
     for name, tool in tools.items():
         ann = tool.annotations
-        assert ann is not None and ann.readOnlyHint is True, name
-        assert ann.destructiveHint is False and ann.idempotentHint is True, name
+        assert ann is not None, name
+        if name in WRITE_TOOLS:
+            assert ann.readOnlyHint is False and ann.destructiveHint is True, name
+        else:
+            assert ann.readOnlyHint is True and ann.destructiveHint is False, name
         assert tool.description and tool.description.strip(), name
         assert tool.inputSchema.get("type") == "object", name
         jsonschema.Draft202012Validator.check_schema(tool.inputSchema)
@@ -258,8 +332,14 @@ def test_server_answers_every_tool_over_real_stdio(tmp_path, spawned):
         assert result.isError is False, (name, result.content)
         payload = _payload(result)
         assert isinstance(payload, dict), (name, payload)
-        assert "fetched_at" in payload and "freshness" in payload, (name, sorted(payload))
-        expected = EXPECTED_ERROR[name]
+        if name not in NO_FRESHNESS:
+            assert "fetched_at" in payload and "freshness" in payload, (name, sorted(payload))
+        if name in PLAN_TOOLS:  # GEM_WRITE is not set: a plan is refused, never gets a confirmation token
+            assert "error" in payload and "confirmation_token" not in payload, (name, payload)
+        expected = EXPECTED_ERROR.get(name, "__any__")
+        if expected == "__any__":
+            assert "Traceback" not in json.dumps(payload), name
+            continue
         if expected is None:
             assert "error" not in payload, (name, payload)
         else:
@@ -278,7 +358,7 @@ def test_server_answers_every_tool_over_real_stdio(tmp_path, spawned):
     assert "surestime" in overview["warning"]
 
     # zero real network: the only outgoing attempt is pagespeed's, and it stopped at the local proxy
-    assert proxied and all(line.startswith("CONNECT www.googleapis.com:443") for line in proxied), proxied
+    assert proxied and all(line.startswith("CONNECT pagespeedonline.googleapis.com:443") for line in proxied), proxied
     # no traceback, no unhandled exception on the server's stderr
     assert "Traceback" not in stderr, stderr
     assert "Error" not in stderr.replace("CallToolRequest", ""), stderr

@@ -4,9 +4,9 @@ Thanks for helping. Issues and pull requests are welcome, in English or French.
 
 ## Ground rules
 
-1. **Read-only stays read-only.** A tool must never call an endpoint that creates, updates, publishes, submits or deletes. Every endpoint a tool calls must be listed in `ALLOWED_ENDPOINTS` in `server.py` (Google services) or in the allow-list of its own module (`google_ads.py`, `meta_ads.py`, `openai_ads.py`, built on `AllowList` in `ads_common.py`); anything else is refused at runtime and fails CI. If a new tool needs a query `POST`, add it there and to `read_queries` in `tests/test_server.py::test_allow_list_has_no_write_endpoint`, and explain why in the PR.
+1. **Reading stays read-only.** A read tool must never call an endpoint that creates, updates, publishes, submits or deletes. Every endpoint a read tool calls must be listed in `ALLOWED_ENDPOINTS` in `server.py` (Google services) or in the read allow-list of its own module (`google_ads.py`, `meta_ads.py`, `openai_ads.py`, built on `AllowList` in `ads_common.py`); anything else is refused at runtime and fails CI. **There is one write path.** A change is a `*_plan_*` tool that builds `WriteOp`s and calls `write_core.create_plan`; only the four `*_apply` tools write, through a `WriteGrant`. Never add a second way to write, a generic request tool, an activation, a deletion or a publish without discussing it first. A new write action needs a registered field allow-list, a dry run (native or local), a `before` snapshot, a rollback or `rollback: none`, tests, and a line in `docs/WRITE.md`, `docs/TOOLS.md` and `docs/SECURITY.md`. If a new tool needs a query `POST`, add it there and to `read_queries` in `tests/test_server.py::test_allow_list_has_no_write_endpoint`, and explain why in the PR.
 2. **Errors are results.** Use `_call` and `@_guard` so failures come back as `{"error": ...}` objects.
-3. **No hard-coded accounts.** Every id comes from an environment variable read in `config.py`.
+3. **No hard-coded accounts.** Every id comes from the client registry (`clients.py`) or, in legacy mode, from an environment variable read in `config.py`. Tools take a `client_id` and never use an id the client does not own.
 4. **Keep answers small.** Flatten Google responses to what a model needs and cap row counts.
 
 ## Development
@@ -19,7 +19,7 @@ pip install -e ".[dev]"
 pytest
 ```
 
-Tests run offline against a fake HTTP session; no Google account is needed. Every new tool needs at least one test, and `test_tools_are_registered_with_real_signatures` must be updated with the new tool count.
+Tests run offline against a fake HTTP session; no Google account is needed. Every new tool needs at least one test. The list of tools, their parameters and their annotations is frozen in `tests/golden_tools.json` (`tests/test_tools_golden.py`); regenerate it only on a deliberate change, with `--regen-golden`. `tests/test_docs_fullcontrol.py` checks that every tool is in `docs/TOOLS.md` and that the version is the same everywhere.
 
 To try a change against real data, run `google-ecommerce-mcp setup` with your own OAuth client, then:
 
@@ -31,7 +31,7 @@ npx @modelcontextprotocol/inspector google-ecommerce-mcp
 
 1. Write the function in `server.py` under the right section, decorated with `@mcp.tool()` then `@_guard`.
 2. Its docstring is what the model reads: say what it answers, the parameter formats and one example value.
-3. Document it in `docs/TOOLS.md` and the table in `README.md`.
+3. Document it in `docs/TOOLS.md` and the table in `README.md` (the tool count appears in both).
 4. Add a line to `CHANGELOG.md`.
 
 ## Adding a service to `doctor`

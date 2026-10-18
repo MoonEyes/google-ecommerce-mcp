@@ -55,15 +55,24 @@ class FakeCreds:
                            "client_secret": "s", "scopes": self.scopes})
 
 
+GOOD_CLIENT_FILE = {"installed": {"client_id": "123-abc.apps.googleusercontent.com", "project_id": "p",
+                                  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                                  "token_uri": "https://oauth2.googleapis.com/token",
+                                  "client_secret": "GOCSPX-" + "z" * 20, "redirect_uris": ["http://localhost"]}}
+
+
 @pytest.fixture
-def fake_flow(monkeypatch):
-    """Replace google_auth_oauthlib.flow.InstalledAppFlow: records the scopes asked, never opens a browser."""
+def fake_flow(monkeypatch, tmp_path):
+    """Replace google_auth_oauthlib.flow.InstalledAppFlow: records the scopes asked, never opens a browser.
+    A genuine Desktop app client file "client_secret.json" is written in the (temporary) current folder."""
     asked = {}
+    (tmp_path / "client_secret.json").write_text(json.dumps(GOOD_CLIENT_FILE), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
 
     class Flow:
         @classmethod
-        def from_client_secrets_file(cls, path, scopes):
-            asked["client_secret"], asked["scopes"] = path, list(scopes)
+        def from_client_config(cls, config, scopes):
+            asked["config"], asked["scopes"] = config, list(scopes)
             return cls()
 
         def run_local_server(self, **kwargs):

@@ -38,7 +38,7 @@ API_BY_HOST = {
     "tagmanager.googleapis.com": "Tag Manager API",
     "merchantapi.googleapis.com": "Merchant API",
     "indexing.googleapis.com": "Web Search Indexing API",
-    "www.googleapis.com/pagespeedonline": "PageSpeed Insights API",
+    "pagespeedonline.googleapis.com": "PageSpeed Insights API",
 }
 
 
@@ -54,6 +54,17 @@ def scopes_for(merchant: bool = False, indexing: bool = False) -> list[str]:
 
 KEYRING_SERVICE = "google-ecommerce-mcp"
 KEYRING_USER = "oauth-token"
+
+# Where each Google id lives: (platform, key) in a client of the registry (clients.json, see clients.py), and the
+# environment variable plus Settings attribute used when there is no registry (legacy single-account mode).
+GOOGLE_ACCOUNTS = {
+    "ga4": ("ga4", "property_id", "GA4_PROPERTY_ID", "ga4_property_id"),
+    "gsc": ("gsc", "site_url", "GSC_SITE_URL", "gsc_site_url"),
+    "merchant": ("merchant", "account_id", "MERCHANT_ACCOUNT_ID", "merchant_account_id"),
+    "gtm": ("gtm", "container_id", "GTM_CONTAINER_ID", "gtm_container_id"),
+}
+# Secret kind of the read-only Google token in a client of the registry (keyring user "<client_id>/google").
+GOOGLE_READ_SECRET = "google"
 
 
 @dataclass(frozen=True)

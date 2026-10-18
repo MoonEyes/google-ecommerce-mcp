@@ -14,26 +14,39 @@ every error it returns, and maps platform errors to a small set of codes the ass
   bundle path missing under ADS_TRUST_ENV=1, I/O) is also "network", with a safe detail and a CA bundle fix.
 
 The environment (proxy variables, REQUESTS_CA_BUNDLE, .netrc) is ignored unless ADS_TRUST_ENV=1, which enables
-the proxy and CA bundle only (never .netrc, never redirects)."""
+the proxy and CA bundle only (never .netrc, never redirects).
+
+Write path (opt-in, per client): AllowList and the connectors' ALLOWED_ENDPOINTS stay read-only. A connector may
+also give AdsClient a WriteAllowList of (method, pattern, validator, kind) rules: kind="validate" requests (a
+dry_run_validator requires the native dry-run flag, with its type) are sent as is; kind="write" requests need
+a WriteGrant signed with the per-client HMAC key (issue_grant, called by write_core.apply_plan) matching the
+method, the URL, body_digest() of the body sent and request_digest() of the whole request (query, params,
+headers), used once per process. On both kinds, headers outside CLIENT_HEADERS (X-HTTP-Method-Override...)
+are refused. Anything else is "blocked" with a reason. Google Ads also maps CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION and
+ACTION_NOT_PERMITTED to project_not_approved; the "meta_eco" platform shares the Meta error mapping."""
 
 from __future__ import annotations
 
 import copy
 import datetime
 import hashlib
+import hmac
 import json
 import json as _json  # call() has a `json` parameter that shadows the module
 import logging
 import os
 import re
+import threading
 import time
+from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Iterable, Sequence, Tuple, Union
-from urllib.parse import parse_qsl, urlsplit
+from urllib.parse import parse_qsl, unquote, urlsplit
 
 import requests
 from mcp.types import ToolAnnotations
 
 from . import metrics
+from .ads_config import DRY_RUN_EQUALS, DRY_RUN_FLAGS, DRY_RUN_LIST, DRY_RUN_MODES
 from .auth import NotAuthenticated, TokenNetworkError
 from .config import NotConfigured
 
@@ -54,6 +67,8 @@ REDACTED = "[REDACTED]"
 
 # Every ads tool only reads: declared to MCP clients through the standard annotations (same as server.READ_ONLY).
 READ_ONLY = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True)
+# Only the *_apply tools (they execute a signed plan) carry these annotations.
+WRITE_APPLY = ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=True)
 
 Validator = Callable[[Any], bool]
 Rule = Union[Tuple[str, str], Tuple[str, str, Union[Validator, None]]]
@@ -155,6 +170,67 @@ FORBIDDEN_QUERY_KEYS = frozenset({"method", "access_token"})
 _PRINTABLE = re.compile(r"[\x21-\x7e]+")
 
 
+# The ONLY place a percent-encoded '/' (%2F) may appear in a path: Search Console (Webmasters v3) takes the
+# property (https://www.example.com/ as https%3A%2F%2Fwww.example.com%2F) and the sitemap URL encoded in ONE
+# path segment each. host -> (path prefix, names of the segments whose NEXT segment may hold %2F). Any other
+# host, or any other segment, keeps the refusal.
+ENCODED_SLASH_SEGMENTS: dict[str, tuple[str, frozenset[str]]] = {
+    "www.googleapis.com": ("/webmasters/v3/sites/", frozenset({"sites", "sitemaps"})),
+}
+# Escapes refused everywhere, even in an encoded segment: '.', '\\', '%' itself (double encoding: %252F), NUL
+# and the other control characters.
+_FORBIDDEN_ESCAPES = re.compile(r"%(?:2e|5c|25|[01][0-9a-f]|7f)", re.IGNORECASE)
+
+
+def _encoded_slash_ok(host: str, path: str) -> bool:
+    """True when every %2F of path sits in a segment that ENCODED_SLASH_SEGMENTS allows for host (the segment
+    right after a "sites" or "sitemaps" segment, under the pinned prefix), no forbidden escape is used, and the
+    DECODED segment holds no '.' / '..' component (sites/..%2F..%2F/sitemaps/x would climb out once a proxy or
+    the server decodes it)."""
+    rule = ENCODED_SLASH_SEGMENTS.get(host.lower())
+    if rule is None or not path.startswith(rule[0]) or _FORBIDDEN_ESCAPES.search(path):
+        return False
+    segments = path.split("/")
+    for index, segment in enumerate(segments):
+        if "%2f" not in segment.lower():
+            continue
+        if index == 0 or segments[index - 1] not in rule[1]:
+            return False
+        if any(part in (".", "..") for part in unquote(segment).split("/")):
+            return False
+    return True
+
+
+def bare_url(url: Any) -> str | None:
+    """scheme://host/path of a URL that passes the allow-list hygiene checks, else None (query dropped).
+
+    Refused: non-string, surrounding whitespace, any character outside printable ASCII, ';', a backslash,
+    anything not starting literally with 'https://', user info, '.'/'..' segments, encoded '/', '.', '\\' or
+    '%' (double encoding), and a query carrying `method` or `access_token`. One exception (ENCODED_SLASH_SEGMENTS): on
+    https://www.googleapis.com/webmasters/v3/sites/..., the segment after "sites" and the one after "sitemaps"
+    may hold %2F (Search Console property and sitemap URL); even there %2E, %5C, %25 (double encoding),
+    encoded control characters and a '.' / '..' component of the decoded segment are refused."""
+    if (not isinstance(url, str) or url != url.strip() or not _PRINTABLE.fullmatch(url) or ";" in url
+            or "\\" in url or not url.startswith("https://")):
+        return None
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return None
+    if parts.scheme != "https" or parts.username or parts.password:
+        return None
+    path = parts.path
+    lowered = path.lower()
+    if "/../" in path + "/" or "/./" in path + "/" or "%2e" in lowered or "%25" in lowered or "%5c" in lowered:
+        return None  # dot segments, encoded '.', double encoding (%252F), encoded backslash: on every host
+    if "%2f" in path.lower() and not _encoded_slash_ok(parts.netloc, path):
+        return None
+    # Graph API honours ?method=delete|post on a GET; a token never travels in the URL (double guard).
+    if {k.strip().lower() for k, _ in parse_qsl(parts.query, keep_blank_values=True)} & FORBIDDEN_QUERY_KEYS:
+        return None
+    return f"{parts.scheme}://{parts.netloc}{path}"
+
+
 class AllowList:
     """Every request a platform connector may send: (method, URL regex, body validator or None).
 
@@ -189,22 +265,9 @@ class AllowList:
 
         Refused up front: surrounding whitespace, any character outside printable ASCII (\\x21-\\x7e), ';' (also
         as a query separator) or a backslash, and anything not starting literally with lowercase 'https://'."""
-        if (not isinstance(url, str) or url != url.strip() or not _PRINTABLE.fullmatch(url) or ";" in url
-                or "\\" in url or not url.startswith("https://")):
+        bare = bare_url(url)
+        if bare is None:
             return False
-        try:
-            parts = urlsplit(url)
-        except ValueError:
-            return False
-        if parts.scheme != "https" or "\\" in url or parts.username or parts.password:
-            return False
-        path = parts.path
-        if "/../" in path + "/" or "/./" in path + "/" or "%2f" in path.lower() or "%2e" in path.lower():
-            return False
-        # Graph API honours ?method=delete|post on a GET; a token never travels in the URL (double guard).
-        if {k.strip().lower() for k, _ in parse_qsl(parts.query, keep_blank_values=True)} & FORBIDDEN_QUERY_KEYS:
-            return False
-        bare = f"{parts.scheme}://{parts.netloc}{path}"
         for m, _, rx, validator in self._rules:
             if method.upper() != m or not rx.fullmatch(bare):
                 continue
@@ -219,7 +282,329 @@ class AllowList:
 
 
 class Blocked(Exception):
-    """Raised when code tries to send a request outside the allow-list (or with a secret in the URL)."""
+    """Raised when code tries to send a request outside the allow-list (or with a secret in the URL).
+
+    reason is None for the read path; on the write path it is one of url_too_long, not_on_write_allow_list,
+    header_forbidden, header_unexpected, grant_missing, grant_mismatch, grant_unsigned, grant_mac_invalid,
+    body_not_canonical, digest_mismatch, request_not_canonical, request_digest_mismatch, grant_replayed."""
+
+    def __init__(self, message: str, reason: str | None = None) -> None:
+        super().__init__(message)
+        self.reason = reason
+
+
+# ------------------------------------------------------------------ write path
+WRITE_KINDS = ("validate", "write")
+WRITE_BLOCKED_FIX = ("writes go through a plan only: build it with a plan_* tool, then apply it with the "
+                     "matching *_apply tool; never send a write request directly")
+
+
+@dataclass(frozen=True)
+class WriteGrant:
+    """Permission to send ONE write request, issued only by write_core.apply_plan for one op of a signed plan.
+
+    AdsClient.call sends a request matching a kind="write" rule only if: mac is the write_tokens.sign_grant
+    HMAC (per-client key of the confirmation tokens) of every other field; method and url (scheme://host/path)
+    equal the request's; body_digest is the SHA-256 of the body actually sent; request_digest equals
+    request_digest() recomputed on the request actually sent (method, full url, params, body, caller headers);
+    and (plan_id, op_id) was never used before in this process. Build one with issue_grant().
+
+    request_digest and mac default to "" so older constructors stay valid, but such a grant is refused
+    ("grant_unsigned")."""
+
+    client_id: str
+    plan_id: str
+    op_id: str
+    method: str
+    url: str
+    body_digest: str
+    request_digest: str = ""
+    mac: str = field(default="", repr=False)
+
+
+def canonical_json(obj: Any) -> str:
+    """Canonical JSON: keys sorted, no whitespace, UTF-8 kept, NaN/Infinity and non-JSON types refused
+    (TypeError/ValueError) so two different bodies can never share a text."""
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+
+
+def body_digest(obj: Any) -> str:
+    """SHA-256 hex digest of canonical_json(obj) (None digests as "null"). Raises TypeError/ValueError for a
+    body that is not plain JSON."""
+    return hashlib.sha256(canonical_json(obj).encode("utf-8")).hexdigest()
+
+
+# Headers AdsClient connectors set themselves (auth, content negotiation, Google Ads account routing, API
+# version). On the write path (validate and write) any other header is refused before sending.
+CLIENT_HEADERS = frozenset({"authorization", "user-agent", "content-type", "accept", "developer-token",
+                            "login-customer-id", "linked-customer-id", "openai-version"})
+# Headers that would let a server rewrite the HTTP method: always refused on the write path.
+FORBIDDEN_WRITE_HEADERS = frozenset({"x-http-method-override", "x-http-method", "x-method-override"})
+MAX_WRITE_URL_LENGTH = 2048
+
+
+def caller_headers(headers: Any) -> list[str]:
+    """Sorted lowercased names of the headers outside CLIENT_HEADERS (bound in request_digest; on an accepted
+    write request this list is always empty, since such headers are refused)."""
+    if not headers:
+        return []
+    return sorted({str(k).strip().lower() for k in dict(headers)} - CLIENT_HEADERS)
+
+
+def _canonical_params(params: Any) -> list:
+    if params is None:
+        return []
+    items = params.items() if isinstance(params, dict) else list(params)
+    out = []
+    for key, value in items:
+        if isinstance(value, (list, tuple)):
+            norm: Any = [None if v is None else str(v) for v in value]
+        else:
+            norm = None if value is None else str(value)
+        out.append([str(key), norm])
+    return sorted(out, key=lambda kv: canonical_json(kv))
+
+
+def request_digest(method: str, url: str, params: Any = None, body: Any = None, headers: Any = None) -> str:
+    """SHA-256 hex of the canonical JSON of {method (upper), url (full, query included; a URL never carries a
+    secret, AdsClient refuses it), params (sorted [name, value] pairs, values as strings), body, headers
+    (caller_headers names)}. Raises TypeError/ValueError for a body or params that are not plain data."""
+    material = {"method": str(method).upper(), "url": url, "params": _canonical_params(params), "body": body,
+                "headers": caller_headers(headers)}
+    return hashlib.sha256(canonical_json(material).encode("utf-8")).hexdigest()
+
+
+def issue_grant(*, client_id: str, plan_id: str, op_id: str, method: str, url: str, body: Any,
+                params: Any = None, headers: Any = None) -> WriteGrant:
+    """A signed WriteGrant for exactly this request (body_digest, request_digest, mac via
+    write_tokens.sign_grant). For write_core.apply_plan only. Raises ValueError/TypeError (body not plain
+    JSON, '|' in an id) or write_tokens.TokenError (no signing key)."""
+    from .write_tokens import sign_grant  # lazy: write_tokens needs the state/keyring layer
+
+    unsigned = WriteGrant(client_id=client_id, plan_id=plan_id, op_id=op_id, method=str(method).upper(),
+                          url=url, body_digest=body_digest(body),
+                          request_digest=request_digest(method, url, params, body, headers))
+    return replace(unsigned, mac=sign_grant(unsigned))
+
+
+_CONSUMED_GRANTS: set[tuple[str, str]] = set()
+_CONSUMED_LOCK = threading.Lock()
+
+
+def _consume_grant(grant: WriteGrant) -> bool:
+    """Mark (plan_id, op_id) as used; False if it already was (a grant serves once per process)."""
+    key = (grant.plan_id, grant.op_id)
+    with _CONSUMED_LOCK:
+        if key in _CONSUMED_GRANTS:
+            return False
+        _CONSUMED_GRANTS.add(key)
+        return True
+
+
+def _forget_consumed_grants() -> None:
+    """Tests only: empty the in-process registry of consumed grants."""
+    with _CONSUMED_LOCK:
+        _CONSUMED_GRANTS.clear()
+
+
+def dry_run_validator(key: str, expected: Any, inner: Validator | None = None, *,
+                      mode: str = DRY_RUN_EQUALS) -> Validator:
+    """Validator requiring the dry-run flag in the JSON body, with its exact type; then inner(body) if given.
+
+    mode DRY_RUN_EQUALS: type(body[key]) is type(expected) and body[key] == expected (True only, never 1 nor
+    "true"). mode DRY_RUN_LIST: body[key] is a list holding an item of the type and value of expected (Meta
+    execution_options=["validate_only"]; the bare string is refused).
+
+    The only validator a kind="validate" rule accepts (WriteAllowList checks its dry_run_flag marker
+    (key, expected, mode)). Use platform_dry_run_validator(platform) for the ads_config.DRY_RUN_FLAGS of a
+    platform."""
+    if not isinstance(key, str) or not key:
+        raise ValueError("dry-run flag key must be a non-empty string")
+    if mode not in DRY_RUN_MODES:
+        raise ValueError(f"dry-run mode must be one of {DRY_RUN_MODES}: {mode!r}")
+
+    def same(value: Any) -> bool:
+        return type(value) is type(expected) and value == expected
+
+    def validate(body: Any) -> bool:
+        if not isinstance(body, dict) or key not in body:
+            return False
+        value = body[key]
+        if mode == DRY_RUN_LIST:
+            flag = isinstance(value, list) and any(same(v) for v in value)
+        else:
+            flag = same(value)
+        return flag and (inner is None or bool(inner(body)))
+
+    validate.dry_run_flag = (key, expected, mode)  # type: ignore[attr-defined]
+    return validate
+
+
+def platform_dry_run_validator(platform: str, inner: Validator | None = None) -> Validator:
+    """dry_run_validator built from ads_config.DRY_RUN_FLAGS[platform] (KeyError for an unknown platform)."""
+    key, expected, mode = DRY_RUN_FLAGS[platform]
+    return dry_run_validator(key, expected, inner, mode=mode)
+
+
+def _flag_of(validator: Any) -> tuple[str, Any, str]:
+    """(key, expected, mode) of a dry_run_validator marker; a 2-tuple marker reads as mode DRY_RUN_EQUALS."""
+    flag = getattr(validator, "dry_run_flag", None)
+    if not isinstance(flag, tuple) or len(flag) not in (2, 3) or not isinstance(flag[0], str):
+        raise ValueError("malformed dry_run_flag marker")
+    mode = flag[2] if len(flag) == 3 else DRY_RUN_EQUALS
+    if mode not in DRY_RUN_MODES:
+        raise ValueError(f"unknown dry-run mode {mode!r}")
+    return flag[0], flag[1], mode
+
+
+def _wrong_type_bodies(key: str, expected: Any, mode: str) -> list[dict]:
+    """Bodies carrying the flag with the wrong type: a validate rule's validator must refuse them all."""
+    if mode == DRY_RUN_LIST:
+        return [{key: expected}, {key: str(expected)}, {key: [str(expected).upper()]}, {key: {}}]
+    bodies: list[dict] = [{key: [expected]}, {key: str(expected)}, {key: str(expected).lower()}]
+    if isinstance(expected, bool):
+        bodies += [{key: int(expected)}, {key: float(expected)}]
+    return [b for b in bodies if not (type(b[key]) is type(expected) and b[key] == expected)]
+
+
+# Regex constructs refused in a write pattern: anything that could span path segments or hosts.
+_WILDCARD_ESCAPES = frozenset("SWD")  # \S, \W, \D match '/' and '.'; \d, \w, \s cannot
+_QUANTIFIERS = frozenset("+*{?")
+_REPEATS = frozenset("+*{")
+WriteRule = Tuple[str, str, Union[Validator, None], str]
+
+
+def _check_write_pattern(pattern: str) -> None:
+    """Raise ValueError for a write pattern holding a joker: an unescaped '.', a '|' outside a group, \\S, \\W,
+    \\D..., an inline flag/lookaround '(?', a negated class that does not exclude '/', a nested quantifier
+    such as (a+)+ or (\\d*){2} (catastrophic backtracking), or more than MAX_WRITE_URL_LENGTH characters."""
+    if len(pattern) > MAX_WRITE_URL_LENGTH:
+        raise ValueError(f"write pattern longer than {MAX_WRITE_URL_LENGTH} characters")
+    # quantified[-1]: the group being read holds a quantifier (directly or in a nested group).
+    depth, i, quantified = 0, 0, [False]
+    while i < len(pattern):
+        ch = pattern[i]
+        if ch == "\\":
+            nxt = pattern[i + 1:i + 2]
+            if nxt in _WILDCARD_ESCAPES or nxt == "":
+                raise ValueError(f"write pattern may not use \\{nxt}: {pattern}")
+            i += 2
+            continue
+        if ch == ".":
+            raise ValueError(f"write pattern may not hold an unescaped '.' (joker): {pattern}")
+        if ch == "(":
+            if pattern[i + 1:i + 2] == "?":
+                raise ValueError(f"write pattern may not use '(?': {pattern}")
+            depth += 1
+            quantified.append(False)
+        elif ch == ")":
+            depth -= 1
+            inner = quantified.pop() if len(quantified) > 1 else False
+            if pattern[i + 1:i + 2] in _REPEATS and inner:
+                raise ValueError(f"write pattern may not nest quantifiers (e.g. (a+)+): {pattern}")
+            quantified[-1] = quantified[-1] or inner
+        elif ch in _QUANTIFIERS:
+            quantified[-1] = True
+        elif ch == "|" and depth <= 0:
+            raise ValueError(f"write pattern may not hold a top-level '|': {pattern}")
+        elif ch == "[":
+            end = pattern.find("]", i + 2)
+            if end < 0:
+                raise ValueError(f"unterminated class in write pattern: {pattern}")
+            body = pattern[i + 1:end]
+            if body.startswith("^") and "/" not in body:
+                raise ValueError(f"negated class must exclude '/' in a write pattern: {pattern}")
+            i = end + 1
+            continue
+        i += 1
+
+
+class WriteAllowList(AllowList):
+    """The write requests a platform connector may send: (method, URL regex, validator or None, kind).
+
+    Same constraints as AllowList (https://, pinned literal host, full match on scheme://host/path, same URL
+    refusals) plus: no joker ('.*', unescaped '.', top-level '|', \\S..., nested quantifiers), kind in
+    WRITE_KINDS, and a kind="validate" rule must carry a dry_run_validator (probed: it refuses None, {} and
+    the flag with the wrong type, e.g. Meta execution_options="validate_only" as a string or validateOnly=1).
+    With platform (a key of ads_config.DRY_RUN_FLAGS), each validate rule's flag must be that platform's
+    (key, expected value, mode). URLs longer than MAX_WRITE_URL_LENGTH never match.
+
+    is_allowed() always returns False, so a WriteAllowList used by mistake as a read list lets nothing through;
+    AdsClient uses match() and then requires the dry-run flag (validate) or a WriteGrant (write)."""
+
+    def __init__(self, rules: Sequence[WriteRule], platform: str | None = None) -> None:
+        if platform is not None and platform not in DRY_RUN_FLAGS:
+            raise ValueError(f"unknown write platform {platform!r}; expected one of {sorted(DRY_RUN_FLAGS)}")
+        self.platform = platform
+        kinds: list[str] = []
+        base: list[Rule] = []
+        for rule in rules:
+            if len(rule) != 4:
+                raise ValueError(f"write rule must be (method, pattern, validator, kind): {rule!r}")
+            method, pattern, validator, kind = rule
+            if kind not in WRITE_KINDS:
+                raise ValueError(f"write rule kind must be one of {WRITE_KINDS}: {kind!r}")
+            if not isinstance(pattern, str):
+                raise ValueError(f"write pattern must be a string: {pattern!r}")
+            _check_write_pattern(pattern)
+            if validator is not None and not callable(validator):
+                raise ValueError(f"validator must be callable or None: {pattern}")
+            if kind == "validate":
+                if validator is None or not hasattr(validator, "dry_run_flag"):
+                    raise ValueError(f"a validate rule needs a dry_run_validator: {pattern}")
+                try:
+                    lax = validator(None) or validator({})
+                except Exception:
+                    lax = False
+                if lax:
+                    raise ValueError(f"the validator of a validate rule must refuse a body without the flag: "
+                                     f"{pattern}")
+                key, expected, mode = _flag_of(validator)
+                if platform is not None and (key, expected, mode) != DRY_RUN_FLAGS[platform]:
+                    raise ValueError(f"the dry-run flag of a {platform} validate rule must be "
+                                     f"{DRY_RUN_FLAGS[platform]!r}: {pattern}")
+                for wrong in _wrong_type_bodies(key, expected, mode):
+                    try:
+                        accepted = validator(wrong)
+                    except Exception:
+                        accepted = False
+                    if accepted:
+                        raise ValueError(f"the validator of a validate rule must refuse the flag with the wrong "
+                                         f"type ({wrong!r}): {pattern}")
+            kinds.append(kind)
+            base.append((method, pattern, validator))
+        super().__init__(base)
+        self._kinds = kinds
+
+    @property
+    def rules(self) -> list[tuple[str, str, str]]:
+        """[(method, pattern, kind)] for review and tests."""
+        return [(m, p, k) for (m, p, _, _), k in zip(self._rules, self._kinds)]
+
+    def is_allowed(self, method: str, url: str, body: Any = None) -> bool:
+        """Always False: a write is never allowed by the allow-list alone (see match and AdsClient.call)."""
+        return False
+
+    def match(self, method: str, url: str, body: Any = None) -> str | None:
+        """The kind ("validate" or "write") of the first rule matching method + scheme://host/path whose
+        validator (if any) accepts body; None if none matches, the URL fails the hygiene checks or is longer
+        than MAX_WRITE_URL_LENGTH."""
+        if not isinstance(url, str) or len(url) > MAX_WRITE_URL_LENGTH:
+            return None
+        bare = bare_url(url)
+        if bare is None:
+            return None
+        for (m, _, rx, validator), kind in zip(self._rules, self._kinds):
+            if method.upper() != m or not rx.fullmatch(bare):
+                continue
+            if validator is None:
+                return kind
+            try:
+                if validator(body):
+                    return kind
+            except Exception:  # a validator that crashes refuses
+                continue
+        return None
 
 
 # ------------------------------------------------------------------ errors
@@ -244,6 +629,14 @@ _FIXES = {
         "not_available": "the OpenAI Ads API is not available for this account or endpoint",
     },
 }
+# Meta ecosystem connectors (pixel, catalog, Instagram, Page) use the Graph API: same codes, same fixes.
+META_PLATFORMS = frozenset({"meta", "meta_eco"})
+_FIXES["meta_eco"] = _FIXES["meta"]
+PROJECT_NOT_APPROVED_CODES = ("CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION", "ACTION_NOT_PERMITTED")
+PROJECT_NOT_APPROVED_FIX = (
+    "the Google Cloud project of your OAuth client is not approved for this Google Ads access level: apply for "
+    "Explorer or Basic access in the Google Ads API Center (Tools > API Center of the manager account), or use a "
+    "Google Ads test account (a project at Test level only reaches test accounts)")
 _DEFAULT_FIXES = {
     "auth_failed": "check the credentials configured for this platform",
     "missing_scope": "grant the missing permission to the credentials",
@@ -308,12 +701,19 @@ def _error_object(data: Any) -> Any:
     return data
 
 
-def map_error(platform: str, response: Any, data: Any) -> dict:
+META_WRITE_PERMISSION = "ads_management"
+META_WRITE_SCOPE_FIX = ("grant the ads_management permission to the token (ads_read only reads) and give it access "
+                        "to the ad account with a role that can edit it")
+
+
+def map_error(platform: str, response: Any, data: Any, *, method: str | None = None) -> dict:
     """Turn a failed platform response into {error, detail, fix, platform, http_status, ...}.
 
     error is one of auth_failed, missing_scope, rate_limited (with retry_after_seconds and usage parsed from
     X-Business-Use-Case-Usage / X-Ad-Account-Usage), not_available, too_many_rows, api_error. Secret shapes in
-    detail are masked; AdsClient.call also masks the exact configured secrets."""
+    detail are masked; AdsClient.call also masks the exact configured secrets. method: the HTTP method of the
+    request; for Meta (meta, meta_eco) a missing permission on a request other than GET (a write or its
+    validate-only dry-run) names ads_management, a GET (or no method) names ads_read."""
     status = getattr(response, "status_code", None)
     headers = getattr(response, "headers", None) or {}
     detail = redact(_error_object(data))
@@ -321,8 +721,9 @@ def map_error(platform: str, response: Any, data: Any) -> dict:
         detail = detail[:1000]
     text = json.dumps(detail, default=str) if not isinstance(detail, str) else detail
     fixes = _FIXES.get(platform, _DEFAULT_FIXES)
-    meta_code = detail.get("code") if isinstance(detail, dict) and platform == "meta" else None
-    meta_sub = detail.get("error_subcode") if isinstance(detail, dict) and platform == "meta" else None
+    is_meta = platform in META_PLATFORMS
+    meta_code = detail.get("code") if isinstance(detail, dict) and is_meta else None
+    meta_sub = detail.get("error_subcode") if isinstance(detail, dict) and is_meta else None
     base = {"platform": platform, "http_status": status, "detail": detail}
 
     def out(code: str, fix: str, **extra: Any) -> dict:
@@ -336,16 +737,20 @@ def map_error(platform: str, response: Any, data: Any) -> dict:
         return out("rate_limited", RATE_FIX, retry_after_seconds=_retry_after(headers, usage), usage=usage)
     if status == 413:
         return out("too_many_rows", TOO_MANY_ROWS_FIX)
+    if platform == "google_ads" and any(code in text for code in PROJECT_NOT_APPROVED_CODES):
+        return out("project_not_approved", PROJECT_NOT_APPROVED_FIX)
     if status == 401 or meta_code in META_AUTH_CODES or "UNAUTHENTICATED" in text:
         return out("auth_failed", fixes["auth_failed"])
     lowered = text.lower()
     if ("SCOPE_INSUFFICIENT" in text or "insufficient authentication scopes" in lowered
-            or (platform == "meta" and isinstance(meta_code, int) and (meta_code == 10 or 200 <= meta_code <= 299))
+            or (is_meta and isinstance(meta_code, int) and (meta_code == 10 or 200 <= meta_code <= 299))
             or (status == 403 and "scope" in lowered)):
         extra: dict[str, Any] = {}
         if platform == "google_ads":
             extra = {"required_scope": ADS_SCOPE_URL, "missing_scopes": [ADS_SCOPE_URL]}
-        elif platform == "meta":
+        elif is_meta and method is not None and str(method).upper() != "GET":
+            return out("missing_scope", META_WRITE_SCOPE_FIX, required_permission=META_WRITE_PERMISSION)
+        elif is_meta:
             extra = {"required_permission": "ads_read"}
         return out("missing_scope", fixes["missing_scope"], **extra)
     if ("SERVICE_DISABLED" in text or "has not been used in project" in text or status in (404, 501)
@@ -403,12 +808,29 @@ class AdsClient:
 
     trust_env=True, or ADS_TRUST_ENV=1 in the environment (read at each request), is the opt-in for a corporate
     proxy: each request then gets the proxies (honouring NO_PROXY) and the REQUESTS_CA_BUNDLE of the
-    environment, passed explicitly; .netrc stays ignored and redirects stay refused."""
+    environment, passed explicitly; .netrc stays ignored and redirects stay refused.
+
+    Write path (write_allow_list, a WriteAllowList; None = read only): a request off the read allow-list is
+    sent only if it matches a kind="validate" rule (its dry_run_validator requires the dry-run flag in the
+    body), or a kind="write" rule AND call() receives a signed WriteGrant (see WriteGrant) whose method, url,
+    body_digest and request_digest equal those recomputed on the exact request sent, never used before in this
+    process. Headers outside CLIENT_HEADERS are refused on both kinds. Otherwise
+    {"error": "blocked", "reason": ...}. Write requests are never cached nor retried; redirects, the size
+    ceiling and secret masking apply as for reads."""
 
     def __init__(self, platform: str, allow_list: AllowList, secrets: Secrets | None = None,
-                 timeout: float = TIMEOUT, max_bytes: int = MAX_RESPONSE_BYTES, trust_env: bool = False) -> None:
+                 timeout: float = TIMEOUT, max_bytes: int = MAX_RESPONSE_BYTES, trust_env: bool = False,
+                 write_allow_list: WriteAllowList | None = None) -> None:
+        if isinstance(allow_list, WriteAllowList):
+            raise TypeError("allow_list is the read allow-list; pass a WriteAllowList as write_allow_list")
+        if write_allow_list is not None and not isinstance(write_allow_list, WriteAllowList):
+            raise TypeError("write_allow_list must be a WriteAllowList")
+        if (write_allow_list is not None and write_allow_list.platform is not None
+                and DRY_RUN_FLAGS[write_allow_list.platform] != DRY_RUN_FLAGS.get(platform)):
+            raise TypeError(f"write_allow_list is for {write_allow_list.platform}, not {platform}")
         self.platform = platform
         self.allow_list = allow_list
+        self.write_allow_list = write_allow_list
         self.secrets = secrets
         self.timeout = timeout
         self.max_bytes = max_bytes
@@ -428,10 +850,72 @@ class AdsClient:
                 values.append(value.split(" ", 1)[1] if value.lower().startswith("bearer ") else value)
         return sorted({v for v in values if len(v) >= 6}, key=len, reverse=True)
 
+    def _authorize_write(self, method: str, url: str, body: Any, grant: WriteGrant | None,
+                         secrets: list[str], params: Any = None, headers: Any = None) -> str:
+        """The write kind ("validate" or "write") of a request off the read allow-list, or raise Blocked
+        (recorded in BLOCKED_ATTEMPTS) with the reason.
+
+        Order: url_too_long, not_on_write_allow_list, header_forbidden / header_unexpected (both kinds), then
+        for a write: grant_missing, grant_mismatch (incomplete), grant_unsigned, grant_mac_invalid,
+        grant_mismatch (method/URL), body_not_canonical, digest_mismatch, request_not_canonical,
+        request_digest_mismatch, grant_replayed. The grant is consumed only when every check passed."""
+        shown = _redact_text(url, secrets)
+
+        def refuse(reason: str, why: str) -> Blocked:
+            self.BLOCKED_ATTEMPTS.append((method, shown))
+            log.warning("blocked %s %s (%s, %s)", method, shown, self.platform, reason)
+            return Blocked(f"{method} {shown}: {why}; request not sent", reason)
+
+        if not isinstance(url, str) or len(url) > MAX_WRITE_URL_LENGTH:
+            raise refuse("url_too_long", f"a write URL is limited to {MAX_WRITE_URL_LENGTH} characters")
+        kind = self.write_allow_list.match(method, url, body) if self.write_allow_list is not None else None
+        if kind is None:
+            raise refuse("not_on_write_allow_list",
+                         f"not on the {self.platform} read-only allow-list nor on its write allow-list")
+        names = [str(k).strip().lower() for k in dict(headers or {})]
+        if any(n in FORBIDDEN_WRITE_HEADERS for n in names):
+            raise refuse("header_forbidden", "a method-override header is never sent on the write path")
+        unexpected = sorted(n for n in names if n not in CLIENT_HEADERS)
+        if unexpected:
+            raise refuse("header_unexpected", f"header(s) {unexpected} are not set by the connector")
+        if kind == "validate":
+            return kind
+        if not isinstance(grant, WriteGrant):
+            raise refuse("grant_missing", "a write needs a WriteGrant issued by an approved plan")
+        if not all(isinstance(v, str) and v for v in (grant.client_id, grant.plan_id, grant.op_id,
+                                                      grant.method, grant.url, grant.body_digest)):
+            raise refuse("grant_mismatch", "the WriteGrant is incomplete")
+        if not isinstance(grant.mac, str) or not grant.mac:
+            raise refuse("grant_unsigned", "the WriteGrant carries no signature (build it with issue_grant)")
+        from .write_tokens import verify_grant_mac  # lazy: write_tokens needs the state/keyring layer
+
+        if not verify_grant_mac(grant):
+            raise refuse("grant_mac_invalid", "the WriteGrant signature does not match (forged or altered)")
+        if grant.method.upper() != method or bare_url(grant.url) is None or bare_url(grant.url) != bare_url(url):
+            raise refuse("grant_mismatch", "the WriteGrant was issued for another method or URL")
+        try:
+            sent = body_digest(body)
+        except (TypeError, ValueError):
+            raise refuse("body_not_canonical", "the body is not plain JSON, its digest cannot be checked") from None
+        if not hmac.compare_digest(sent.encode("ascii"), grant.body_digest.encode("utf-8", "replace")):
+            raise refuse("digest_mismatch", "the body differs from the one approved in the plan")
+        try:
+            actual = request_digest(method, url, params, body, headers)
+        except (TypeError, ValueError):
+            raise refuse("request_not_canonical", "the params cannot be digested") from None
+        if not isinstance(grant.request_digest, str) or not hmac.compare_digest(
+                actual.encode("ascii"), grant.request_digest.encode("utf-8", "replace")):
+            raise refuse("request_digest_mismatch",
+                         "the URL, query, params or headers differ from the request approved in the plan")
+        if not _consume_grant(grant):
+            raise refuse("grant_replayed", "this WriteGrant was already used; a grant serves once")
+        return kind
+
     def send(self, method: str, url: str, *, headers: dict | None = None, params: dict | None = None,
-             json: Any = None, timeout: float | None = None) -> Any:
+             json: Any = None, timeout: float | None = None, grant: WriteGrant | None = None) -> Any:
         """Send one request if it is on the allow-list, else record it in BLOCKED_ATTEMPTS and raise Blocked.
         Also raises Blocked when a secret, an access_token or a method parameter would travel in the URL.
+        Off the read allow-list, the write path rules apply (see the class docstring and grant).
         Never follows redirects and streams the body (stream=True): returns the raw, unread response."""
         method = method.upper()
         secrets = self._secret_list(headers)
@@ -447,11 +931,18 @@ class AdsClient:
             raise Blocked(f"{method} {_redact_text(url, secrets)}: a secret may never travel in the URL; "
                           "request not sent")
         if not self.allow_list.is_allowed(method, url, json):
-            self.BLOCKED_ATTEMPTS.append((method, _redact_text(url, secrets)))
-            log.warning("blocked %s %s (not on the %s read-only allow-list)", method,
-                        _redact_text(url, secrets), self.platform)
-            raise Blocked(f"{method} {_redact_text(url, secrets)} is not on the {self.platform} read-only "
-                          "allow-list; request not sent")
+            if self.write_allow_list is None:
+                self.BLOCKED_ATTEMPTS.append((method, _redact_text(url, secrets)))
+                log.warning("blocked %s %s (not on the %s read-only allow-list)", method,
+                            _redact_text(url, secrets), self.platform)
+                raise Blocked(f"{method} {_redact_text(url, secrets)} is not on the {self.platform} read-only "
+                              "allow-list; request not sent")
+            # Check and send the same object: a deep copy nobody else holds, so the digest is that of the body sent.
+            # Same for params and headers: request_digest is computed on the very objects passed to the session.
+            json = copy.deepcopy(json)
+            params = copy.deepcopy(params)
+            headers = dict(headers or {})
+            self._authorize_write(method, url, json, grant, secrets, params, headers)
         kwargs: dict[str, Any] = {"headers": headers or {}, "timeout": timeout or self.timeout,
                                   "allow_redirects": False, "stream": True}
         if self.trust_env or trust_env_enabled():
@@ -486,7 +977,7 @@ class AdsClient:
 
     def call(self, method: str, url: str, *, headers: Headers = None, params: dict | None = None,
              json: Any = None, timeout: float | None = None, cache: bool = False,
-             max_bytes: int | None = None) -> dict:
+             max_bytes: int | None = None, grant: WriteGrant | None = None) -> dict:
         """Send and decode; never raises for HTTP, network, local TLS/OSError, redirect or allow-list problems,
         returns a dict instead.
 
@@ -497,7 +988,13 @@ class AdsClient:
         only) reuses a successful result for 300 s and marks it "cached": True. The cache key is a SHA-256 of
         the request and of the resolved headers, so a new token or login-customer-id never gets an old answer
         and no header value is kept in clear. A 3xx answer is {"error": "blocked", "detail": "redirect refused
-        ..."}; a body above max_bytes (default self.max_bytes, 20 MB) is {"error": "response_too_large"}."""
+        ..."}; a body above max_bytes (default self.max_bytes, 20 MB) is {"error": "response_too_large"}.
+
+        grant: the WriteGrant of the op being applied, required for a request matching a kind="write" rule
+        (ignored on the read path). A refused write is {"error": "blocked", "reason": ...}; requests off the read
+        allow-list are sent once (no retry) and never cached."""
+        if cache and not self.allow_list.is_allowed(method, url, json):
+            cache = False  # only reads are cached: a dry-run or a write always reaches the platform
         try:
             resolved = headers() if callable(headers) else (headers or {})
         except TokenNetworkError as exc:  # token refresh failed on the network: not an authentication problem
@@ -515,9 +1012,14 @@ class AdsClient:
                 return hit
         secrets = self._secret_list(resolved)
         try:
-            response = self.send(method, url, headers=resolved, params=params, json=json, timeout=timeout)
+            response = self.send(method, url, headers=resolved, params=params, json=json, timeout=timeout,
+                                 grant=grant)
         except Blocked as exc:
-            return {"error": "blocked", "platform": self.platform, "detail": str(exc)}
+            blocked = {"error": "blocked", "platform": self.platform, "detail": str(exc)}
+            if exc.reason:
+                blocked["reason"] = exc.reason
+                blocked["fix"] = WRITE_BLOCKED_FIX
+            return blocked
         except requests.TooManyRedirects as exc:
             # NoRedirectSession (max_redirects=0) raises this on a 3xx: still a refused redirect, not a network
             # problem. Must come before RequestException, its parent class.
@@ -546,7 +1048,7 @@ class AdsClient:
             text = body.decode("utf-8", "replace") if body is not None else str(getattr(response, "text", ""))
             data = {"text": text[:500]}
         if not getattr(response, "ok", False):
-            return redact(map_error(self.platform, response, data), secrets)
+            return redact(map_error(self.platform, response, data, method=method), secrets)
         result = data if isinstance(data, dict) else {"items": data if isinstance(data, list) else [data]}
         if cache:
             self.cache.set(key, result)

@@ -1,0 +1,1262 @@
+{
+ "_comment": "Frozen tool list (tests/test_tools_golden.py): name, title, annotations and parameter names of every tool, in registration order. Only the four *_apply tools have readOnlyHint false. Regenerate only on a deliberate change: python -m pytest tests/test_tools_golden.py --regen-golden",
+ "tools": [
+  {
+   "name": "server_status",
+   "title": "Server status",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id"
+   ]
+  },
+  {
+   "name": "ga4_report",
+   "title": "GA4 report",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "channel_group",
+    "client_id",
+    "dimensions",
+    "end_date",
+    "limit",
+    "metrics",
+    "property_id",
+    "start_date"
+   ]
+  },
+  {
+   "name": "ga4_realtime",
+   "title": "GA4 realtime",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "dimensions",
+    "metrics",
+    "property_id"
+   ]
+  },
+  {
+   "name": "ga4_properties",
+   "title": "GA4 properties",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "max_pages"
+   ]
+  },
+  {
+   "name": "gsc_performance",
+   "title": "Search Console performance",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "dimensions",
+    "end_date",
+    "limit",
+    "page_contains",
+    "search_type",
+    "site_url",
+    "start_date"
+   ]
+  },
+  {
+   "name": "gsc_inspect_url",
+   "title": "Search Console URL inspection",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "site_url",
+    "url"
+   ]
+  },
+  {
+   "name": "gsc_sitemaps",
+   "title": "Search Console sitemaps",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "site_url"
+   ]
+  },
+  {
+   "name": "merchant_data_sources",
+   "title": "Merchant Center data sources",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id"
+   ]
+  },
+  {
+   "name": "merchant_product_issues",
+   "title": "Merchant Center product issues",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "limit",
+    "max_pages",
+    "only_with_issues"
+   ]
+  },
+  {
+   "name": "merchant_report_query",
+   "title": "Merchant Center report query",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "query"
+   ]
+  },
+  {
+   "name": "gtm_inventory",
+   "title": "Tag Manager inventory",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id"
+   ]
+  },
+  {
+   "name": "indexing_status",
+   "title": "Indexing API status",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "url"
+   ]
+  },
+  {
+   "name": "pagespeed",
+   "title": "PageSpeed Insights",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "strategy",
+    "url"
+   ]
+  },
+  {
+   "name": "gads_accounts",
+   "title": "Google Ads accounts",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id"
+   ]
+  },
+  {
+   "name": "gads_performance",
+   "title": "Google Ads performance",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "customer_id",
+    "end_date",
+    "level",
+    "limit",
+    "segment",
+    "start_date"
+   ]
+  },
+  {
+   "name": "gads_query",
+   "title": "Google Ads GAQL query",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "customer_id",
+    "gaql",
+    "limit"
+   ]
+  },
+  {
+   "name": "gads_conversion_actions",
+   "title": "Google Ads conversion actions",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "customer_id",
+    "include_removed",
+    "limit"
+   ]
+  },
+  {
+   "name": "meta_ad_accounts",
+   "title": "Meta ad accounts",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id"
+   ]
+  },
+  {
+   "name": "meta_insights",
+   "title": "Meta Ads insights",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "account_id",
+    "attribution_windows",
+    "breakdowns",
+    "client_id",
+    "date_preset",
+    "end_date",
+    "level",
+    "limit",
+    "start_date",
+    "time_increment"
+   ]
+  },
+  {
+   "name": "meta_campaigns",
+   "title": "Meta campaigns",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "account_id",
+    "client_id",
+    "limit",
+    "statuses"
+   ]
+  },
+  {
+   "name": "meta_adsets",
+   "title": "Meta ad sets",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "account_id",
+    "campaign_id",
+    "client_id",
+    "limit",
+    "statuses"
+   ]
+  },
+  {
+   "name": "meta_ads_list",
+   "title": "Meta ads",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "account_id",
+    "adset_id",
+    "campaign_id",
+    "client_id",
+    "limit",
+    "statuses"
+   ]
+  },
+  {
+   "name": "openai_ads_account",
+   "title": "OpenAI Ads account",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id"
+   ]
+  },
+  {
+   "name": "openai_ads_insights",
+   "title": "OpenAI Ads insights",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "after",
+    "aggregation_level",
+    "attribution_time_basis",
+    "attribution_window_days",
+    "before",
+    "client_id",
+    "end_date",
+    "entity_id",
+    "fields",
+    "filters",
+    "include_zero_impression_items",
+    "level",
+    "max_rows",
+    "page_size",
+    "segment",
+    "sort",
+    "start_date",
+    "time_granularity",
+    "timezone",
+    "view_through_attribution_window_days"
+   ]
+  },
+  {
+   "name": "openai_ads_conversions",
+   "title": "OpenAI Ads conversions",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "account_timezone",
+    "aggregation_level",
+    "attribution_time_basis",
+    "attribution_window_days",
+    "breakdown",
+    "client_id",
+    "end_date",
+    "entity_ids",
+    "event_names",
+    "group_by_entity",
+    "include_attributed_events",
+    "include_zero_rows",
+    "start_date",
+    "time_granularity",
+    "view_through_attribution_window_days"
+   ]
+  },
+  {
+   "name": "openai_ads_campaigns",
+   "title": "OpenAI Ads campaigns",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "after",
+    "before",
+    "client_id",
+    "limit",
+    "order"
+   ]
+  },
+  {
+   "name": "openai_ads_ad_groups",
+   "title": "OpenAI Ads ad groups",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "after",
+    "before",
+    "campaign_id",
+    "client_id",
+    "limit",
+    "order"
+   ]
+  },
+  {
+   "name": "openai_ads_ads",
+   "title": "OpenAI Ads ads",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "ad_group_id",
+    "after",
+    "before",
+    "client_id",
+    "limit",
+    "order"
+   ]
+  },
+  {
+   "name": "ads_overview",
+   "title": "Ads overview (all platforms)",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "end_date",
+    "start_date"
+   ]
+  },
+  {
+   "name": "ga4_custom_definitions",
+   "title": "GA4 custom definitions",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "property_id"
+   ]
+  },
+  {
+   "name": "ga4_key_events",
+   "title": "GA4 key events",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "property_id"
+   ]
+  },
+  {
+   "name": "ga4_plan_key_event_create",
+   "title": "Plan a GA4 key event",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "counting_method",
+    "event_name",
+    "property_id"
+   ]
+  },
+  {
+   "name": "ga4_plan_custom_dimension_create",
+   "title": "Plan a GA4 custom dimension",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "description",
+    "disallow_ads_personalization",
+    "display_name",
+    "parameter_name",
+    "property_id",
+    "scope"
+   ]
+  },
+  {
+   "name": "gsc_sites",
+   "title": "Search Console sites",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id"
+   ]
+  },
+  {
+   "name": "merchant_products",
+   "title": "Merchant Center products",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "account_id",
+    "client_id",
+    "limit",
+    "page_token"
+   ]
+  },
+  {
+   "name": "merchant_account_issues",
+   "title": "Merchant Center account issues",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "account_id",
+    "client_id",
+    "language_code"
+   ]
+  },
+  {
+   "name": "gtm_workspace_status",
+   "title": "GTM workspace status",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "workspace_id"
+   ]
+  },
+  {
+   "name": "gtm_get_tag",
+   "title": "GTM tag",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "tag_id",
+    "workspace_id"
+   ]
+  },
+  {
+   "name": "gtm_get_trigger",
+   "title": "GTM trigger",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "trigger_id",
+    "workspace_id"
+   ]
+  },
+  {
+   "name": "gtm_get_variable",
+   "title": "GTM variable",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "variable_id",
+    "workspace_id"
+   ]
+  },
+  {
+   "name": "gtm_versions",
+   "title": "GTM versions",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "limit"
+   ]
+  },
+  {
+   "name": "gtm_plan_workspace_create",
+   "title": "Plan a GTM workspace",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "description",
+    "name"
+   ]
+  },
+  {
+   "name": "gtm_plan_tag_upsert",
+   "title": "Plan a GTM tag change",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "fingerprint",
+    "tag",
+    "tag_id",
+    "workspace_id"
+   ]
+  },
+  {
+   "name": "gtm_plan_trigger_upsert",
+   "title": "Plan a GTM trigger change",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "fingerprint",
+    "trigger",
+    "trigger_id",
+    "workspace_id"
+   ]
+  },
+  {
+   "name": "gtm_plan_variable_upsert",
+   "title": "Plan a GTM variable change",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "fingerprint",
+    "variable",
+    "variable_id",
+    "workspace_id"
+   ]
+  },
+  {
+   "name": "gtm_plan_quick_preview",
+   "title": "Preview a GTM workspace",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "workspace_id"
+   ]
+  },
+  {
+   "name": "gsc_plan_sitemap_submit",
+   "title": "Plan a Search Console sitemap submission",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "site_url",
+    "sitemap_url"
+   ]
+  },
+  {
+   "name": "merchant_plan_product_patch",
+   "title": "Plan a Merchant Center product change",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "params": [
+    "account_id",
+    "client_id",
+    "data_source_id",
+    "product_attributes",
+    "product_id",
+    "update_mask"
+   ]
+  },
+  {
+   "name": "gads_plan_pause_entities",
+   "title": "Plan: pause Google Ads entities",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "customer_id",
+    "ids",
+    "level"
+   ]
+  },
+  {
+   "name": "gads_plan_budget_change",
+   "title": "Plan: change a Google Ads daily budget",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "params": [
+    "budget_id",
+    "campaign_id",
+    "client_id",
+    "customer_id",
+    "daily_budget_micros"
+   ]
+  },
+  {
+   "name": "gads_plan_add_negatives",
+   "title": "Plan: add Google Ads negative keywords",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "params": [
+    "campaign_id",
+    "client_id",
+    "customer_id",
+    "keywords",
+    "match_type",
+    "shared_set_id"
+   ]
+  },
+  {
+   "name": "gads_plan_create_campaign",
+   "title": "Plan: create a paused Google Ads Search campaign",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "customer_id",
+    "daily_budget_micros",
+    "name"
+   ]
+  },
+  {
+   "name": "meta_plan_pause",
+   "title": "Plan a Meta pause",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "entity_ids",
+    "level"
+   ]
+  },
+  {
+   "name": "meta_plan_budget_change",
+   "title": "Plan a Meta budget change",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "daily_budget_minor",
+    "entity_id",
+    "level"
+   ]
+  },
+  {
+   "name": "meta_plan_create_campaign",
+   "title": "Plan a Meta campaign",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "params": [
+    "adset_budget_sharing",
+    "client_id",
+    "daily_budget_minor",
+    "name",
+    "objective",
+    "special_ad_categories",
+    "special_ad_category_country"
+   ]
+  },
+  {
+   "name": "meta_plan_create_adset",
+   "title": "Plan a Meta ad set",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "params": [
+    "advantage_audience",
+    "age_max",
+    "age_min",
+    "billing_event",
+    "campaign_id",
+    "client_id",
+    "countries",
+    "custom_event_type",
+    "daily_budget_minor",
+    "name",
+    "optimization_goal",
+    "pixel_id",
+    "start_time"
+   ]
+  },
+  {
+   "name": "meta_plan_create_ad",
+   "title": "Plan a Meta ad",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "params": [
+    "adset_id",
+    "client_id",
+    "creative_id",
+    "name"
+   ]
+  },
+  {
+   "name": "openai_ads_plan_pause",
+   "title": "Plan an OpenAI Ads pause",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "entity_ids",
+    "level"
+   ]
+  },
+  {
+   "name": "openai_ads_plan_budget_change",
+   "title": "Plan an OpenAI Ads budget change",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "params": [
+    "campaign_id",
+    "client_id",
+    "daily_budget_micros"
+   ]
+  },
+  {
+   "name": "openai_ads_plan_create_campaign",
+   "title": "Plan an OpenAI Ads campaign (paused)",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "daily_budget_micros",
+    "description",
+    "end_time",
+    "name",
+    "start_time"
+   ]
+  },
+  {
+   "name": "meta_pixel_health",
+   "title": "Meta pixel health",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "days",
+    "pixel_id"
+   ]
+  },
+  {
+   "name": "meta_dataset_quality",
+   "title": "Meta dataset quality",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "pixel_id"
+   ]
+  },
+  {
+   "name": "meta_catalog_diagnostics",
+   "title": "Meta catalog diagnostics",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "catalog_id",
+    "client_id",
+    "types"
+   ]
+  },
+  {
+   "name": "meta_catalog_products",
+   "title": "Meta catalog products",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "catalog_id",
+    "client_id",
+    "limit",
+    "retailer_id"
+   ]
+  },
+  {
+   "name": "meta_ig_insights",
+   "title": "Instagram insights",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "end_date",
+    "ig_user_id",
+    "metrics",
+    "start_date"
+   ]
+  },
+  {
+   "name": "meta_page_insights",
+   "title": "Facebook Page insights",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "end_date",
+    "metrics",
+    "page_id",
+    "start_date"
+   ]
+  },
+  {
+   "name": "meta_eco_plan_catalog_item_update",
+   "title": "Plan a Meta catalog item update",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "params": [
+    "availability",
+    "client_id",
+    "inventory",
+    "price",
+    "product_item_id",
+    "sale_price",
+    "title"
+   ]
+  },
+  {
+   "name": "gads_apply",
+   "title": "Apply a Google Ads plan",
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "confirm",
+    "confirmation_token",
+    "plan_id"
+   ]
+  },
+  {
+   "name": "meta_apply",
+   "title": "Apply a Meta (ads, pixel, catalog, Instagram, Page) plan",
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "confirm",
+    "confirmation_token",
+    "plan_id"
+   ]
+  },
+  {
+   "name": "openai_ads_apply",
+   "title": "Apply a ChatGPT Ads (OpenAI) plan",
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "confirm",
+    "confirmation_token",
+    "plan_id"
+   ]
+  },
+  {
+   "name": "google_apply",
+   "title": "Apply a GA4, Search Console, Merchant, GTM plan",
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "confirm",
+    "confirmation_token",
+    "plan_id"
+   ]
+  },
+  {
+   "name": "plan_get",
+   "title": "Show a write plan",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false
+   },
+   "params": [
+    "client_id",
+    "plan_id"
+   ]
+  },
+  {
+   "name": "plan_list",
+   "title": "List write plans",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false
+   },
+   "params": [
+    "client_id",
+    "limit"
+   ]
+  },
+  {
+   "name": "audit_log",
+   "title": "Write journal",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false
+   },
+   "params": [
+    "client_id",
+    "limit",
+    "plan_id"
+   ]
+  },
+  {
+   "name": "rollback_plan",
+   "title": "Plan a rollback",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "plan_id"
+   ]
+  },
+  {
+   "name": "clients_list",
+   "title": "Clients list",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": []
+  },
+  {
+   "name": "client_profile",
+   "title": "Client profile",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id"
+   ]
+  },
+  {
+   "name": "client_check",
+   "title": "Client check",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id"
+   ]
+  }
+ ]
+}

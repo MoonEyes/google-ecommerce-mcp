@@ -10,14 +10,23 @@ Authentication uses the separate Google Ads OAuth token (scope adwords, ads_auth
 Authorization: Bearer; TOKENS reads it from GADS_TOKEN_FILE or the OS keyring entry oauth-token-ads. The
 developer-token header is sent only when GADS_DEVELOPER_TOKEN is set (Google no longer requires it from 09/09/2026)
 and login-customer-id only when GADS_LOGIN_CUSTOMER_ID is set. Settings are read from the environment at each call,
-without keyring fallback (Google Ads needs no Meta/OpenAI secret)."""
+without keyring fallback (Google Ads needs no Meta/OpenAI secret).
+
+Multi-client mode (clients.json): every tool takes an optional client_id, resolved by clients.resolve into a Target
+(client context, customer, login customer, token provider). The customer defaults to the client's
+google_ads.customer_id; an explicit customer_id must belong to the client (id_not_owned otherwise, no request
+sent); login-customer-id comes from the client's google_ads.login_customer_id and the token from the client's own
+"gads" secret (ClientAdsTokens), never from the GADS_* variables nor the legacy keyring entry. gads_accounts only
+lists the client's own customers. Results carry client_id. Without a registry nothing changes (legacy mode)."""
 
 from __future__ import annotations
 
 import functools
+import json
 import os
 import re
-from typing import Annotated, Any, Callable, Literal
+from dataclasses import dataclass
+from typing import Annotated, Any, Callable, Literal, Optional
 
 from pydantic import Field
 
@@ -26,6 +35,7 @@ from .ads_common import (MAX_RESPONSE_BYTES, AdsClient, AllowList, cap, date_ran
                          register_tools, roas, safe_ratio, validate_dates)
 from .ads_config import AdsSettings
 from .auth import NotAuthenticated
+from .clients import ClientError
 from .config import NotConfigured
 
 PLATFORM = "google_ads"
@@ -235,14 +245,15 @@ def _settings() -> AdsSettings:
     return AdsSettings.from_env(keyring_fallback=False)
 
 
-# Raw OAuth access token last sent (in memory only, as in TOKENS), so it is masked even in an exception text
-# that shows it without the "Bearer " or "ya29." shapes redact() recognises.
+# Raw OAuth access tokens last sent (in memory only, as in TOKENS): "token" = the last one, "client:<id>" = the
+# last one of each registered client, so every one is masked even in an exception text that shows it without the
+# "Bearer " or "ya29." shapes redact() recognises.
 _CURRENT_BEARER: dict[str, str] = {}
 
 
 def _secrets() -> list[str]:
-    """Secret values to mask: GADS_DEVELOPER_TOKEN and the current raw Bearer token."""
-    values = [_settings().gads_developer_token, _CURRENT_BEARER.get("token")]
+    """Secret values to mask: GADS_DEVELOPER_TOKEN and the raw Bearer tokens last sent (every client)."""
+    values = [_settings().gads_developer_token, *_CURRENT_BEARER.values()]
     return [v for v in values if v]
 
 
@@ -279,15 +290,119 @@ def _safe_message(exc: BaseException) -> str:
     return str(redact(f"{type(exc).__name__}: {exc}", _secrets()))[:300]
 
 
-def _headers(settings: AdsSettings) -> Callable[[], dict]:
-    """Header provider evaluated by AdsClient.call: Bearer token, then the optional Google Ads headers.
-    An unreadable stored token (corrupt JSON, no keyring backend) becomes NotAuthenticated, i.e. auth_failed."""
-    login = _digits(settings.gads_login_customer_id, "GADS_LOGIN_CUSTOMER_ID") \
-        if settings.gads_login_customer_id else None
+# ------------------------------------------------------------------ who a call is for (legacy or registered client)
+class ClientAdsTokens(AdsTokenProvider):
+    """Google Ads token of ONE registered client, read from ctx.secret("gads") (GEM_SECRET_<CLIENT>_GADS, then
+    the keyring entry "<client_id>/gads" or the name given in clients.json): never GADS_TOKEN_FILE nor the legacy
+    entry oauth-token-ads of another client. Same refresh mechanics as AdsTokenProvider (in memory only)."""
+
+    def __init__(self, ctx: Any) -> None:
+        super().__init__(None)
+        self._ctx = ctx
+        self.client_id = ctx.client_id
+
+    def _load(self) -> bool:
+        if self._creds is None:
+            try:
+                raw = self._ctx.secret("gads")
+                if not raw:
+                    return False
+                from google.oauth2.credentials import Credentials
+
+                self._creds = Credentials.from_authorized_user_info(json.loads(raw))
+            except Exception as exc:  # unreadable secret, broken JSON, no keyring backend: never echo the content
+                self._creds = None
+                raise NotAuthenticated(f"the Google Ads token of client {self.client_id!r} could not be read "
+                                       f"({type(exc).__name__}); rerun `google-ecommerce-mcp setup-ads --client "
+                                       f"{self.client_id} --client-secret <file>`") from None
+        return True
+
+    def headers(self) -> dict[str, str]:
+        if not self._load():
+            raise NotAuthenticated(f"No Google Ads token for client {self.client_id!r}. Run `google-ecommerce-mcp "
+                                   f"setup-ads --client {self.client_id} --client-secret <file>` first.")
+        return super().headers()
+
+
+_CLIENT_TOKENS: dict[str, ClientAdsTokens] = {}  # keyed by client_id: one provider per client, never shared
+
+
+def client_tokens(ctx: Any) -> Any:
+    """The Google Ads token provider of a registered client (created once per client_id)."""
+    provider = _CLIENT_TOKENS.get(ctx.client_id)
+    if provider is None:
+        provider = _CLIENT_TOKENS[ctx.client_id] = ClientAdsTokens(ctx)
+    return provider
+
+
+@dataclass(frozen=True)
+class Target:
+    """What one Google Ads call may touch: settings (API version, developer token: process-wide), the client
+    context (None or legacy = environment variables), the customer, the login customer (manager) and the token
+    provider. Built per call by resolve_target / target_for; nothing global changes."""
+
+    settings: AdsSettings
+    ctx: Any
+    customer: str | None
+    login: str | None
+    tokens: Any
+
+    @property
+    def legacy(self) -> bool:
+        return self.ctx is None or bool(getattr(self.ctx, "legacy", False))
+
+    @property
+    def client_id(self) -> str | None:
+        """Stamped on results in registry mode; None in legacy mode (results unchanged)."""
+        return None if self.legacy else self.ctx.client_id
+
+    def stamp(self, out: Any) -> Any:
+        if isinstance(out, dict) and self.client_id:
+            out.setdefault("client_id", self.client_id)
+        return out
+
+
+def target_for(ctx: Any, customer_id: str = "", *, require_customer: bool = True,
+               settings: AdsSettings | None = None) -> Target:
+    """Target of an already resolved client context. Legacy (ctx None or legacy): today's variables and TOKENS.
+    Registry: the client's customer (an explicit customer_id must be one of its own: ClientError id_not_owned),
+    its login customer and its own token. Raises InvalidInput, NotConfigured or ClientError before any request."""
+    settings = settings or _settings()
+    explicit = (customer_id or "").strip()
+    if ctx is None or bool(getattr(ctx, "legacy", False)):
+        customer = _customer(customer_id, settings) if (require_customer or explicit) else None
+        login = _digits(settings.gads_login_customer_id, "GADS_LOGIN_CUSTOMER_ID") \
+            if settings.gads_login_customer_id else None
+        return Target(settings, ctx, customer, login, TOKENS)
+    accounts = ctx.accounts(PLATFORM)
+    if explicit:
+        customer: str | None = _digits(customer_id, "customer_id")
+        ctx.require_owned(PLATFORM, customer)
+    elif require_customer:
+        customer = _digits(ctx.account(PLATFORM, "customer_id"), "customer_id")
+    else:
+        customer = accounts.get("customer_id") or None
+    login_raw = accounts.get("login_customer_id")
+    login = _digits(login_raw, "login_customer_id") if login_raw else None
+    return Target(settings, ctx, customer, login, client_tokens(ctx))
+
+
+def resolve_target(client_id: str | None, customer_id: str = "", *, require_customer: bool = True) -> Target:
+    """clients.resolve(client_id) then target_for (raises ClientError: client_required, unknown_client...)."""
+    from .clients import resolve
+
+    return target_for(resolve(client_id), customer_id, require_customer=require_customer)
+
+
+def _headers(target: Target) -> Callable[[], dict]:
+    """Header provider evaluated by AdsClient.call: Bearer token of the target, then the optional Google Ads
+    headers. An unreadable stored token (corrupt JSON, no keyring backend) becomes NotAuthenticated, i.e.
+    auth_failed."""
+    settings, login, tokens, client_id = target.settings, target.login, target.tokens, target.client_id
 
     def provide() -> dict:
         try:
-            headers = dict(TOKENS.headers())
+            headers = dict(tokens.headers())
         except NotAuthenticated:
             raise
         except Exception as exc:
@@ -296,6 +411,8 @@ def _headers(settings: AdsSettings) -> Callable[[], dict]:
         auth = str(headers.get("Authorization", ""))
         if auth.lower().startswith("bearer ") and auth[7:].strip():
             _CURRENT_BEARER["token"] = auth[7:].strip()
+            if client_id:
+                _CURRENT_BEARER[f"client:{client_id}"] = auth[7:].strip()
         if settings.gads_developer_token:
             headers["developer-token"] = settings.gads_developer_token
         if login:
@@ -305,11 +422,24 @@ def _headers(settings: AdsSettings) -> Callable[[], dict]:
     return provide
 
 
-def _search(customer: str, query: str, settings: AdsSettings, cache: bool = False) -> dict:
+def headers_for(target: Target) -> Callable[[], dict]:
+    """Public alias of the header provider (used by gads_write for its dry-runs and writes)."""
+    return _headers(target)
+
+
+def run_gaql(target: Target, query: str) -> dict:
+    """check_gaql (bounded, reporting resources only) then searchStream for target.customer; {"results",
+    "batches"} or an error dict. For gads_write snapshots (never cached: the state must be fresh)."""
+    return _search(target, check_gaql(query))
+
+
+def _search(target: Target, query: str, cache: bool = False) -> dict:
     """POST googleAds:searchStream on a query already returned by check_gaql; returns {"results": [...all
     batches...], "batches": n} or an error dict."""
-    resp = CLIENT.call("POST", f"{_base(settings)}/customers/{customer}/googleAds:searchStream",
-                       headers=_headers(settings), json={"query": query}, cache=cache, max_bytes=MAX_RESPONSE_BYTES)
+    if not target.customer:
+        raise NotConfigured("GADS_CUSTOMER_ID")
+    resp = CLIENT.call("POST", f"{_base(target.settings)}/customers/{target.customer}/googleAds:searchStream",
+                       headers=_headers(target), json={"query": query}, cache=cache, max_bytes=MAX_RESPONSE_BYTES)
     if resp.get("error") == "response_too_large":
         return {**resp, "read_complete": False,
                 "read_note": f"the answer exceeds {MAX_RESPONSE_BYTES} bytes ({_MB} MB) before {READ_LIMIT} rows: "
@@ -324,9 +454,10 @@ def _search(customer: str, query: str, settings: AdsSettings, cache: bool = Fals
     return {"results": results, "batches": len(batches)}
 
 
-def _account_info(customer: str, settings: AdsSettings) -> tuple[str | None, str | None, dict | None]:
-    """(currency, timezone, error) of a customer, from a one-row query cached 300 s."""
-    resp = _search(customer, ACCOUNT_INFO_QUERY, settings, cache=True)
+def _account_info(target: Target) -> tuple[str | None, str | None, dict | None]:
+    """(currency, timezone, error) of the target customer, from a one-row query cached 300 s (the cache key
+    includes the token and login-customer-id, so two clients never share an answer)."""
+    resp = _search(target, ACCOUNT_INFO_QUERY, cache=True)
     if "error" in resp:
         return None, None, {k: resp.get(k) for k in ("error", "detail", "fix") if k in resp}
     first = resp["results"][0].get("customer", {}) if resp["results"] else {}
@@ -413,6 +544,12 @@ def _contained(fn: Callable[..., dict]) -> Callable[..., dict]:
             raise
         except InvalidInput as exc:
             return exc.as_dict()
+        except ClientError as exc:  # client_required, unknown_client, id_not_owned...: no request was sent
+            out = {**exc.to_dict(), "platform": PLATFORM}
+            requested = kwargs.get("client_id")
+            if isinstance(requested, str) and requested.strip():
+                out["client_id"] = requested.strip()
+            return out
         except Exception as exc:
             return {"error": "internal_error", "platform": PLATFORM, "detail": _safe_message(exc),
                     "fix": "unexpected failure in the Google Ads connector; retry, and report it if it persists"}
@@ -485,24 +622,32 @@ def _totals(rows: list[dict]) -> dict:
 
 # ------------------------------------------------------------------ tools
 CUSTOMER_ID = Annotated[str, Field(description="Google Ads customer id (digits, dashes allowed), as listed by "
-                                               "gads_accounts; empty uses the configured GADS_CUSTOMER_ID")]
+                                               "gads_accounts; empty uses the client's (or GADS_CUSTOMER_ID)")]
+CLIENT_ID = Annotated[Optional[str], Field(description="Client id from clients_list; empty uses the only client")]
 
 
 @guard("current state (account list cached 5 minutes)")
 @_contained
-def gads_accounts() -> dict:
+def gads_accounts(client_id: CLIENT_ID = None) -> dict:
     """Google Ads customer accounts the Google Ads token can read directly (customers:listAccessibleCustomers),
-    with the configured GADS_CUSTOMER_ID and GADS_LOGIN_CUSTOMER_ID (manager account), to pick a customer_id for
-    gads_performance or gads_query. Returns {"customers": [{"id"}], "configured_customer_id",
-    "login_customer_id", "cached"} (cached: true when the list comes from the 5-minute discovery cache)."""
-    settings = _settings()
-    url, headers = f"{_base(settings)}/customers:listAccessibleCustomers", _headers(settings)
+    with the configured customer (GADS_CUSTOMER_ID, or the client's) and login customer (manager account), to pick
+    a customer_id for gads_performance or gads_query. Returns {"customers": [{"id"}], "configured_customer_id",
+    "login_customer_id", "cached"} (cached: true when the list comes from the 5-minute discovery cache). With a
+    client registry only the client's own customers are listed ("hidden_customers" counts the others)."""
+    target = resolve_target(client_id, require_customer=False)
+    settings = target.settings
+    url, headers = f"{_base(settings)}/customers:listAccessibleCustomers", _headers(target)
     resp = CLIENT.call("GET", url, headers=headers, cache=True)
     if "error" in resp:
-        return resp
+        return target.stamp(resp)
     customers = [{"id": name.rsplit("/", 1)[-1]} for name in resp.get("resourceNames", []) if isinstance(name, str)]
-    return {"customers": customers, "configured_customer_id": settings.gads_customer_id,
-            "login_customer_id": settings.gads_login_customer_id, "cached": resp.get("cached", False)}
+    if target.legacy:
+        return {"customers": customers, "configured_customer_id": settings.gads_customer_id,
+                "login_customer_id": settings.gads_login_customer_id, "cached": resp.get("cached", False)}
+    own = [c for c in customers if target.ctx.owns(PLATFORM, c["id"])]
+    return target.stamp({"customers": own, "hidden_customers": len(customers) - len(own),
+                         "configured_customer_id": target.customer, "login_customer_id": target.login,
+                         "cached": resp.get("cached", False)})
 
 
 @guard(FRESHNESS)
@@ -517,18 +662,19 @@ def gads_performance(
     limit: Annotated[int, Field(description="Maximum rows returned (1 to 1000), highest spend first; totals "
                                             "cover up to 10,000 rows (see totals_complete)", ge=1, le=1000)] = 50,
     customer_id: CUSTOMER_ID = "",
+    client_id: CLIENT_ID = None,
 ) -> dict:
     """Google Ads performance by account, campaign or ad group over a date range: spend, impressions, clicks,
     conversions, conversion value, CTR, CPC, CPA and ROAS, optionally split by date, device or network. Built from
     fixed aggregated GAQL templates (searchStream), highest spend first. Returns "rows", "totals" (ROAS = sum of
     values / sum of spends) with "totals_complete". start_date and end_date are required (empty -> invalid_dates), the "currency" (looked up when no row), a "date_range" in the
     account timezone with "data_complete", the unit and definition of each metric, and the "attribution" used."""
-    settings = _settings()
     query = check_gaql(build_performance_query(level, start_date, end_date, segment))
-    customer = _customer(customer_id, settings)
-    resp = _search(customer, query, settings)
+    target = resolve_target(client_id, customer_id)
+    customer = target.customer
+    resp = _search(target, query)
     if "error" in resp:
-        return resp
+        return target.stamp(resp)
     results = resp["results"]
     totals_complete = len(results) <= MAX_STREAM_ROWS
     results = results[:MAX_STREAM_ROWS]
@@ -537,7 +683,7 @@ def gads_performance(
     currency, timezone = first.get("currencyCode"), first.get("timeZone")
     lookup_error = None
     if not currency or not timezone:
-        info_currency, info_timezone, lookup_error = _account_info(customer, settings)
+        info_currency, info_timezone, lookup_error = _account_info(target)
         currency, timezone = currency or info_currency, timezone or info_timezone
     limit = cap(limit)
     out = {"customer_id": customer, "level": level, "segment": segment, "rows": rows[:limit],
@@ -555,7 +701,7 @@ def gads_performance(
                                 "data_complete may be off by one day")
     if lookup_error:
         out["account_info_error"] = lookup_error
-    return out
+    return target.stamp(out)
 
 
 @guard(FRESHNESS)
@@ -567,6 +713,7 @@ def gads_query(
     customer_id: CUSTOMER_ID = "",
     limit: Annotated[int, Field(description="Maximum rows returned (1 to 1000); Google is asked for at most "
                                             "10,001 rows (LIMIT added or lowered)", ge=1, le=1000)] = 100,
+    client_id: CLIENT_ID = None,
 ) -> dict:
     """Run a free read-only Google Ads Query Language (GAQL) SELECT on one customer (searchStream), for fields the
     fixed gads_performance templates do not cover. Refused without any network call unless it is a single SELECT
@@ -587,12 +734,12 @@ def gads_query(
     names (campaign.name, metrics.clicks); micros fields are converted to currency units: *_micros renamed without
     the suffix (metrics.cost_micros -> metrics.cost), metrics.average_cpc, average_cpm, average_cost and
     cost_per_* kept under their name."""
-    settings = _settings()
-    customer = _customer(customer_id, settings)
+    target = resolve_target(client_id, customer_id)
+    customer = target.customer
     query = check_gaql(gaql)
-    resp = _search(customer, query, settings)
+    resp = _search(target, query)
     if "error" in resp:
-        return resp
+        return target.stamp(resp)
     results = resp["results"]
     read_complete = len(results) <= MAX_STREAM_ROWS
     rows = [_flatten(r) for r in results[:MAX_STREAM_ROWS]]
@@ -612,13 +759,80 @@ def gads_query(
     currencies = {r.get("customer.currency_code") for r in rows if r.get("customer.currency_code")}
     if len(currencies) == 1:
         out["currency"] = currencies.pop()
-    return out
+    return target.stamp(out)
+
+
+# Conversion actions: their settings decide what metrics.conversions counts (primary_for_goal,
+# include_in_conversions_metric), how it is attributed and with which lookback windows.
+CONVERSION_FIELDS = (
+    "conversion_action.resource_name", "conversion_action.id", "conversion_action.name", "conversion_action.status",
+    "conversion_action.type", "conversion_action.category", "conversion_action.origin",
+    "conversion_action.primary_for_goal", "conversion_action.include_in_conversions_metric",
+    "conversion_action.counting_type", "conversion_action.attribution_model_settings.attribution_model",
+    "conversion_action.click_through_lookback_window_days", "conversion_action.view_through_lookback_window_days",
+    "conversion_action.value_settings.default_value", "conversion_action.value_settings.default_currency_code",
+    "conversion_action.value_settings.always_use_default_value",
+)
+_CONVERSION_INTS = ("click_through_lookback_window_days", "view_through_lookback_window_days")
+CONVERSION_NOTE = ("metrics.conversions counts only the actions with include_in_conversions_metric true (in "
+                   "practice the primary ones, primary_for_goal); the others appear in all_conversions only. Each "
+                   "action has its own attribution model and lookback windows (days).")
+
+
+def build_conversion_actions_query(include_removed: bool = False) -> str:
+    """Fixed GAQL template of gads_conversion_actions (no caller text reaches it)."""
+    where = "" if include_removed else " WHERE conversion_action.status != 'REMOVED'"
+    return (f"SELECT {', '.join(CONVERSION_FIELDS)} FROM conversion_action{where} "
+            f"ORDER BY conversion_action.name LIMIT {READ_LIMIT}")
+
+
+def _conversion_row(result: dict) -> dict:
+    flat = _flatten(result)
+    row = {}
+    for field in CONVERSION_FIELDS:
+        name = field.rsplit(".", 1)[-1]
+        value = flat.get(field)
+        if name in _CONVERSION_INTS and isinstance(value, str) and value.lstrip("-").isdigit():
+            value = int(value)
+        row[name] = value
+    return row
+
+
+@guard("current settings (read now)")
+@_contained
+def gads_conversion_actions(
+    include_removed: Annotated[bool, Field(description="Also list REMOVED conversion actions")] = False,
+    limit: Annotated[int, Field(description="Maximum actions returned (1 to 1000), by name", ge=1, le=1000)] = 200,
+    customer_id: CUSTOMER_ID = "",
+    client_id: CLIENT_ID = None,
+) -> dict:
+    """Google Ads conversion actions of one customer and the settings that decide what metrics.conversions
+    counts: name, status, type, category, origin, primary_for_goal, include_in_conversions_metric, counting type
+    (one or every conversion per click), attribution model, click-through and view-through lookback windows (days)
+    and default value / currency. Fixed GAQL template on conversion_action (searchStream), sorted by name; REMOVED
+    actions are left out unless include_removed. Use it to explain why conversions differ from another platform."""
+    query = check_gaql(build_conversion_actions_query(include_removed))
+    target = resolve_target(client_id, customer_id)
+    resp = _search(target, query)
+    if "error" in resp:
+        return target.stamp(resp)
+    results = resp["results"][:MAX_STREAM_ROWS]
+    rows = [_conversion_row(r) for r in results]
+    limit = cap(limit)
+    out = {"customer_id": target.customer, "conversion_actions": rows[:limit], "count": len(rows),
+           "truncated": len(rows) > limit, "counted_in_conversions": sum(1 for r in rows
+                                                                         if r.get("include_in_conversions_metric")),
+           "note": CONVERSION_NOTE, "attribution": attribution()}
+    if not rows:
+        out["note_empty"] = "no conversion action: conversions are not tracked in this account"
+    return target.stamp(out)
 
 
 TOOLS = [
     ("Google Ads accounts", gads_accounts),
     ("Google Ads performance", gads_performance),
     ("Google Ads GAQL query", gads_query),
+    ("Google Ads conversion actions", gads_conversion_actions),
 ]
 
 
@@ -627,13 +841,15 @@ def register(mcp: Any) -> list[str]:
     return register_tools(mcp, TOOLS)
 
 
-def summary(start_date: str, end_date: str) -> dict:
+def summary(start_date: str, end_date: str, client_id: str | None = None) -> dict:
     """Account-level totals for the cross-platform overview: {platform, spend, impressions, clicks, conversions,
     conversion_value, roas, currency, attribution, date_range}, or the error dict (not_configured, auth_failed,
-    internal_error...) with platform set. Never raises."""
+    internal_error...) with platform set. client_id: the registered client (None = the implicit one). Never
+    raises."""
     try:
+        kwargs: dict[str, Any] = {"client_id": client_id} if client_id else {}
         result = gads_performance(level="account", start_date=start_date, end_date=end_date, segment="none",
-                                  limit=1)
+                                  limit=1, **kwargs)
         if "error" in result:
             return {**result, "platform": PLATFORM}
         totals = result["totals"]

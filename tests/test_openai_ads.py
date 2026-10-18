@@ -23,10 +23,12 @@ CONV_ARGS = {"account_timezone": "Europe/Paris", "aggregation_level": "campaign"
 
 
 @pytest.fixture(autouse=True)
-def _isolated(no_keyring, monkeypatch):  # noqa: F811  (fixture)
-    """No real keyring, no real key from the machine, a fresh fake session and cache for every test."""
-    for name in ("OPENAI_ADS_API_KEY", "META_ACCESS_TOKEN", "GADS_DEVELOPER_TOKEN"):
+def _isolated(no_keyring, monkeypatch, tmp_path):  # noqa: F811  (fixture)
+    """No real keyring, no real key nor client registry from the machine, a fresh fake session and cache for
+    every test (legacy mode: GEM_CLIENTS_FILE names a file that does not exist)."""
+    for name in ("OPENAI_ADS_API_KEY", "META_ACCESS_TOKEN", "GADS_DEVELOPER_TOKEN", "GEM_CLIENT"):
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("GEM_CLIENTS_FILE", str(tmp_path / "no-registry.json"))
     monkeypatch.setenv("OPENAI_ADS_API_KEY", KEY)
     monkeypatch.setattr(openai_ads.CLIENT, "session", FakeSession())
     monkeypatch.setattr(openai_ads.CLIENT, "BLOCKED_ATTEMPTS", [])
@@ -128,7 +130,12 @@ VALID_BODY = {"aggregation_level": "campaign", "time_ranges": [VALID_RANGE], "en
     ("PATCH", f"{BASE}/ads/x", {"status": "paused"}),
     ("DELETE", f"{BASE}/campaigns/1", None),
     ("POST", f"{BASE}/ad_account/insights", {}),
-    ("GET", f"{BASE}/campaigns", None),
+    ("POST", f"{BASE}/campaigns/cmpn_1/pause", None),
+    ("POST", f"{BASE}/campaigns/cmpn_1/activate", None),
+    ("POST", f"{BASE}/campaigns/cmpn_1", {"status": "paused"}),
+    ("GET", f"{BASE}/campaigns/cmpn_1/budget", None),
+    ("GET", f"{BASE}/ad_account/spend_limit_windows", None),
+    ("GET", f"{BASE}/custom_audiences", None),
     ("GET", f"{BASE}/campaigns/1/insights/../budget", None),
     ("GET", "https://api.ads.openai.com.evil.com/v1/ad_account", None),
     ("GET", "https://evil.example/api.ads.openai.com/v1/ad_account", None),
@@ -299,12 +306,12 @@ def test_conversions_has_no_filters_and_requires_level():
 
 # ------------------------------------------------------------------ outputs
 def test_account_keeps_only_whitelisted_fields_and_is_cached():
-    raw = {"id": "acct_1", "name": "Shop", "status": "active", "currency": "EUR", "timezone": "Europe/Paris",
+    raw = {"id": "acct_1", "name": "Shop", "status": "active", "currency_code": "EUR", "timezone": "Europe/Paris",
            "billing_email": "owner@example.com", "owner": {"name": "Jane"}}
     session = use([("GET", "/v1/ad_account", FakeResponse(200, raw))])
     first = openai_ads.openai_ads_account()
     second = openai_ads.openai_ads_account()
-    assert first["ad_account"] == {"id": "acct_1", "name": "Shop", "status": "active", "currency": "EUR",
+    assert first["ad_account"] == {"id": "acct_1", "name": "Shop", "status": "active", "currency_code": "EUR",
                                    "timezone": "Europe/Paris"}
     assert first["raw_fields_dropped"] == ["billing_email", "owner"]
     assert "owner@example.com" not in json.dumps(first)
@@ -752,7 +759,8 @@ def test_summary_is_normalised():
     assert len(session.calls) == 1  # no extra call to guess the currency
 
 
-@pytest.mark.parametrize("account", [{"id": "acct_1", "currency": "EUR"}, {"id": "acct_1", "account_currency": "EUR"}])
+@pytest.mark.parametrize("account", [{"id": "acct_1", "currency_code": "EUR"}, {"id": "acct_1", "currency": "EUR"},
+                                     {"id": "acct_1", "account_currency": "EUR"}])
 def test_summary_without_activity_gives_zeros_and_the_account_currency(account):
     session = use([("/ad_account/insights", FakeResponse(200, page([]))),
                    ("GET", "/v1/ad_account", FakeResponse(200, account))])
@@ -838,9 +846,10 @@ def test_register_declares_read_only_documented_tools():
 
     mcp = FastMCP("test-openai-ads")
     names = openai_ads.register(mcp)
-    assert names == ["openai_ads_account", "openai_ads_insights", "openai_ads_conversions"]
+    assert names == ["openai_ads_account", "openai_ads_insights", "openai_ads_conversions", "openai_ads_campaigns",
+                     "openai_ads_ad_groups", "openai_ads_ads"]
     tools = asyncio.run(mcp.list_tools())
-    assert len(tools) == 3
+    assert len(tools) == 6
     for tool in tools:
         assert tool.title and tool.annotations.readOnlyHint is True and tool.annotations.destructiveHint is False
         assert len(tool.description) > 60
@@ -850,7 +859,12 @@ def test_register_declares_read_only_documented_tools():
         "start_date", "end_date", "level", "entity_id", "timezone", "time_granularity", "aggregation_level",
         "fields", "segment", "filters", "sort", "include_zero_impression_items", "attribution_window_days",
         "view_through_attribution_window_days", "attribution_time_basis", "page_size", "max_rows", "after",
-        "before"}
+        "before", "client_id"}
+    for tool in tools:  # client_id everywhere, optional
+        assert "client_id" in tool.inputSchema["properties"], tool.name
+        assert "client_id" not in tool.inputSchema.get("required", []), tool.name
+    assert by_name["openai_ads_ad_groups"].inputSchema["required"] == ["campaign_id"]
+    assert by_name["openai_ads_ads"].inputSchema["required"] == ["ad_group_id"]
     conversions = by_name["openai_ads_conversions"].inputSchema
     assert "filters" not in conversions["properties"] and "group_by_entity" in conversions["properties"]
     assert conversions["required"] == ["start_date", "end_date", "account_timezone", "aggregation_level"]
@@ -924,14 +938,185 @@ def test_contained_tools_keep_their_signature():
 
 @pytest.mark.parametrize("bad", [None, ["not", "a", "dict"], "text"])
 def test_summary_non_dict_result_is_an_internal_error(bad, monkeypatch):
-    monkeypatch.setattr(openai_ads, "_summary", lambda start, end: bad)
+    monkeypatch.setattr(openai_ads, "_summary", lambda start, end, ctx=None: bad)
     out = openai_ads.summary(START, END)
     assert out["error"] == "internal_error" and type(bad).__name__ in out["detail"]
 
 
 def test_summary_invalid_input_is_structured(monkeypatch):
-    def refuse(start, end):
+    def refuse(start, end, ctx=None):
         raise openai_ads.InvalidInput("invalid_dates", "nope")
 
     monkeypatch.setattr(openai_ads, "_summary", refuse)
     assert openai_ads.summary(START, END)["error"] == "invalid_dates"
+
+
+# ------------------------------------------------------------------ B3: currency_code (PLAN section 5 point 1)
+def test_account_currency_code_is_kept_not_dropped():
+    raw = {"id": "adacct_123", "name": "Acme LLC", "legal_name": "Acme LLC", "status": "active", "timezone": "UTC",
+           "currency_code": "USD", "review": {"status": "approved"}}
+    use([("GET", "/v1/ad_account", FakeResponse(200, raw))])
+    out = openai_ads.openai_ads_account()
+    assert out["ad_account"]["currency_code"] == "USD"
+    assert "currency_code" not in out["raw_fields_dropped"] and out["raw_fields_dropped"] == ["legal_name", "review"]
+
+
+def test_summary_takes_the_documented_currency_code_of_the_account():
+    row = {k: v for k, v in ROW.items() if k != "order_created_attributed_sales_currency"}
+    session = use([("/ad_account/insights", FakeResponse(200, page([row]))),
+                   ("GET", "/v1/ad_account", FakeResponse(200, {"id": "adacct_1", "currency_code": "usd"}))])
+    out = openai_ads.summary(START, END)
+    assert out["currency"] == "USD" and out["currency_source"] == "ad_account" and "currency_note" not in out
+    assert len(session.calls) == 2
+
+
+def test_currency_code_wins_over_the_older_fields():
+    assert openai_ads.account_currency_of({"currency_code": "EUR", "currency": "USD"}) == "EUR"
+    assert openai_ads.account_currency_of({"currency": " gbp "}) == "GBP"
+    assert openai_ads.account_currency_of({"currency_code": ""}) is None
+    assert openai_ads.account_currency_of(None) is None
+
+
+# ------------------------------------------------------------------ B3: lists (documented endpoints)
+CAMPAIGN = {"id": "cmpn_101", "created_at": 1735689600, "status": "active", "bidding_type": "impressions",
+            "budget": {"lifetime_spend_limit_micros": 25000000}, "conversion_event_setting_ids": [],
+            "description": "Promote the bundle.", "end_time": 1738368000, "mode": None, "name": "Spring launch",
+            "start_time": 1735689600, "targeting": {"locations": {"include": [{"id": "2000043"}]}},
+            "updated_at": 1735776000}
+AD_GROUP = {"id": "adgrp_301", "created_at": 1735689700, "updated_at": 1735776100, "name": "US English",
+            "description": "Primary audience.", "context_hints": ["productivity"], "status": "active",
+            "bidding_config": {"billing_event_type": "impression", "max_bid_micros": 60000}}
+AD = {"id": "ad_501", "name": "Planner card", "created_at": 1735689800, "updated_at": 1735776200,
+      "creative": {"type": "chat_card", "title": "Try the planner", "body": "Coordinate tasks.", "file_id": "file_901",
+                   "image_url": "https://cdn.openai.com/ads/file_901.png", "target_url": "https://example.com/p"},
+      "status": "active", "review_status": "approved"}
+
+
+def lst(rows, has_more=False, last_id=None):
+    return {"object": "list", "data": rows, "first_id": rows[0]["id"] if rows else None,
+            "last_id": last_id or (rows[-1]["id"] if rows else None), "has_more": has_more}
+
+
+def test_campaigns_list_keeps_documented_fields_and_drops_the_rest():
+    session = use([("GET", "/v1/campaigns", FakeResponse(200, lst([dict(CAMPAIGN)])))])
+    out = openai_ads.openai_ads_campaigns(limit=10, order="desc")
+    assert out["rows"] == [{k: CAMPAIGN[k] for k in openai_ads.CAMPAIGN_FIELDS if k in CAMPAIGN}]
+    assert set(out["raw_fields_dropped"]) == {"description", "targeting"}
+    assert out["untrusted_text"]["fields"] == ["rows[].name"] and "micros" in out["units"]
+    method, url, kwargs = session.calls[0]
+    assert (method, url) == ("GET", f"{BASE}/campaigns")
+    assert kwargs["params"] == {"order": "desc", "limit": 10}
+    assert openai_ads.CLIENT.BLOCKED_ATTEMPTS == [] and out["complete"] is True
+
+
+def test_campaigns_list_pages_with_after_cursor():
+    def answer(kwargs):
+        if kwargs["params"].get("after") is None:
+            return FakeResponse(200, lst([dict(CAMPAIGN, id="cmpn_1")], has_more=True))
+        return FakeResponse(200, lst([dict(CAMPAIGN, id="cmpn_2")]))
+
+    session = use([("GET", "/v1/campaigns", answer)])
+    out = openai_ads.openai_ads_campaigns(limit=600)
+    assert [r["id"] for r in out["rows"]] == ["cmpn_1", "cmpn_2"] and out["pages_read"] == 2
+    assert session.calls[0][2]["params"]["limit"] == 500  # documented maximum per page
+    assert session.calls[1][2]["params"]["after"] == "cmpn_1"
+
+
+def test_ad_groups_and_ads_lists_send_their_parent_id():
+    session = use([("GET", "/v1/ad_groups", FakeResponse(200, lst([dict(AD_GROUP)]))),
+                   ("GET", "/v1/ads", FakeResponse(200, lst([dict(AD)])))])
+    groups = openai_ads.openai_ads_ad_groups("cmpn_101")
+    ads = openai_ads.openai_ads_ads("adgrp_301")
+    assert groups["rows"][0]["bidding_config"]["max_bid_micros"] == 60000 and groups["campaign_id"] == "cmpn_101"
+    assert set(groups["raw_fields_dropped"]) == {"description", "context_hints"}
+    assert ads["rows"][0]["creative"] == {k: AD["creative"][k] for k in ("type", "title", "body", "target_url",
+                                                                          "file_id")}
+    assert "image_url" in ads["raw_fields_dropped"] and ads["rows"][0]["review_status"] == "approved"
+    assert "rows[].creative.body" in ads["untrusted_text"]["fields"]
+    assert session.calls[0][2]["params"]["campaign_id"] == "cmpn_101"
+    assert session.calls[1][2]["params"]["ad_group_id"] == "adgrp_301"
+    for method, url, _ in session.calls:
+        assert openai_ads.ALLOWED_ENDPOINTS.is_allowed(method, url)
+
+
+@pytest.mark.parametrize("call, code", [
+    (lambda: openai_ads.openai_ads_ad_groups(""), "invalid_entity_id"),
+    (lambda: openai_ads.openai_ads_ads("../x"), "invalid_entity_id"),
+    (lambda: openai_ads.openai_ads_campaigns(limit=0), "invalid_limit"),
+    (lambda: openai_ads.openai_ads_campaigns(limit=True), "invalid_limit"),
+    (lambda: openai_ads.openai_ads_campaigns(after="a", before="b"), "invalid_cursor"),
+    (lambda: openai_ads.openai_ads_campaigns(order="random"), "invalid_order"),
+])
+def test_invalid_list_parameters_are_refused_without_network(call, code):
+    session = use([("", catch_all)])
+    assert call()["error"] == code and session.calls == []
+
+
+def test_list_error_is_returned_as_is():
+    use([("GET", "/v1/campaigns", FakeResponse(401, {"error": {"message": "bad key"}}))])
+    assert openai_ads.openai_ads_campaigns()["error"] == "auth_failed"
+
+
+# ------------------------------------------------------------------ B3: client_id (registry mode)
+KEY_ACME = "sk-" + "acme" + "B" * 30
+KEY_BETA = "sk-" + "beta" + "C" * 30
+
+
+@pytest.fixture
+def two_clients(tmp_path, monkeypatch):
+    from clients_fakes import ACME, BETA, write_registry
+
+    path = tmp_path / "clients.json"
+    write_registry(path, {"acme": ACME, "beta": BETA})
+    monkeypatch.setenv("GEM_CLIENTS_FILE", str(path))
+    monkeypatch.setenv("GEM_SECRET_ACME_OPENAI", KEY_ACME)
+    monkeypatch.setenv("GEM_SECRET_BETA_OPENAI", KEY_BETA)
+    return path
+
+
+def by_key(kwargs):
+    key = kwargs["headers"]["Authorization"].split(" ", 1)[1]
+    account = {KEY_ACME: "acct_acme", KEY_BETA: "acct_beta", KEY: "acct_env"}[key]
+    return FakeResponse(200, {"id": account, "currency_code": "EUR"})
+
+
+def test_each_client_reads_with_its_own_key_only(two_clients):
+    session = use([("GET", "/v1/ad_account", by_key), ("GET", "/v1/campaigns", FakeResponse(200, lst([])))])
+    acme = openai_ads.openai_ads_account(client_id="acme")
+    beta = openai_ads.openai_ads_account(client_id="beta")
+    listed = openai_ads.openai_ads_campaigns(client_id="beta")
+    assert acme["ad_account"]["id"] == "acct_acme" and acme["client_id"] == "acme"
+    assert beta["ad_account"]["id"] == "acct_beta" and beta["client_id"] == "beta"
+    assert listed["client_id"] == "beta"
+    keys = [c[2]["headers"]["Authorization"] for c in session.calls]
+    assert keys == [f"Bearer {KEY_ACME}", f"Bearer {KEY_BETA}", f"Bearer {KEY_BETA}"]
+    assert KEY not in json.dumps([c[2]["headers"] for c in session.calls])  # never the environment key
+
+
+def test_client_id_is_required_with_two_clients_and_unknown_is_refused(two_clients):
+    session = use([("", catch_all)])
+    assert openai_ads.openai_ads_account()["error"] == "client_required"
+    assert openai_ads.openai_ads_campaigns(client_id="nobody")["error"] == "unknown_client"
+    assert openai_ads.openai_ads_insights(START, END, client_id="nobody")["error"] == "unknown_client"
+    assert openai_ads.summary(START, END)["error"] == "client_required"
+    assert session.calls == []
+
+
+def test_key_answering_for_another_account_is_refused(two_clients, monkeypatch):
+    monkeypatch.setenv("GEM_SECRET_ACME_OPENAI", KEY_BETA)  # acme configured with the key of beta by mistake
+    use([("GET", "/v1/ad_account", by_key)])
+    out = openai_ads.openai_ads_account(client_id="acme")
+    assert out["error"] == "account_mismatch" and out["client_id"] == "acme" and "acct_beta" not in json.dumps(out)
+
+
+def test_missing_client_key_is_not_configured(two_clients, monkeypatch):
+    monkeypatch.delenv("GEM_SECRET_BETA_OPENAI")
+    session = use([("", catch_all)])
+    out = openai_ads.openai_ads_campaigns(client_id="beta")
+    assert out["error"] == "not_configured" and "beta" in out["detail"] and session.calls == []
+
+
+def test_pinned_process_refuses_another_client(two_clients, monkeypatch):
+    monkeypatch.setenv("GEM_CLIENT", "acme")
+    use([("", catch_all)])
+    assert openai_ads.openai_ads_account(client_id="beta")["error"] == "pinned_client"

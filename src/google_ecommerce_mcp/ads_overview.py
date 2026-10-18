@@ -15,11 +15,12 @@ from __future__ import annotations
 
 import copy
 from types import ModuleType
-from typing import Annotated, Any
+from typing import Annotated, Any, Optional
 
 from pydantic import Field
 
-from . import google_ads, meta_ads, openai_ads
+from . import clients, google_ads, meta_ads, openai_ads
+from .clients import ClientError
 from .ads_common import guard, redact, register_tools, roas, validate_dates
 from .config import NotConfigured
 
@@ -62,10 +63,13 @@ def _attribution(platform: str, value: Any) -> dict:
     return {"basis": value if isinstance(value, str) else str(value)}
 
 
-def _call_summary(module: ModuleType, platform: str, start_date: str, end_date: str) -> dict:
-    """One platform's summary as a dict, never raising (NotConfigured and crashes become error dicts)."""
+def _call_summary(module: ModuleType, platform: str, start_date: str, end_date: str,
+                  client_id: str | None = None) -> dict:
+    """One platform's summary as a dict, never raising (NotConfigured and crashes become error dicts).
+    client_id None = legacy mode: summary(start, end) exactly as before; else summary(..., client_id=<that client>)."""
     try:
-        result = module.summary(start_date, end_date)
+        result = (module.summary(start_date, end_date) if client_id is None
+                  else module.summary(start_date, end_date, client_id=client_id))
     except NotConfigured as exc:
         return {"platform": platform, "error": "not_configured", "detail": redact(str(exc))}
     except Exception as exc:  # one broken connector must not hide the others
@@ -185,27 +189,53 @@ def ads_overview(
     start_date: Annotated[str, Field(description="First day, YYYY-MM-DD (each platform counts in its own "
                                                  "account timezone)")],
     end_date: Annotated[str, Field(description="Last day, YYYY-MM-DD, on or after start_date")],
+    client_id: Annotated[Optional[str], Field(description="Client id from clients_list; empty uses the only "
+                                                          "client. Only that client's platforms are added up")] = None,
 ) -> dict:
     """Google Ads, Meta and OpenAI Ads totals side by side for one period: spend, impressions, clicks, conversions
     and conversion value as reported by each platform, the platform's own ROAS, currency, attribution windows and
     date range. A platform not configured or failing gets its own block without blocking the others (partial).
     combined adds spends only when every currency is the same (else null with combined_reason; a platform without
     activity adds zeros and needs no currency) and computes ROAS
-    as total value / total spend. Conversions overlap between platforms: their sum is not deduplicated (warning)."""
+    as total value / total spend. Conversions overlap between platforms: their sum is not deduplicated (warning).
+    Multi-client: one client only (client_id), and only the platforms that client has; never two clients mixed."""
     try:
         validate_dates(start_date, end_date)
     except ValueError as exc:
         return {"error": "invalid_dates", "detail": str(exc), "warning": WARNING}
     try:
-        return _overview(start_date, end_date)
+        ctx = clients.resolve(client_id)
+    except ClientError as exc:
+        return {**exc.to_dict(), "warning": WARNING}
+    try:
+        return _overview(start_date, end_date, None if ctx.legacy else ctx)
     except Exception as exc:  # never lose the mandatory warning, whatever a connector answered
         return {"error": "internal_error", "warning": WARNING,
                 "detail": redact(f"{type(exc).__name__}: {exc}")[:500],
                 "fix": "unexpected answer from an ads connector; query each platform's own tool to find which"}
 
 
-def _overview(start_date: str, end_date: str) -> dict:
-    blocks = [_block(name, _call_summary(module, name, start_date, end_date)) for name, module in PLATFORMS]
+def _not_configured_for(platform: str, client_id: str) -> dict:
+    return {"platform": platform, "error": "not_configured",
+            "detail": f"client {client_id!r} has no {platform} account in the registry",
+            "fix": f"google-ecommerce-mcp client add {client_id} --replace (asks the missing ids)"}
+
+
+def _overview(start_date: str, end_date: str, ctx: Any = None) -> dict:
+    """ctx None = legacy mode (unchanged). Otherwise every summary gets ctx.client_id, and a platform the client
+    does not have is not called at all (not_configured block)."""
+    if ctx is None:
+        results = [(name, _call_summary(module, name, start_date, end_date)) for name, module in PLATFORMS]
+    else:
+        mine = set(ctx.platforms())
+        results = [(name, _call_summary(module, name, start_date, end_date, ctx.client_id) if name in mine
+                    else _not_configured_for(name, ctx.client_id)) for name, module in PLATFORMS]
+    if ctx is not None:  # a block stamped with another client is never added up
+        results = [(name, {"platform": name, "error": "internal_error",
+                           "detail": "summary answered for another client; ignored"})
+                   if result.get("client_id") not in (None, ctx.client_id) else (name, result)
+                   for name, result in results]
+    blocks = [_block(name, result) for name, result in results]
     combined, reason = _combined(blocks)
     out: dict[str, Any] = {
         "warning": WARNING,
@@ -223,6 +253,8 @@ def _overview(start_date: str, end_date: str) -> dict:
     }
     if reason is not None:
         out["combined_reason"] = reason
+    if ctx is not None:
+        out["client_id"] = ctx.client_id
     return out
 
 

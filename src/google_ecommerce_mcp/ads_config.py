@@ -25,8 +25,35 @@ SECRET_ENV = {KEYRING_USER_META: "META_ACCESS_TOKEN", KEYRING_USER_OPENAI: "OPEN
 DEFAULT_GADS_API_VERSION = "v26"
 DEFAULT_META_API_VERSION = "v26.0"
 
-__all__ = ["ADS_SCOPE", "ADS_WRITE_CAPABLE", "KEYRING_SERVICE", "KEYRING_USER_ADS", "KEYRING_USER_META",
-           "KEYRING_USER_OPENAI", "SECRET_ENV", "AdsSettings", "get_secret"]
+# Write path (0.5.0, opt-in): global switch read at each apply, never at import. Absent or anything but "1" = off.
+WRITE_ENV_VARIABLE = "GEM_WRITE"
+# Platform names of AdsClient (error mapping); "meta_eco" = pixel, catalog, Instagram, Page on the Graph API.
+ADS_PLATFORMS = ("google_ads", "meta", "meta_eco", "openai_ads")
+# Native dry-run flag per platform, as (body key, expected value, mode) for ads_common.dry_run_validator.
+# mode DRY_RUN_EQUALS: body[key] has exactly the type and value of expected (True, never 1 nor "true");
+# mode DRY_RUN_LIST: body[key] is a LIST holding expected (Meta execution_options=["validate_only"]; the bare
+# string "validate_only" is refused).
+# OpenAI Ads: only the Bulk endpoint has validate_only; unit POSTs are validated locally (dry_run "local").
+DRY_RUN_EQUALS = "equals"
+DRY_RUN_LIST = "list_contains"
+DRY_RUN_MODES = (DRY_RUN_EQUALS, DRY_RUN_LIST)
+DRY_RUN_FLAGS = {
+    "google_ads": ("validateOnly", True, DRY_RUN_EQUALS),
+    "meta": ("execution_options", "validate_only", DRY_RUN_LIST),
+    "meta_eco": ("execution_options", "validate_only", DRY_RUN_LIST),
+    "openai_ads": ("validate_only", True, DRY_RUN_EQUALS),
+}
+
+
+def write_enabled() -> bool:
+    """True only when GEM_WRITE=1 in the environment now (the global write switch; per-client policy apart)."""
+    return os.getenv(WRITE_ENV_VARIABLE, "").strip() == "1"
+
+
+__all__ = ["ADS_PLATFORMS", "ADS_SCOPE", "ADS_WRITE_CAPABLE", "DRY_RUN_EQUALS", "DRY_RUN_FLAGS", "DRY_RUN_LIST",
+           "DRY_RUN_MODES", "KEYRING_SERVICE",
+           "KEYRING_USER_ADS", "KEYRING_USER_META", "KEYRING_USER_OPENAI", "SECRET_ENV", "WRITE_ENV_VARIABLE",
+           "AdsSettings", "get_secret", "write_enabled"]
 
 
 def _env(name: str) -> str | None:
