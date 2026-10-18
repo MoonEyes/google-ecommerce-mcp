@@ -163,14 +163,14 @@ The plan, the input contract, the colour rules, the KPI formulas and common mist
 
 ## Quick install
 
-Create your Google OAuth client first ([step 1 below](#1-google-cloud-once-about-10-minutes)), then run the installer. It installs [uv](https://docs.astral.sh/uv/) if needed, asks your ids, opens the Google consent screen and adds the server to Claude Desktop (your previous config is backed up). It installs the exact package version it was released with (`google-ecommerce-mcp==0.4.1`).
+Create your Google OAuth client first ([step 1 below](#1-google-cloud-once-about-10-minutes)), then run the installer. It installs [uv](https://docs.astral.sh/uv/) if needed, asks your ids, opens the Google consent screen and adds the server to Claude Desktop (your previous config is backed up). It installs the exact package version it was released with (`google-ecommerce-mcp==0.5.0`).
 
 **Recommended: download, read, run.** The URLs name an exact commit, not a branch, so the script cannot change under you.
 
 **Windows** (PowerShell):
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/MoonEyes/google-ecommerce-mcp/802871022bc29e78337c7b840b9a59bf95ef8cf5/install.ps1 -OutFile install.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/MoonEyes/google-ecommerce-mcp/480f7460ee7beea4e2f566c3b9120efbe53295d4/install.ps1 -OutFile install.ps1
 Get-Content .\install.ps1            # read it
 (Get-FileHash .\install.ps1 -Algorithm SHA256).Hash   # compare with the SHA-256 below
 .\install.ps1
@@ -179,7 +179,7 @@ Get-Content .\install.ps1            # read it
 **macOS / Linux**:
 
 ```bash
-curl -LsSf -o install.sh https://raw.githubusercontent.com/MoonEyes/google-ecommerce-mcp/802871022bc29e78337c7b840b9a59bf95ef8cf5/install.sh
+curl -LsSf -o install.sh https://raw.githubusercontent.com/MoonEyes/google-ecommerce-mcp/480f7460ee7beea4e2f566c3b9120efbe53295d4/install.sh
 cat install.sh                       # read it
 shasum -a 256 install.sh             # compare with the SHA-256 below
 sh install.sh
@@ -187,17 +187,17 @@ sh install.sh
 
 SHA-256 of the pinned scripts:
 
-- `install.ps1`: `4e13d71985d61793a350fe55645b70ab827ab5a789afe4f00717d8e80ff2e72f`
-- `install.sh`: `6ae0d0247a85df1236a9a01b19a060265335be7a45df0d1dd6b5b7cd986969fe`
+- `install.ps1`: `794f1b8a6ba31a5dde6baa68c61b5f7088a85ebe555b9a0856e79a7a7795d8e5`
+- `install.sh`: `d518a856546fb766eddeced1a9da210f0b54b45026bcde8d08ecaad22b00b15d`
 
 **One line, if you accept to run it without reading** (same pinned commit; this way the SHA-256 is not checked):
 
 ```powershell
-irm https://raw.githubusercontent.com/MoonEyes/google-ecommerce-mcp/802871022bc29e78337c7b840b9a59bf95ef8cf5/install.ps1 | iex
+irm https://raw.githubusercontent.com/MoonEyes/google-ecommerce-mcp/480f7460ee7beea4e2f566c3b9120efbe53295d4/install.ps1 | iex
 ```
 
 ```bash
-curl -LsSf https://raw.githubusercontent.com/MoonEyes/google-ecommerce-mcp/802871022bc29e78337c7b840b9a59bf95ef8cf5/install.sh | sh
+curl -LsSf https://raw.githubusercontent.com/MoonEyes/google-ecommerce-mcp/480f7460ee7beea4e2f566c3b9120efbe53295d4/install.sh | sh
 ```
 
 The installer has an optional **Paid media** step (Google Ads, Meta Ads, ChatGPT Ads); skip it with `--skip-ads`. It never takes a secret as an argument: Google Ads uses the browser consent (the same OAuth client file, a separate token), and the Meta token and ChatGPT Ads key are typed at a hidden prompt into the OS keyring. The Claude Desktop config only receives non-secret ids. Non-secret options: `--gads-customer-id` (exactly 10 digits, dashes allowed), `--gads-login-customer-id`, `--meta-account-id` (3 to 20 digits), and `--corporate-proxy` (sets `ADS_TRUST_ENV=1`; it is enough on its own to add it to an existing entry). All checks run before any consent or secret prompt; a conflicting value stops with exit code 3 and changes nothing, and `--force` replaces a value but never deletes a variable. With `--yes`, ChatGPT Ads is skipped (no id to give): add it interactively (`install --skip-auth`) or with `set-secret openai-ads-key`. The PageSpeed key is read from `--pagespeed-key` (not recommended: it stays in your shell history), else `PAGESPEED_API_KEY`, else a hidden prompt.
