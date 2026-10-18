@@ -483,6 +483,7 @@
     "openWorldHint": true
    },
    "params": [
+    "client_id",
     "end_date",
     "start_date"
    ]

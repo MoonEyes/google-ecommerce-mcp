@@ -1,6 +1,71 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 (date to be set at release)
+
+Multi-client, and controlled writing. **No write has been tried on a real account: everything below is tested offline only.** Writing is off by default.
+
+### Added
+
+- **Several clients in one install.** A client registry, `clients.json` (`%APPDATA%\google-ecommerce-mcp\` or `~/.config/google-ecommerce-mcp/`, or `GEM_CLIENTS_FILE`), holds each client's account ids and the names of its keyring entries, never a secret. Tools take an optional `client_id`; it is mandatory once two clients exist. `GEM_CLIENT=<id>` pins a server process to one client. Without a registry, nothing changes: one implicit client `default` built from the old environment variables and keyring entries (no migration). Guide: `docs/MULTI-CLIENT.md`.
+- **Per-client secrets** in the OS keyring (`<client>/google`, `google-w`, `gads`, `meta`, `openai`), or `GEM_SECRET_<CLIENT>_<KIND>` for CI.
+- **Commands.** `client add|list|show|remove|enable-write|disable-write|set-secret`, `approve <plan_id> [--client X]`, and, with the install code of this release, `setup --client X [--write]`, `setup-ads --client X`, `doctor [--client X]` and `quickstart`. Guide: `docs/QUICKSTART.md`.
+- **Controlled writing, one path for everything: plan, approve, apply, journal.** A `*_plan_*` tool builds the change, checks the client's policy, snapshots the current state, runs a dry run (native when the platform has one, otherwise local), and returns a diff, the risks, a signed single-use `confirmation_token` and the exact `confirm` text. Only the four `*_apply` tools write. `rollback_plan` builds a new plan that undoes an applied one. Guide: `docs/WRITE.md`.
+- **56 new tools (78 in total).**
+  - Cross-cutting: `clients_list`, `client_profile`, `client_check`, `plan_get`, `plan_list`, `audit_log`, `rollback_plan`, `gads_apply`, `meta_apply`, `openai_ads_apply`, `google_apply`.
+  - Google Ads: `gads_conversion_actions`; plans `gads_plan_pause_entities`, `gads_plan_budget_change`, `gads_plan_add_negatives`, `gads_plan_create_campaign` (Search, paused, own budget, no bidding field).
+  - Meta ads: `meta_campaigns`, `meta_adsets`, `meta_ads_list`; plans `meta_plan_pause`, `meta_plan_budget_change`, `meta_plan_create_campaign`, `meta_plan_create_adset`, `meta_plan_create_ad` (all created paused).
+  - ChatGPT Ads: `openai_ads_campaigns`, `openai_ads_ad_groups`, `openai_ads_ads`; plans `openai_ads_plan_pause`, `openai_ads_plan_budget_change`, `openai_ads_plan_create_campaign` (paused).
+  - Meta pixel, catalog, Instagram, Page: `meta_pixel_health`, `meta_dataset_quality`, `meta_catalog_diagnostics`, `meta_catalog_products`, `meta_ig_insights`, `meta_page_insights`; plan `meta_eco_plan_catalog_item_update`.
+  - GA4: `ga4_custom_definitions`, `ga4_key_events`; plans `ga4_plan_key_event_create`, `ga4_plan_custom_dimension_create`.
+  - Search Console: `gsc_sites`; plan `gsc_plan_sitemap_submit`.
+  - Merchant Center: `merchant_products`, `merchant_account_issues`; plan `merchant_plan_product_patch` (explicit update mask).
+  - Tag Manager: `gtm_workspace_status`, `gtm_get_tag`, `gtm_get_trigger`, `gtm_get_variable`, `gtm_versions`; plans `gtm_plan_workspace_create`, `gtm_plan_tag_upsert`, `gtm_plan_trigger_upsert`, `gtm_plan_variable_upsert`, `gtm_plan_quick_preview` (a non-default workspace only; nothing goes live).
+- **New settings:** `GEM_WRITE` (`1` allows writing at all), `GEM_CLIENT`, `GEM_CLIENTS_FILE`, `GEM_STATE_DIR`, `GEM_WRITE_HMAC_KEY` (CI), `GEM_LIVE_TEST`, `GEM_LANG`.
+- **Docs:** `docs/QUICKSTART.md`, `docs/WRITE.md`, `docs/MULTI-CLIENT.md`; `docs/SECURITY.md` rewritten; `docs/ARCHITECTURE.md`, `docs/TOOLS.md` (all 78 tools), `docs/ADS.md`, the setup guides and the README updated; `examples/multi-client.claude_desktop_config.json`; `tests/test_docs_fullcontrol.py` keeps the version and the tool list consistent across the docs.
+- `THIRD_PARTY_NOTICES.md` credits the open-source projects whose ideas were reused (no code was copied from them).
+
+### Changed
+
+- **Positioning.** The package is no longer described as read-only. Reading is still the default and still uses read allow-lists that contain no write endpoint; for a client whose writing is turned on, the old promise "this server cannot write" no longer holds. See `docs/SECURITY.md`.
+- **Tool annotations.** Reading tools and `*_plan_*` tools are annotated read-only. Only the four `*_apply` tools have `readOnlyHint: false` and `destructiveHint: true`, so you can set your MCP client's permissions per family. The tool list, parameters and annotations are frozen by a test (`tests/golden_tools.json`).
+- **Google Ads:** the developer token is no longer needed (Google ended developer tokens on 9 September 2026); the docs say so, and `GADS_DEVELOPER_TOKEN` stays optional and is sent only when set.
+- **Merchant Center:** the docs state that the old Content API for Shopping is shut down; only the Merchant API is used.
+- The Google write scopes (GA4 edit, Tag Manager edit, Search Console, Merchant `content`) are held by a separate token (`setup --client X --write`); the read token is never used to write.
+
+### Fixed
+
+- **ChatGPT Ads currency.** The currency is read from the account's `currency_code` first; `openai_ads_account` no longer reports it as a dropped field and `summary()` returns it.
+- **PageSpeed host.** The request now goes to `pagespeedonline.googleapis.com/pagespeedonline/v5/runPagespeed` (allow-list and tool).
+- **Search Console.** The search type is sent as `type` in the request body, `searchType` being deprecated.
+- **Google Ads access level.** `CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION` (and `ACTION_NOT_PERMITTED` on older versions) is reported as `project_not_approved`, with the fix: check the access level of the Google Cloud project, or use a test account.
+
+### Security
+
+- Writing is off by default: `GEM_WRITE=1`, plus `write.<platform>.enabled` per client, plus the account in `account_allow` and owned by the client, all re-checked at apply.
+- Spending caps (`max_daily_budget_micros` in the account currency, +20 % per 24 hours, operations per plan), creations always paused, no activation, deletion, archiving or publishing, no bids.
+- A field allow-list per action: any field not registered is refused; money-named fields need an explicit exemption.
+- Signed confirmation tokens (HMAC-SHA256, bound to the exact plan, client and platform, expire in 15 minutes by default, single use).
+- Human approval outside the chat (`google-ecommerce-mcp approve`, interactive terminal only) for plans that change spending, are irreversible, remove or archive, touch personal data or are high risk.
+- A write request leaves the process only with a grant issued by the apply step for that exact method, URL and body, through a separate `WriteAllowList` with pinned hosts and no wildcard.
+- A fail-closed journal (JSONL, private files): no journal, no write. Secrets and personal data are masked in it; text that comes from a platform is cleaned and marked `untrusted_text`.
+- Per-client isolation: an immutable context per call, ownership check on every account id, caches, plans and journals keyed by client.
+- **OAuth client file validation.** Before any consent flow or browser, every `setup`, `setup-ads` and `install` (per client and legacy, without `--client`) checks the OAuth client file: root key `installed` only (Desktop app, never `web`), `auth_uri` on `https://accounts.google.com/`, `token_uri` exactly `https://oauth2.googleapis.com/token`, `client_id` and `client_secret` present, local loopback redirects only. A hostile file (for example a `token_uri` on another host) is refused with where, why and the fix; nothing is opened nor stored. The flow is built from the validated content, never from a second read of the file. A file downloaded from Google Cloud Console is unaffected.
+- **Write consent group by group.** `install --client X [--write]` offers writing one group at a time (Google properties; with `--write` also Google Ads, Meta, ChatGPT Ads), default no, each group with its own question and the typed client name, in a real terminal only; `--yes` never skips it. `GEM_WRITE=1` is added to the Claude entry only after a consent typed in that same run, and the entry is then pinned to the exact package version. `setup --client X --write` needs an explicit `--client-secret` and a real terminal.
+- **Registry secret names are checked by kind on load.** The client `default` may only name the legacy keyring entry of the same kind (`google_read` -> `oauth-token`, `google_ads` -> `oauth-token-ads`, `meta` -> `meta-access-token`, `openai_ads` -> `openai-ads-key`; none for `google_write`): a mismatched pair makes the registry invalid (`registry_invalid`) instead of failing later on use.
+
+### Known limitations
+
+- **No write was tested on a real account.** Unconfirmed in particular: that Meta's Graph API accepts the `Authorization: Bearer` header on these write calls and honours `validate_only`; the Merchant Center update mask; that the GA4, Tag Manager, Search Console and ChatGPT Ads writes behave as documented.
+- **The terminal approval does not protect against an assistant that has a shell or file access** on your machine (a pseudo-terminal, or the signing key).
+- **The Google Ads token (`adwords`) and the ChatGPT Ads API key cannot be split into read and write.** Only this server's policy stands between the assistant and a change.
+- The write policy is a file you, or anything running as you, can edit.
+- Bids and bidding strategies are refused, which blocks some creations (for example a Meta ad set whose goal needs a bid cap).
+- `max_plan_budget_micros` cannot be used: the registry does not accept it. The plan-level ceiling is `max_daily_budget_micros` times `max_ops_per_plan`.
+- A running server keeps the credentials it has in memory until it restarts, after `client remove` or a revocation: restart the MCP client.
+- The read token of a client with Merchant Center or Indexing carries a Google write scope (`content`, `indexing`): Google has no read-only scope for them.
+- A Claude entry with writing consented is pinned to its version and receives no fix until you rerun `install --client X --write` after updating.
+- Activation, deletion, archiving, Tag Manager versions and publishing, conversion and audience uploads are not available.
+- The paid media connectors are still tested offline only.
 
 ## 0.4.1 (2026-10-17)
 

@@ -1,20 +1,20 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.MoonEyes/google-ecommerce-mcp",
-  "title": "Google E-commerce (GA4, Search Console, Merchant Center)",
-  "description": "Read-only GA4, Search Console, Merchant Center, Tag Manager, Indexing and PageSpeed for shops.",
+  "title": "Google E-commerce (GA4, Search Console, Merchant Center, Ads)",
+  "description": "Multi-client read and controlled write (off by default): GA4, GSC, Merchant, GTM, ad platforms.",
   "repository": {
     "url": "https://github.com/MoonEyes/google-ecommerce-mcp",
     "source": "github"
   },
   "websiteUrl": "https://github.com/MoonEyes/google-ecommerce-mcp",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "packages": [
     {
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "google-ecommerce-mcp",
-      "version": "0.4.1",
+      "version": "0.5.0",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"
@@ -25,6 +25,8 @@
         {"name": "MERCHANT_ACCOUNT_ID", "description": "Merchant Center account id", "isRequired": false, "format": "string", "isSecret": false},
         {"name": "GTM_CONTAINER_ID", "description": "Tag Manager container id, GTM-XXXXXXX", "isRequired": false, "format": "string", "isSecret": false},
         {"name": "PAGESPEED_API_KEY", "description": "PageSpeed Insights API key (optional)", "isRequired": false, "format": "string", "isSecret": true},
+        {"name": "GEM_CLIENT", "description": "Pin this server process to one client of the client registry (clients.json)", "isRequired": false, "format": "string", "isSecret": false},
+        {"name": "GEM_WRITE", "description": "Set to 1 to allow writing at all (off by default; each client and platform must also be enabled)", "isRequired": false, "format": "string", "isSecret": false},
         {"name": "GOOGLE_TOKEN_FILE", "description": "Store the OAuth token in this file instead of the OS keyring", "isRequired": false, "format": "string", "isSecret": false}
       ]
     }

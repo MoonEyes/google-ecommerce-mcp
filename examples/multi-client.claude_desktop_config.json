@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "google-acme": {
+      "command": "uvx",
+      "args": ["google-ecommerce-mcp"],
+      "env": {
+        "GEM_CLIENT": "acme"
+      }
+    },
+    "google-beta": {
+      "command": "uvx",
+      "args": ["google-ecommerce-mcp"],
+      "env": {
+        "GEM_CLIENT": "beta"
+      }
+    }
+  }
+}

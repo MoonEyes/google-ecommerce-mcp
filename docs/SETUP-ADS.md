@@ -2,9 +2,11 @@
 
 Connect your ad platforms one at a time, with nothing to look up elsewhere. Written for an agency or a shop manager who is not technical. Author: MoonEyes.
 
-> **Honest status: tested offline only.** The three connectors were checked against fake responses written from each platform's documentation. They have **not been run on real Google Ads, Meta or ChatGPT Ads accounts yet**. Compare your first figures with each platform's own screen. Anything this guide could not confirm is marked **(not confirmed)**; a screen name that may differ is marked **(label may differ)**. The connectors only read reports; they do not create, edit or pause anything.
+> **Honest status: tested offline only.** The three connectors were checked against fake responses written from each platform's documentation. They have **not been run on real Google Ads, Meta or ChatGPT Ads accounts yet**. Compare your first figures with each platform's own screen. Anything this guide could not confirm is marked **(not confirmed)**; a screen name that may differ is marked **(label may differ)**. By default the connectors only read reports. They can prepare changes (pause, budget, new paused campaign) only after you turn writing on for a client, see [WRITE.md](WRITE.md); no write has been tried on a real account.
 
 Official pages read on 17/10/2026 (consultation date) are listed at the [end](#sources-read-on-17102026).
+
+**Several clients?** This guide shows the single-account commands. With a client registry, add `--client <name>` to each command and use `google-ecommerce-mcp client set-secret <name> meta|openai` for the Meta token and the ChatGPT Ads key: see [MULTI-CLIENT.md](MULTI-CLIENT.md) and [QUICKSTART.md](QUICKSTART.md).
 
 ## 0. At a glance
 
@@ -64,7 +66,7 @@ Exit code: `0` all fine, `1` a configured service needs fixing, `2` nothing conf
 - A Google Cloud project with the **Google Ads API** turned on.
 - An OAuth client of type **Desktop app**, downloaded as a JSON file. Steps in [SETUP-GOOGLE-CLOUD.md](SETUP-GOOGLE-CLOUD.md) (about 10 minutes, once).
 - The manager id too, only if you reach the account through an MCC.
-- A developer token is **optional** (see below).
+- No developer token: Google ended them on 9 September 2026 (see below). Check the access level of your Google Cloud project instead.
 
 ### Ask your client for access
 
@@ -101,7 +103,7 @@ Exit code: `0` all fine, `1` a configured service needs fixing, `2` nothing conf
 |---|---|---|
 | Customer id | `123-456-7890` (dashes accepted) | Top right of Google Ads |
 | Manager id (`login-customer-id`) | `987-654-3210` | Top right when signed in to the manager account |
-| Developer token (optional) | not needed | Only if you already have one: set `GADS_DEVELOPER_TOKEN` |
+| Developer token | does not exist any more | Not needed since 9 September 2026. If you still set `GADS_DEVELOPER_TOKEN` it is sent and ignored by Google |
 
 Google's page on call structure says the manager id must be sent without dashes when access goes through a manager account; this server removes dashes for you.
 
@@ -130,8 +132,9 @@ More: [TROUBLESHOOTING.md](TROUBLESHOOTING.md#doctor-says).
 
 ### What this access can and cannot do
 
-- The consent asks for the `adwords` scope. **That scope can write, and Google offers no read-only version.** This server only sends read requests (checked by an allow-list in the code), but whoever steals the token could change the account. That is why it is stored in its own keyring entry (`oauth-token-ads`), apart from your other Google token. Read-only access given by your client in Google Ads narrows what the signed-in user can see (the client's choice), but the scope itself stays broad.
-- Developer token: Google's page states developer tokens were sunset on 9 September 2026; sending one is optional and ignored, and the access level now belongs to the Google Cloud project, with Test access as the default for a project without a transferred level. What your own project's level allows for real accounts: **(not confirmed)**.
+- The consent asks for the `adwords` scope. **That scope can write, and Google offers no read-only version.** This server only sends read requests unless you turn writing on for the client (the reads are checked by an allow-list in the code), and the same token is used for both, so whoever steals the token could change the account. That is why it is stored in its own keyring entry (`oauth-token-ads`), apart from your other Google token. Read-only access given by your client in Google Ads narrows what the signed-in user can see (the client's choice), but the scope itself stays broad.
+- No developer token: Google's page states developer tokens were sunset on 9 September 2026; sending one is ignored, and the access level now belongs to the Google Cloud project, with Test access as the default for a project without a transferred level. A call refused for that reason comes back as `project_not_approved`: ask Google for a higher level for the project, or use a test account. What your own project's level allows for real accounts: **(not confirmed)**.
+- Writing: if you turn it on for this client ([WRITE.md](WRITE.md)), the same token can prepare pauses, daily budget changes, negative keywords and one new paused Search campaign. Nothing is activated or deleted, every change is a plan you approve, and it has not been tried on a real account.
 
 ### How to revoke
 
@@ -211,7 +214,7 @@ The row must read: Meta Ads, Set up `yes`, Secret `yes`, Token `ok`, Live `ok`, 
 
 ### What this access can and cannot do
 
-- `ads_read` lets an app read ad reports for accounts it owns or was granted. `ads_management` would also manage ads; do not ask for it. Meta documents that a Business app gets standard access automatically and needs App Review for advanced access when it serves other people's accounts. Which one you need for a client account: **(not confirmed)**.
+- `ads_read` lets an app read ad reports for accounts it owns or was granted. `ads_management` would also manage ads; do not ask for it unless you turn writing on for this client ([WRITE.md](WRITE.md)), where it is required. Meta documents that a Business app gets standard access automatically and needs App Review for advanced access when it serves other people's accounts. Which one you need for a client account: **(not confirmed)**.
 - A system user token can be long-lived: treat it like a password.
 
 ### How to revoke
@@ -277,7 +280,7 @@ The row must read: ChatGPT Ads, Set up `yes`, Secret `yes`, Token `ok`, Live `ok
 
 ### What this access can and cannot do
 
-- **Whether a key can be limited to reading is not confirmed.** Assume it can change campaigns and budgets. This server only sends the read requests on its allow-list, but a leaked key is not limited by that. Use a dedicated key and keep it out of shared configs.
+- **Whether a key can be limited to reading is not confirmed.** Assume it can change campaigns and budgets. This server only sends the read requests on its allow-list unless you turn writing on for the client, and the same key is used for both. A leaked key is not limited by that. Use a dedicated key and keep it out of shared configs.
 - The host is fixed in the code (`api.ads.openai.com`): the key cannot be sent anywhere else.
 
 ### How to revoke
@@ -293,9 +296,10 @@ The row must read: ChatGPT Ads, Set up `yes`, Secret `yes`, Token `ok`, Live `ok
 |---|---|---|---|
 | Doctor name | `gads` | `meta` | `openai` |
 | Ids (environment variables) | `GADS_CUSTOMER_ID`, `GADS_LOGIN_CUSTOMER_ID` (manager only) | `META_AD_ACCOUNT_ID` | none |
-| Secret | OAuth token (scope `adwords`), optional `GADS_DEVELOPER_TOKEN` | `META_ACCESS_TOKEN` | `OPENAI_ADS_API_KEY` |
+| Secret | OAuth token (scope `adwords`), no developer token | `META_ACCESS_TOKEN` | `OPENAI_ADS_API_KEY` |
 | Where the secret lives | Keyring entry `oauth-token-ads`, or file `GADS_TOKEN_FILE` | Keyring entry `meta-access-token` | Keyring entry `openai-ads-key` |
 | Store the secret | `setup-ads --client-secret <client_secret.json>` | `set-secret meta-access-token` | `set-secret openai-ads-key` |
+| Same, per client | `setup-ads --client <name> --client-secret <file>` | `client set-secret <name> meta` | `client set-secret <name> openai` |
 | Register the id | `install --yes --skip-auth --gads-customer-id <customer id>` | `install --yes --skip-auth --meta-account-id <ad account id>` | not needed |
 | Test | `doctor --only gads --live` | `doctor --only meta --live` | `doctor --only openai --live` |
 | Files | `client_secret...json` (yours), optional token file | none | none |
@@ -320,7 +324,7 @@ Platforms count conversions independently, so the sum of the three is not your n
 
 ## Sources read on 17/10/2026
 
-- Google Ads developer token (sunset 9 September 2026, optional, access levels per Cloud project): <https://developers.google.com/google-ads/api/docs/api-policy/developer-token>
+- Google Ads developer token (sunset 9 September 2026, access levels per Cloud project): <https://developers.google.com/google-ads/api/docs/api-policy/developer-token>
 - Google Ads call structure (`login-customer-id`, no hyphens, required via a manager): <https://developers.google.com/google-ads/api/docs/concepts/call-structure>
 - Meta Marketing API authorization (`ads_read`, `ads_management`, standard and advanced access, system user limits): <https://developers.facebook.com/docs/marketing-api/overview/authorization>
 - Meta system users (created in Business Manager; menu names not given): <https://developers.facebook.com/docs/marketing-api/system-users>

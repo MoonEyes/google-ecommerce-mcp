@@ -119,6 +119,10 @@ _MESSAGES = {
                     "  {what}:{pad}google-ecommerce-mcp client set-secret {name} {kind}"),
     "next_check": ("  Vérifier :         google-ecommerce-mcp client show {name}",
                    "  Check:            google-ecommerce-mcp client show {name}"),
+    "next_doctor": ("  Tester :           google-ecommerce-mcp doctor --client {name}",
+                    "  Test:             google-ecommerce-mcp doctor --client {name}"),
+    "next_all": ("  Ou tout en une fois (autorisation + Claude Desktop) : google-ecommerce-mcp install --client {name}",
+                 "  Or all at once (authorization + Claude Desktop): google-ecommerce-mcp install --client {name}"),
     "no_registry": ("Mode historique (pas de registre {path}) : un seul client implicite « default », bâti sur "
                     "les variables d'environnement.",
                     "Legacy mode (no registry {path}): one implicit client \"default\", built from the environment "
@@ -387,6 +391,8 @@ def _print_next_steps(name: str, accounts: dict) -> None:
     if accounts.get("openai_ads"):
         print(_t("next_secret", what="ChatGPT Ads", pad=" " * (17 - len("ChatGPT Ads")), name=name, kind="openai"))
     print(_t("next_check", name=name))
+    print(_t("next_doctor", name=name))
+    print(_t("next_all", name=name))
 
 
 def _cmd_list(_: argparse.Namespace) -> int:
@@ -532,7 +538,10 @@ def _cmd_set_secret(args: argparse.Namespace) -> int:
                                          name=None if ctx.legacy else ctx._secret_names.get(kind))
     except Exception as exc:  # no keyring backend: never echo the value
         return _err(ClientError("registry_invalid", f"keyring: could not store {kind} ({type(exc).__name__}).",
-                                f"set {secrets_store.env_name(ctx.client_id, kind)} in the MCP server env instead"))
+                                "make the OS keyring available and rerun `google-ecommerce-mcp client set-secret "
+                                f"{ctx.client_id} {kind}` (recommended). LAST RESORT only: "
+                                f"{secrets_store.env_name(ctx.client_id, kind)} in the MCP server env holds the "
+                                "value IN CLEAR TEXT in the Claude config file"))
     print(_t("secret_stored", where=where))
     return 0
 

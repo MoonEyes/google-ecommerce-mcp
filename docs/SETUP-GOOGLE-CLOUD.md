@@ -18,7 +18,7 @@ You need your **own** OAuth client. It takes about 10 minutes, once. Nothing her
 | Merchant API | `merchant_*` tools |
 | Tag Manager API | `gtm_inventory` |
 | Web Search Indexing API | `indexing_status` |
-| PageSpeed Insights API | `pagespeed` (only if you create an API key) |
+| PageSpeed Insights API | `pagespeed` (only if you create an API key; the server calls `pagespeedonline.googleapis.com`) |
 
 ## 3. Configure the OAuth consent screen
 
@@ -52,7 +52,7 @@ Easiest: run the one-line installer from the [README](../README.md#quick-install
 uvx google-ecommerce-mcp setup --client-secret ~/Downloads/client_secret_XXXX.json --with-merchant
 ```
 
-Only read-only scopes are requested by default. Add `--with-merchant` if you use Merchant Center and `--with-indexing` if you need `indexing_status`: Google has no read-only scope for these two.
+Only read-only scopes are requested by default. Scopes that can write (for GA4, Tag Manager, Search Console and Merchant Center) are requested only by a separate command, `setup --client <name> --write`, and only if you decide to let the assistant prepare changes ([WRITE.md](WRITE.md)); the Merchant API itself replaces the old Content API for Shopping, which Google has shut down. Add `--with-merchant` if you use Merchant Center and `--with-indexing` if you need `indexing_status`: Google has no read-only scope for these two.
 
 Sign in with the Google account that has access to your GA4 property, Search Console property, Merchant Center account and GTM container, and tick every scope listed on the consent screen. The token goes to your OS keyring.
 
@@ -82,7 +82,7 @@ Only if you want the Google Ads, Meta Ads or ChatGPT Ads tools. Full guide: [ADS
 1. **Enable the API.** In the **same** Cloud project, **APIs & Services > Library**, enable **Google Ads API**.
 2. **OAuth client.** Create an OAuth client of type **Desktop app** (step 4). It can be the same client as for the other services; the Google Ads token stays separate from the read-only token anyway, because the Google Ads permission can write and cannot be limited.
 3. **Consent screen.** Audience **External**, and add the Google account that manages the Google Ads account as a **test user**. While the app is in *Testing*, the token expires after **7 days**. Putting the app *In production* avoids that, and for your own use Google has not required verification in the past (check Google's current rules).
-4. **Developer token: optional.** Since 9 September 2026 Google no longer requires a developer token for the Google Ads API ([Google's developer token policy](https://developers.google.com/google-ads/api/docs/api-policy/developer-token)). Leave `GADS_DEVELOPER_TOKEN` unset unless you have one.
+4. **No developer token.** Since 9 September 2026 Google no longer uses developer tokens for the Google Ads API ([Google's developer token policy](https://developers.google.com/google-ads/api/docs/api-policy/developer-token)): do not apply for one, and leave `GADS_DEVELOPER_TOKEN` unset. What counts now is the access level of this Cloud project (test, Explorer, Basic or Standard). A call refused for that reason is reported as `project_not_approved`.
 5. **Ids.** `GADS_CUSTOMER_ID` is the 10-digit customer id shown at the top of Google Ads (dashes are accepted). If you reach the account through a manager (MCC) account, also set `GADS_LOGIN_CUSTOMER_ID` to the manager's id.
 6. **Authorize and check:**
 

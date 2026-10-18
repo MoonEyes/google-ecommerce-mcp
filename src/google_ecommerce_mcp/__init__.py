@@ -1,3 +1,3 @@
-"""google-ecommerce-mcp: read-only MCP server for the Google services an online shop relies on."""
+"""google-ecommerce-mcp: multi-client MCP server for an online shop: reading by default, controlled writing on request."""
 
-__version__ = "0.4.1"
+__version__ = "0.5.0"

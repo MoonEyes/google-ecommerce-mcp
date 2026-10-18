@@ -5,6 +5,11 @@ Desktop config, as the server sees it at run time), checks that each secret is p
 stored tokens hold the right scopes, the Google Ads token being kept apart from the read-only Google token.
 --live: one small read per service through the existing tools (short timeout), errors translated into advice.
 
+With a client registry (clients.json), or --client: one compact line per client and platform (ids configured,
+read token, separate write token, write switch of the client's policy, status, masked id, next command), every
+client of the registry unless --client filters it; GEM_WRITE / GEM_CLIENT of the Claude Desktop entry are checked
+too. Without a registry and without --client (or with --client default) the single-account output is unchanged.
+
 Never printed: a secret, a token, a full account id (masked as 123***890), a URL returned by a platform, an error
 detail sent back by a platform (it may contain ids). Exit code: 0 when everything configured works, 1 when
 something configured needs fixing, 2 when nothing is configured."""
@@ -698,17 +703,359 @@ def parse_only(text: str | None) -> tuple[str, ...]:
     return tuple(s for s in guide.SERVICE_IDS if s in wanted)
 
 
+# ------------------------------------------------------------------ multi-client mode (registry)
+# (platform of the registry, doctor service id, display name)
+CLIENT_PLATFORMS = (("ga4", "ga4", "GA4"), ("gsc", "gsc", "Search Console"), ("merchant", "merchant", "Merchant"),
+                    ("gtm", "gtm", "Tag Manager"), ("google_ads", "gads", "Google Ads"), ("meta", "meta", "Meta Ads"),
+                    ("openai_ads", "openai", "ChatGPT Ads"))
+# A write token holding one of these scopes can write the platform (GA4 also accepts the full analytics scope).
+ACCEPTED_WRITE_SCOPES = {"ga4": ("https://www.googleapis.com/auth/analytics.edit",
+                                 "https://www.googleapis.com/auth/analytics"),
+                         "gtm": ("https://www.googleapis.com/auth/tagmanager.edit.containers",),
+                         "gsc": ("https://www.googleapis.com/auth/webmasters",),
+                         "merchant": (MERCHANT_SCOPE,)}
+CLIENT_ENV = ("GEM_CLIENT", "GEM_WRITE", "GEM_CLIENTS_FILE", "GEM_STATE_DIR")
+
+
+@dataclass
+class ClientRow:
+    """One client x one platform. Booleans, token states and a masked id only: never a secret nor a full id."""
+
+    client_id: str
+    platform: str
+    name: str
+    configured: bool = False
+    account: str = ""
+    read_token: str = "-"
+    write_token: str = "-"
+    write_enabled: bool = False
+    status: str = NOT_SET_UP
+    problem: str = ""
+    next_step: str = ""
+    live: str = ""
+
+    def fix(self, problem: str, next_step: str) -> "ClientRow":
+        self.status, self.problem, self.next_step = FIX, problem, next_step
+        return self
+
+
+def _client_secret(ctx: Any, kind: str, seen: list[str]) -> tuple[str | None, str | None]:
+    """(value, error kind) of one secret of the client; the value is only kept to be redacted from the output."""
+    try:
+        value = ctx.secret(kind)
+    except Exception as exc:  # no keyring backend, locked keychain
+        return None, type(exc).__name__
+    if value:
+        seen.append(value)
+    return value, None
+
+
+def _token_state(raw: str | None, error: str | None, wanted: tuple[str, ...]) -> str:
+    if error:
+        return "unreadable"
+    if not raw:
+        return "missing"
+    scopes = _scopes_of(raw)
+    if scopes is None:
+        try:
+            json.loads(raw)
+        except ValueError:
+            return "unreadable"
+        return "ok"
+    return "ok" if any(s in scopes for s in wanted) else "scope"
+
+
+def _primary_account(ctx: Any, platform: str) -> str:
+    from .clients import mask_id
+
+    values = ctx.accounts(platform)
+    for key in ("property_id", "site_url", "account_id", "public_id", "customer_id", "ad_account_id"):
+        if values.get(key):
+            return mask_id(values[key])
+    return mask_id(next(iter(values.values()))) if values else ""
+
+
+def client_rows(ctx: Any, platforms: tuple[str, ...] | None = None, seen: list[str] | None = None) -> list[ClientRow]:
+    """Offline rows of one client: ids configured, read token, write token, write switch, next command."""
+    seen = seen if seen is not None else []
+    cid = ctx.client_id
+    google_raw, google_err = _client_secret(ctx, "google", seen)
+    write_raw, write_err = (None, None) if ctx.legacy else _client_secret(ctx, "google-w", seen)
+    indexing = INDEXING_SCOPE in (_scopes_of(google_raw) or [])
+    rows: list[ClientRow] = []
+    for platform, service, name in CLIENT_PLATFORMS:
+        if platforms is not None and platform not in platforms:
+            continue
+        row = ClientRow(cid, platform, name, configured=bool(ctx.accounts(platform)))
+        row.account = _primary_account(ctx, platform)
+        row.write_enabled = bool(ctx.policy(platform).enabled) or (
+            platform == "meta" and bool(ctx.policy("meta_eco").enabled))
+        if platform in GOOGLE_SCOPE:
+            row.read_token = _token_state(google_raw, google_err, (GOOGLE_SCOPE[platform],))
+            read_fix = guide.client_setup_command(cid, indexing=indexing)
+            if not ctx.legacy:
+                row.write_token = _token_state(write_raw, write_err, ACCEPTED_WRITE_SCOPES[platform])
+                if write_raw and write_raw == google_raw:
+                    row.write_token = "not separate"
+        elif platform == "google_ads":
+            raw, err = _client_secret(ctx, "gads", seen)
+            row.read_token = _token_state(raw, err, (ADS_SCOPE,))
+            if raw and raw in (google_raw, write_raw):
+                row.read_token = "not separate"
+            row.write_token = "=read" if row.read_token == "ok" else "-"
+            read_fix = guide.client_setup_ads_command(cid)
+        else:
+            kind = guide.SECRET_KIND[platform]
+            raw, err = _client_secret(ctx, kind, seen)
+            row.read_token = "unreadable" if err else ("ok" if raw else "missing")
+            row.write_token = "=read" if raw else "-"
+            read_fix = guide.client_secret_command(cid, kind)
+        if not row.configured:
+            row.read_token = row.read_token if row.read_token == "ok" else "-"
+            row.write_token = row.write_token if row.write_token in ("ok", "=read") else "-"
+            row.next_step = "-" if ctx.legacy else guide.client_add_command(cid, replace=True)
+            rows.append(row)
+            continue
+        if row.read_token == "unreadable":
+            row.fix("the stored token cannot be read", read_fix)
+        elif row.read_token == "missing":
+            row.fix("no token stored for this client yet", read_fix)
+        elif row.read_token == "scope":
+            row.fix("the client's token does not include this platform", read_fix)
+        elif row.read_token == "not separate":
+            row.fix("the Google Ads token is a copy of another Google token", read_fix)
+        elif row.write_enabled and platform in GOOGLE_SCOPE and row.write_token != "ok":
+            row.fix(f"writing is enabled but the separate write token is {row.write_token}",
+                    guide.client_setup_command(cid, write=True))
+        else:
+            row.status = OK
+            row.next_step = "-"
+        if not row.write_enabled and row.write_token == "missing":
+            row.write_token = "-"  # writing off: no write token is expected
+        rows.append(row)
+    return rows
+
+
+def _client_live(rows: list[ClientRow], env: dict[str, str]) -> None:
+    """One small read per OK row, with the row's client_id (never another client's)."""
+    from . import google_ads, meta_ads, openai_ads, server
+
+    calls: dict[str, Callable[[str], dict]] = {
+        "ga4": lambda c: server.ga4_properties(max_pages=1, client_id=c),
+        "gsc": lambda c: server.gsc_sitemaps(client_id=c),
+        "merchant": lambda c: server.merchant_data_sources(client_id=c),
+        "gtm": lambda c: server.gtm_inventory(client_id=c),
+        "google_ads": lambda c: google_ads.gads_accounts(client_id=c),
+        "meta": lambda c: meta_ads.meta_ad_accounts(client_id=c),
+        "openai_ads": lambda c: openai_ads.openai_ads_account(client_id=c),
+    }
+    targets = [r for r in rows if r.status == OK]
+    if not targets:
+        return
+    service_of = {p: s for p, s, _ in CLIENT_PLATFORMS}
+    with applied_env(env):
+        for row in targets:
+            try:
+                result = calls[row.platform](row.client_id)
+            except Exception as exc:  # never crash the doctor on a tool bug
+                result = {"error": "internal_error", "kind": type(exc).__name__}
+            if not isinstance(result, dict):
+                result = {"error": "internal_error"}
+            if "error" not in result:
+                row.live = "ok"
+                continue
+            row.live = str(result.get("error"))
+            problem, command = advice(service_of[row.platform], result, env)
+            if command.startswith((f"{guide.CLI} setup", f"{guide.CLI} set-secret")):
+                command = {"google_ads": guide.client_setup_ads_command(row.client_id),
+                           "meta": guide.client_secret_command(row.client_id, "meta"),
+                           "openai_ads": guide.client_secret_command(row.client_id, "openai")}.get(
+                    row.platform, guide.client_setup_command(row.client_id))
+            elif command.startswith(f"{guide.CLI} install"):
+                command = guide.client_add_command(row.client_id, replace=True)
+            elif command.startswith(f"{guide.CLI} doctor"):
+                command = guide.client_doctor_command(row.client_id, live=True)
+            row.fix(problem, command)
+
+
+def _client_warnings(contexts: list[Any], rows: list[ClientRow], entry_env: dict[str, str], registered: bool,
+                     config_problem: str, known: list[str]) -> list[str]:
+    out: list[str] = []
+    first = contexts[0].client_id if contexts else guide.CLIENT
+    if config_problem:
+        out.append(f"{config_problem}: the server entry could not be checked")
+    elif not registered:
+        out.append(f"the server is not registered in Claude Desktop yet: run `{guide.client_install_command(first)}`")
+    pinned = (entry_env.get("GEM_CLIENT") or "").strip().lower()
+    if pinned and pinned not in known:
+        out.append(f"the Claude Desktop entry is pinned (GEM_CLIENT) to a client that is not in the registry: "
+                   f"run `{guide.client_install_command(first)} --pin --force`")
+    if len(known) >= 2 and not pinned:
+        out.append(f"{len(known)} clients registered: every tool call names its client_id (or pin a server entry "
+                   "with GEM_CLIENT)")
+    writing = sorted({r.client_id for r in rows if r.write_enabled})
+    if writing and entry_env.get("GEM_WRITE") != "1":
+        out.append(f"writing is enabled for {', '.join(writing)} but GEM_WRITE=1 is not in the server entry: write "
+                   f"plans are refused (`{guide.client_install_command(writing[0], skip_auth=True, write=True)}`)")
+    legacy_ids = sorted(k for k in GOOGLE_ENV[:4] + ("GADS_CUSTOMER_ID", "META_AD_ACCOUNT_ID") if entry_env.get(k))
+    if legacy_ids and contexts and not contexts[0].legacy:
+        out.append(f"{', '.join(legacy_ids)} in the server entry are ignored now that a client registry exists")
+    plain = sorted(v for v in ("META_ACCESS_TOKEN", "OPENAI_ADS_API_KEY", "GADS_DEVELOPER_TOKEN") if entry_env.get(v))
+    if plain:
+        out.append(f"{', '.join(plain)} is written in plain text in the Claude Desktop config: store it with "
+                   f"`{guide.client_secret_command(first, 'meta')}` (or openai) and delete it from the config")
+    return out
+
+
+def client_exit_code(rows: list[ClientRow]) -> int:
+    configured = [r for r in rows if r.configured]
+    if not configured:
+        return 2
+    return 1 if any(r.status == FIX for r in configured) else 0
+
+
+def diagnose_clients(contexts: list[Any], platforms: tuple[str, ...] | None, env: dict[str, str],
+                     entry_env: dict[str, str] | None = None, registered: bool = True, config_problem: str = "",
+                     run_live: bool = False, known: list[str] | None = None) -> tuple[dict, list[str]]:
+    """(result as data, secret values seen: to redact). Never a secret value nor a full id in the result."""
+    seen: list[str] = []
+    entry_env = entry_env or {}
+    rows: list[ClientRow] = []
+    for ctx in contexts:
+        rows.extend(client_rows(ctx, platforms, seen))
+    if run_live:
+        _client_live(rows, env)
+    known = known if known is not None else [c.client_id for c in contexts]
+    clients_out = []
+    for ctx in contexts:
+        mine = [asdict(r) for r in rows if r.client_id == ctx.client_id]
+        clients_out.append({"client_id": ctx.client_id, "legacy": ctx.legacy, "sandbox": ctx.sandbox,
+                            "pinned_in_claude": (entry_env.get("GEM_CLIENT") or "").strip().lower() == ctx.client_id,
+                            "rows": mine})
+    result = {"mode": "live" if run_live else "offline", "multi_client": True,
+              "claude_desktop": {"registered": registered, "gem_write": entry_env.get("GEM_WRITE") == "1"},
+              "clients": clients_out,
+              "warnings": _client_warnings(contexts, rows, entry_env, registered, config_problem, known),
+              "exit_code": client_exit_code(rows)}
+    return result, seen
+
+
+def _short(state: str) -> str:
+    return {"not separate": "shared", "unreadable": "bad"}.get(state, state)
+
+
+def render_clients(result: dict) -> str:
+    """Compact table: one line per client and platform, then what to run next."""
+    live_mode = result["mode"] == "live"
+    n = len(result["clients"])
+    lines = [f"{guide.CLI} doctor ({n} client{'s' if n != 1 else ''}, "
+             + ("live test)" if live_mode else "offline check; add --live to test each platform)"), ""]
+    header = (f"{'Client':<14}{'Platform':<16}{'Ids':<5}{'Read':<9}{'Write':<9}{'On':<5}"
+              + (f"{'Live':<14}" if live_mode else "") + f"{'Status':<12}{'Account':<19}Next")
+    lines += [header, "-" * len(header)]
+    todo = []
+    for client in result["clients"]:
+        for r in client["rows"]:
+            lines.append(f"{r['client_id'][:13]:<14}{r['name']:<16}{_yes(r['configured']):<5}"
+                         f"{_short(r['read_token']):<9}{_short(r['write_token']):<9}"
+                         f"{('on' if r['write_enabled'] else 'off'):<5}"
+                         + (f"{(r['live'] or '-')[:13]:<14}" if live_mode else "")
+                         + f"{_LABEL[r['status']]:<12}{(r['account'] or '-')[:18]:<19}"
+                         + (r["next_step"] if r["status"] == FIX else "-"))
+            if r["status"] == FIX:
+                todo.append(r)
+    if todo:
+        # One step per (client, command): the four Google platforms of a client share one consent.
+        grouped: dict[tuple[str, str], list[dict]] = {}
+        for r in todo:
+            grouped.setdefault((r["client_id"], r["next_step"]), []).append(r)
+        lines += ["", "To fix (one at a time, then run the check again):"]
+        for number, ((cid, command), group) in enumerate(grouped.items(), 1):
+            names = ", ".join(r["name"] for r in group)
+            problems = "; ".join(dict.fromkeys(r["problem"] for r in group))
+            lines += [f"  {number}. {cid} / {names}: {problems}", f"     {command}"]
+    if result["warnings"]:
+        lines += ["", "Warnings:"] + [f"  - {w}" for w in result["warnings"]]
+    rows = [r for c in result["clients"] for r in c["rows"]]
+    ok = sum(1 for r in rows if r["status"] == OK)
+    later = sum(1 for r in rows if r["status"] == NOT_SET_UP)
+    lines += ["", f"Result: {ok} OK, {len(todo)} to fix, {later} not set up."]
+    code = result["exit_code"]
+    first = result["clients"][0]["client_id"] if result["clients"] else guide.CLIENT
+    if code == 2:
+        lines.append(f"Nothing is set up yet. Start with: {guide.client_add_command(first, replace=True)}")
+    elif code == 1:
+        lines.append(f"Next command: {todo[0]['next_step']}")
+    elif not live_mode:
+        lines.append(f"Next command: {guide.client_doctor_command(first, live=True)}" if n == 1
+                     else f"Next command: {guide.CLI} doctor --live")
+    return "\n".join(lines)
+
+
+def _client_platforms(text: str | None) -> tuple[str, ...] | None:
+    if text is None:
+        return None
+    services = parse_only(text)
+    by_service = {s: p for p, s, _ in CLIENT_PLATFORMS}
+    return tuple(by_service[s] for s in services if s in by_service)
+
+
+def _run_clients(args: Any, data: dict | None, entry_env: dict[str, str], registered: bool, problem: str,
+                 env: dict[str, str]) -> int:
+    from . import clients
+
+    wanted = (getattr(args, "client", None) or "").strip().lower() or None
+    try:
+        platforms = _client_platforms(getattr(args, "only", None))
+    except ValueError as exc:
+        print(str(exc))
+        return 2
+    if data is None:
+        contexts = [clients._legacy_context()]
+        known = [clients.LEGACY_CLIENT_ID]
+    else:
+        known = sorted(data["clients"])
+        if wanted and wanted not in known:
+            exc = clients._unknown(wanted, known)
+            print(f"Error [{exc.code}]: {exc.detail}\n  Fix: {exc.fix}")
+            return 2
+        contexts = [clients._context_from_entry(cid, data["clients"][cid]) for cid in known
+                    if not wanted or cid == wanted]
+    result, seen = diagnose_clients(contexts, platforms, env, entry_env, registered, problem,
+                                    run_live=bool(getattr(args, "live", False)), known=known)
+    result = redact(result, seen + _secrets(env))
+    if getattr(args, "json", False):
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        print(render_clients(result))
+    return int(result["exit_code"])
+
+
 def run(args: Any) -> int:
     from .installer import claude_desktop_config_path
 
+    config = getattr(args, "config", None)
+    config_path = Path(config).expanduser() if config else claude_desktop_config_path()
+    entry_env, registered, problem = claude_entry_env(config_path, getattr(args, "name", None) or SERVER_NAME)
+    wanted = (getattr(args, "client", None) or "").strip().lower() or None
+    from . import clients
+
+    try:
+        data = clients.load_registry()
+    except clients.ClientError as exc:
+        print(f"Error [{exc.code}]: {exc.detail}\n  Fix: {exc.fix}")
+        return 1
+    if data is not None or (wanted and wanted != clients.LEGACY_CLIENT_ID):
+        if data is None:
+            print(f"Error [unknown_client]: no client registry ({clients.registry_path()}); only the implicit "
+                  f"client 'default' exists.\n  Fix: {guide.client_add_command(wanted)}")
+            return 2
+        return _run_clients(args, data, entry_env, registered, problem, effective_env(entry_env))
     try:
         services = parse_only(getattr(args, "only", None))
     except ValueError as exc:
         print(str(exc))
         return 2
-    config = getattr(args, "config", None)
-    config_path = Path(config).expanduser() if config else claude_desktop_config_path()
-    entry_env, registered, problem = claude_entry_env(config_path, getattr(args, "name", None) or SERVER_NAME)
     env = effective_env(entry_env)
     result = diagnose(services, env, entry_env, registered, problem, run_live=bool(getattr(args, "live", False)))
     result = redact(result, _secrets(env))

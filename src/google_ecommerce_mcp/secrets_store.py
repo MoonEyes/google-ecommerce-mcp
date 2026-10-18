@@ -25,7 +25,7 @@ import re
 from pathlib import Path
 
 __all__ = ["KINDS", "PASTEABLE_KINDS", "LEGACY_KEYRING_USERS", "SecretError", "env_name", "keyring_user",
-           "get_secret", "set_secret", "delete_client_secrets", "valid_secret_name"]
+           "get_secret", "set_secret", "delete_client_secrets", "valid_secret_name", "legacy_pair_ok"]
 
 SERVICE = "google-ecommerce-mcp"  # same as config.KEYRING_SERVICE (kept literal: no heavy import here)
 KINDS = ("google", "google-w", "gads", "meta", "openai", "meta-capi", "pagespeed")
@@ -60,13 +60,29 @@ def env_name(client_id: str, kind: str) -> str:
     return "GEM_SECRET_" + client_id.upper().replace("-", "_") + "_" + kind.upper().replace("-", "_")
 
 
-def valid_secret_name(client_id: str, name: str) -> bool:
+# The only legacy entry each kind of the client "default" may point at (google-w, meta-capi, pagespeed: none).
+LEGACY_PAIRS = {kind: user for kind, (user, _, _) in _LEGACY.items() if user}
+
+
+def legacy_pair_ok(client_id: str, kind: str | None, name: str) -> bool:
+    """True when name is not a legacy entry, or is the legacy entry of exactly this kind for the client "default"
+    (google -> oauth-token, gads -> oauth-token-ads, meta -> meta-access-token, openai -> openai-ads-key).
+    kind=None (caller without the kind): any legacy entry of "default" passes, the per-kind check happens when the
+    secret is read or written."""
+    if name not in LEGACY_KEYRING_USERS:
+        return True
+    if client_id != LEGACY_CLIENT:
+        return False
+    return kind is None or LEGACY_PAIRS.get(kind) == name
+
+
+def valid_secret_name(client_id: str, name: str, kind: str | None = None) -> bool:
     """A registry secret name must belong to its client: "<client_id>/<something>". Only "default" may also
-    name a legacy entry (oauth-token, oauth-token-ads, meta-access-token, openai-ads-key)."""
+    name a legacy entry, and only the one of the same kind (see legacy_pair_ok); never for google-w."""
     if not isinstance(name, str):
         return False
-    if client_id == LEGACY_CLIENT and name in LEGACY_KEYRING_USERS:
-        return True
+    if name in LEGACY_KEYRING_USERS:
+        return legacy_pair_ok(client_id, kind, name)
     return bool(_NAME_RE.match(name)) and name.split("/", 1)[0] == client_id
 
 
@@ -121,6 +137,8 @@ def get_secret(client_id: str, kind: str, *, legacy: bool = False, name: str | N
     value = _env(env_name(client_id, kind))
     if value:
         return value
+    if name and not legacy_pair_ok(client_id, kind, name):  # e.g. google-w -> oauth-token: never read
+        return None
     user = keyring_user(client_id, kind, name=name)
     if client_id == LEGACY_CLIENT and user in _LEGACY_BY_USER:  # registry "default" kept on the legacy entries
         env, file_env = _LEGACY_BY_USER[user]
@@ -139,6 +157,9 @@ def set_secret(client_id: str, kind: str, value: str, *, legacy: bool = False, n
     value = (value or "").strip()
     if not value:
         raise SecretError("empty secret: nothing stored")
+    if not legacy and name and not legacy_pair_ok(client_id, kind, name):
+        raise SecretError(f"the registry maps {kind!r} of client {client_id!r} to the legacy entry {name!r} of "
+                          "another kind: nothing stored. Fix the client's \"secrets\" in the registry")
     user = keyring_user(client_id, kind, legacy=legacy, name=name)
     import keyring
 

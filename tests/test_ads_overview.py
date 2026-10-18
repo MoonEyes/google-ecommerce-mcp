@@ -266,7 +266,8 @@ def test_register_declares_read_only_documented_tool():
     assert tool.title and len(tool.description) > 60
     assert tool.annotations.readOnlyHint is True and tool.annotations.destructiveHint is False
     props = tool.inputSchema["properties"]
-    assert set(props) == {"start_date", "end_date"}
+    assert set(props) == {"start_date", "end_date", "client_id"}
+    assert set(tool.inputSchema.get("required", [])) == {"start_date", "end_date"}
     assert all(p.get("description") for p in props.values())
 
 

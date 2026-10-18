@@ -443,7 +443,7 @@ def _validate_client(client_id: str, raw: Any) -> dict:
     for key, name in secrets_raw.items():
         if key not in SECRET_KEYS:
             raise ValueError(f"{where}.secrets.{key}: unknown (known: {', '.join(SECRET_KEYS)})")
-        if not secrets_store.valid_secret_name(client_id, name):
+        if not secrets_store.valid_secret_name(client_id, name, kind=SECRET_KEYS[key]):
             raise ValueError(f"{where}.secrets.{key}: must be a keyring entry name of this client "
                              f"(\"{client_id}/<kind>\"), never a secret value nor another client's entry")
         secrets[key] = name

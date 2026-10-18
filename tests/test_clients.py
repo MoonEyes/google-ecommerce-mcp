@@ -271,6 +271,19 @@ def test_registry_broken_json_and_bad_ids(env):
         resolve(None)
 
 
+@pytest.mark.parametrize("key,name", [("google_write", "oauth-token"), ("google_read", "oauth-token-ads"),
+                                      ("meta", "openai-ads-key"), ("google_ads", "oauth-token"),
+                                      ("meta_capi", "meta-access-token")])
+def test_default_client_legacy_entry_of_another_kind_is_refused_at_load(env, key, name):
+    """The kind-coherent pair rule (legacy_pair_ok) applies as soon as the registry is read, not only on use."""
+    _, path = env
+    write_registry(path, {"default": {"secrets": {key: name}}})
+    with pytest.raises(ClientError) as info:
+        resolve("default")
+    assert info.value.code == "registry_invalid"
+    assert f"secrets.{key}" in info.value.detail and str(path) in info.value.detail
+
+
 def test_default_client_may_keep_legacy_entries(env, monkeypatch):
     fake, path = env
     write_registry(path, {"default": {"secrets": {"meta": "meta-access-token", "google_read": "oauth-token"}},

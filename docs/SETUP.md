@@ -29,7 +29,7 @@ The single entry point for installing and checking the server. You do not need e
 | What Meta (Facebook / Instagram) ads spent and returned | Meta Ads | analyst role on the ad account |
 | What ChatGPT Ads spent and returned | ChatGPT Ads | an Advertiser API key for the account |
 
-Start with GA4 and Search Console: they answer most questions and ask for read-only access only. Add Merchant Center and Tag Manager next. Add the ad platforms last, only for those the shop actually advertises on. Several ad platforms side by side (`ads_overview`) need each one set up first.
+Start with GA4 and Search Console: they answer most questions and ask for read-only access only. Setting up one shop after another, or an agency with several clients? Read [QUICKSTART.md](QUICKSTART.md) and [MULTI-CLIENT.md](MULTI-CLIENT.md) first: each client gets its own ids and secrets. Want the assistant to prepare changes later? That is opt-in and described in [WRITE.md](WRITE.md); everything on this page is about reading. Add Merchant Center and Tag Manager next. Add the ad platforms last, only for those the shop actually advertises on. Several ad platforms side by side (`ads_overview`) need each one set up first.
 
 ## Access checklist
 
@@ -39,9 +39,9 @@ What to ask the client for. Ask for the **lowest role that reads**.
 |---|---|---|
 | GA4 | Viewer (read) access on the property, for the Google account you will authorize | The numeric Property ID helps |
 | Search Console | Access to the property (a restricted user is enough to read) | Domain property (`sc-domain:...`) or URL-prefix |
-| Merchant Center | Access to the account. Google has no read-only OAuth scope for the Merchant API, so the token you create can write even though this server never does. See [SECURITY.md](SECURITY.md) | Account id; the Cloud project must be registered with Merchant Center |
+| Merchant Center | Access to the account. Google has no read-only OAuth scope for the Merchant API, so the token you create can write, even though this server only reads unless you turn writing on. See [SECURITY.md](SECURITY.md) | Account id; the Cloud project must be registered with Merchant Center |
 | Tag Manager | Read access to the container | `GTM-XXXXXXX` id |
-| Google Ads | Read-only access to the account, or to the manager (MCC) account that holds it | Customer id; manager id if applicable. The Google Ads scope **can write and cannot be limited**; the server only reads, but the token is stored apart |
+| Google Ads | Read-only access to the account, or to the manager (MCC) account that holds it | Customer id; manager id if applicable. The Google Ads scope **can write and cannot be limited**; the server only reads unless you turn writing on, but the token is stored apart |
 | Meta Ads | Business Manager access: a **system user** with an analyst / read role on the ad account, and a token with `ads_read` only | Ad account id (`act_...`) |
 | ChatGPT Ads | An **Advertiser API key**, one per ad account, created in Ads Manager | OpenAI does not confirm a read-only key: use a dedicated one |
 
@@ -135,6 +135,7 @@ If you are stuck, open an issue with the output of `doctor --json` (it contains 
 - Never run `curl ... | sh` or `irm ... | iex` without downloading, reading and comparing the SHA-256 (README, "Quick install").
 - Back up the Claude Desktop config before changing it (the installer does).
 - Use the lowest role that reads. Details and remaining risks: [SECURITY.md](SECURITY.md).
+- Writing is off. Do not set `GEM_WRITE=1` or run `client enable-write` until you have read [WRITE.md](WRITE.md) and [SECURITY.md](SECURITY.md#known-limits-read-this-before-turning-writing-on).
 
 ## Revoking each access
 

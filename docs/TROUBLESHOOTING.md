@@ -73,7 +73,7 @@ Run `setup` on a machine with a browser using `--token-file`, then copy the toke
 
 **`indexing_status` says no notification.** Normal for most shops: it only reports URLs submitted through the Indexing API.
 
-**PageSpeed `Quota exceeded`.** Set `PAGESPEED_API_KEY` to your own restricted key.
+**PageSpeed `Quota exceeded`.** Set `PAGESPEED_API_KEY` to your own restricted key (or, with clients, `client set-secret <client> pagespeed`). The server calls `pagespeedonline.googleapis.com`; with a key restricted in Cloud Console, enable the *PageSpeed Insights API* in the same project.
 
 ## Doctor says
 
@@ -114,6 +114,8 @@ Google Ads, Meta Ads and ChatGPT Ads. Full list of codes: [ADS.md](ADS.md#struct
 
 **`not_configured` on a paid media tool.** The `detail` names the missing setting. Google Ads: `GADS_CUSTOMER_ID`. Meta: `META_ACCESS_TOKEN` (or `google-ecommerce-mcp set-secret meta-access-token`) and `META_AD_ACCOUNT_ID`. ChatGPT Ads: `OPENAI_ADS_API_KEY` (or `set-secret openai-ads-key`). Put ids in the client config `env`, secrets in the keyring.
 
+**`project_not_approved` on Google Ads.** Your Google Cloud project does not have the access level this call needs (Google ended developer tokens on 9 September 2026; the level now belongs to the project). Use a Google Ads test account, or ask Google for a higher level for the project that owns your OAuth client. It is not a problem with your account permissions.
+
 **`auth_failed` on Google Ads.** No Google Ads token, an expired one, or the account cannot read this customer. Run `google-ecommerce-mcp setup-ads --client-secret <file>` again. If the consent screen of your OAuth client is in *Testing*, the token expires after 7 days: publish the app. If you reach the customer through a manager account, set `GADS_LOGIN_CUSTOMER_ID`.
 
 **`auth_failed` on Meta.** The token is invalid or expired (Graph codes 102, 190, 463, 467). Create a new system user token with `ads_read` and store it again with `set-secret meta-access-token`. Remember that `META_ACCESS_TOKEN`, when set, wins over the keyring: unset the old one.
@@ -126,7 +128,7 @@ Google Ads, Meta Ads and ChatGPT Ads. Full list of codes: [ADS.md](ADS.md#struct
 
 **`not_available`.** Google Ads: enable the *Google Ads API* in the Cloud project of your OAuth client, check the customer id (digits) and `GADS_API_VERSION` (default `v26`). Meta: check `META_AD_ACCOUNT_ID`, `META_API_VERSION` (default `v26.0`) and that the token can see the account (`meta_ad_accounts`). ChatGPT Ads: the endpoint or account is not available to this key.
 
-**`blocked`.** The request was refused before being sent: outside the platform's read-only allow-list, a secret or a `method` parameter in the URL, or the platform answered with a redirect (never followed). It should not happen with the shipped tools; send the `detail` in an issue.
+**`blocked`.** The request was refused before being sent: outside the platform's allow-list, a secret or a `method` parameter in the URL, or the platform answered with a redirect (never followed). It should not happen with the shipped tools; send the `detail` in an issue.
 
 **`network`.** The platform could not be reached. Check the connection. Behind a corporate proxy, set `ADS_TRUST_ENV=1` in the server `env` (uses `HTTPS_PROXY`, `NO_PROXY` and `REQUESTS_CA_BUNDLE`). With `ADS_TRUST_ENV=1`, a `REQUESTS_CA_BUNDLE` pointing to a missing file also gives `network`: fix the path or unset the variable. The value must be exactly `1`.
 
@@ -153,6 +155,24 @@ Google Ads, Meta Ads and ChatGPT Ads. Full list of codes: [ADS.md](ADS.md#struct
 **`ads_overview` returns `combined: null`.** The platforms that returned data do not share one known currency, so spends are not added (no conversion is ever made); `combined_reason` says which. Query each platform's own tool instead.
 
 **The platforms' conversions do not match each other or GA4.** Expected. Each platform attributes independently with its own window and date rule, and the sum is not deduplicated. See [ADS.md](ADS.md#read-this-first-attribution).
+
+## Several clients
+
+**`client_required`.** Two clients or more are registered and the call gave no `client_id`. Name the client in your question, or pin a server entry with `GEM_CLIENT=<name>`. See [MULTI-CLIENT.md](MULTI-CLIENT.md#errors).
+
+**`unknown_client` / `id_not_owned` / `pinned_client` / `registry_invalid`.** Each carries `detail` and `fix`. `client list` shows what exists; `client show <name>` shows the ids a client owns (masked). A `registry_invalid` means `clients.json` is broken: the server refuses to guess, and does not fall back to environment variables.
+
+**My `GA4_PROPERTY_ID` (or another id variable) is ignored.** Once a registry exists the id variables are ignored, by design. Put the id in the client: `client add <name> --replace`.
+
+## Writing
+
+Only if you turned writing on ([WRITE.md](WRITE.md)). Every refusal has an `error`, a `detail` and a `fix`, and means nothing was written. The full table of codes and fixes is in [WRITE.md](WRITE.md#common-refusals-and-their-fix). The three most common:
+
+**`write_disabled`.** `GEM_WRITE=1` is missing from the server `env` of your MCP client config. Add it and restart the client.
+
+**`approval_required`.** The plan changes spending, is high risk or touches personal data. Open a terminal and run the `approval_command` shown in the plan (`google-ecommerce-mcp approve <plan_id> --client <name>`), then apply again. The assistant cannot do this for you.
+
+**`plan_expired`.** A plan is valid for 15 minutes by default. Ask for the plan again.
 
 ## Still stuck
 

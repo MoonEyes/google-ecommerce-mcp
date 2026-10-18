@@ -2,11 +2,13 @@
 
 <!-- mcp-name: io.github.MoonEyes/google-ecommerce-mcp -->
 
-One read-only MCP server for the data an online shop decides from: **GA4, Search Console, Merchant Center, Tag Manager, Indexing API, PageSpeed, and the ad platforms Google Ads, Meta Ads and ChatGPT Ads**.
+One MCP server for the data an online shop decides from, **for one shop or for many clients**: **GA4, Search Console, Merchant Center, Tag Manager, Indexing API, PageSpeed, the ad platforms Google Ads, Meta Ads and ChatGPT Ads, and the Meta pixel, catalog, Instagram and Page**. It **reads** by default, and can also **prepare controlled changes that you approve** (pause a campaign, change a budget, submit a sitemap, add a tag in a workspace).
 
-Ask your AI assistant "how much organic traffic did we get this month?", "which products are disapproved in Merchant Center?", "is GA4 loaded twice on my site?" or "what did each ad platform claim last month, and what does GA4 say?" and it answers from your own accounts. It reads and reports. It never changes a campaign, a feed or a tag.
+Ask your AI assistant "how much organic traffic did we get this month?", "which products are disapproved in Merchant Center?", "is GA4 loaded twice on my site?" or "what did each ad platform claim last month, and what does GA4 say?" and it answers from your own accounts. Out of the box it reads and reports and changes nothing. If you turn writing on for a client, the assistant can propose a change as a **plan**; nothing is sent until you approve it, and anything that costs money needs your approval in a terminal, outside the chat.
 
 Built by [MoonEyes](https://www.mooneyeswargame.com), a small French shop selling 3D-printed tabletop terrain, because no existing MCP server covered GA4, Search Console and Merchant Center together.
+
+> **Writing is off by default and has never been tested on a real account.** The write tools exist in this version, but they were checked offline only, against fake answers written from each platform's documentation. Turning them on is opt-in per client and per platform, creations are always paused, and some risks cannot be removed (for example a Google Ads token or a ChatGPT Ads key cannot be limited to reading). Read [docs/SECURITY.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/SECURITY.md) and [docs/WRITE.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/WRITE.md) before you turn it on, and try it first on a test account. **New here? [docs/QUICKSTART.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/QUICKSTART.md): your first client in 10 minutes.**
 
 > **The paid media connectors are new and tested offline only.** The Google Ads, Meta Ads and ChatGPT Ads tools were checked against fake responses written from each platform's documentation. They have not been run against real ad accounts yet: compare the first figures with each platform's own interface. Details: [docs/ADS.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/ADS.md#what-has-not-been-tested-against-real-accounts).
 
@@ -22,16 +24,19 @@ Built by [MoonEyes](https://www.mooneyeswargame.com), a small French shop sellin
 
 | Page | What is in it |
 |---|---|
-| [Architecture](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/ARCHITECTURE.md) | Components, a tool call step by step, design choices, sequence diagrams |
-| [Tool reference](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/TOOLS.md) | Every tool (22): parameters, output, example questions |
+| [Quickstart](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/QUICKSTART.md) | Your first client in 10 minutes: four commands |
+| [Several clients](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/MULTI-CLIENT.md) | The client registry `clients.json`, secrets per client, isolation, an agency example |
+| [Writing: plan, approve, apply](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/WRITE.md) | Turn writing on in 5 steps, three full examples, every lock, every refusal and its fix |
+| [Architecture](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/ARCHITECTURE.md) | Components, the write path, a tool call step by step, design choices, sequence diagrams |
+| [Tool reference](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/TOOLS.md) | Every tool (78): parameters, output, example questions |
 | [Setup, one service at a time](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/SETUP.md) | Which services you need, access checklist and e-mail template for a client, install order with `doctor` checks, revocation |
 | [Client reporting](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/REPORTING.md) | Monthly report plan, KPI formulas, the `report` command and its input contract |
 | [Guided install prompts](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/examples/INSTALL-PROMPT.md) | A prompt to paste into Claude to be guided step by step ([French](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/examples/INSTALL-PROMPT.fr.md)) |
-| [Third-party notices](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/THIRD_PARTY_NOTICES.md) | Code ported from OpenGSC (MIT) |
+| [Third-party notices](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/THIRD_PARTY_NOTICES.md) | Code ported from OpenGSC (MIT); ideas credited to other open-source projects (no code copied) |
 | [Easy setup guide for ad platforms](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/SETUP-ADS.md) | Google Ads, Meta Ads, ChatGPT Ads: client e-mail, numbered steps, ids, checks, revocation |
 | [Paid media guide](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/ADS.md) | Google Ads, Meta Ads, ChatGPT Ads: prerequisites step by step, GAQL rules, errors, what is untested |
 | [Google Cloud setup](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/SETUP-GOOGLE-CLOUD.md) | OAuth client, APIs to enable, where to find each id |
-| [Security model](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/SECURITY.md) | Scopes, token storage, threats, how to revoke |
+| [Security model](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/SECURITY.md) | What writing changes, the real guardrails, the known limits, scopes, token storage, how to revoke |
 | [Troubleshooting](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/TROUBLESHOOTING.md) | Every error we have met and its fix |
 | [Example prompts](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/examples/PROMPTS.md) | Questions that work well, by use case |
 | [Client configs](https://github.com/MoonEyes/google-ecommerce-mcp/tree/main/examples) | Claude Desktop (one or two shops), Claude Code |
@@ -39,7 +44,8 @@ Built by [MoonEyes](https://www.mooneyeswargame.com), a small French shop sellin
 ## Why this one
 
 - **One server for the whole picture.** Traffic and sales (GA4), organic search (Search Console), the product feed (Merchant Center), the tracking setup (Tag Manager), site speed, and what the ad platforms say they delivered. Other MCP servers cover one or two of these.
-- **Read-only by design.** No tool creates, updates, publishes, pauses or deletes anything. Each platform has its own allow-list of requests, checked before anything is sent, and a test enforces it.
+- **Several clients, kept apart.** An agency registers each client once (ids in a file, secrets in the OS keyring). Every call names its client, a foreign account id is refused, and one server process can be pinned to one client.
+- **Read by default, controlled writing on request.** Reading uses a per-platform allow-list with no write endpoint. Writing is off until you enable it per client and per platform, and then goes through one path only: **plan** (diff, dry run, signed token), **your approval** (in a terminal for anything that costs money, is irreversible or touches personal data), **apply**, and a journal. Creations are paused; there is no activation, deletion or publishing in this version.
 - **Secrets kept out of the way.** The Google token goes to your OS keyring (Windows Credential Manager, macOS Keychain or Secret Service). The Google Ads token is a separate keyring entry because its scope can write. Meta and ChatGPT Ads secrets go to the OS keyring from a hidden prompt (an environment variable also works), never on the command line or in a URL.
 - **Answers a model can read correctly.** Reports return the top rows plus totals over everything, the unit and definition of each metric, dates resolved in the account's timezone with a flag when the last days can still change, and the attribution windows each ad platform used.
 - **Honest about what it does not know.** Ad platforms count conversions their own way. The tools say so in every answer instead of adding up numbers that should not be added.
@@ -47,7 +53,7 @@ Built by [MoonEyes](https://www.mooneyeswargame.com), a small French shop sellin
 
 ## What you can ask
 
-Each case gives the question, the tools the assistant usually calls, what you learn, and the decision it supports. The decision stays yours: the server shows data and changes nothing. Ready-to-paste prompts are in [examples/PROMPTS.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/examples/PROMPTS.md).
+Each case gives the question, the tools the assistant usually calls, what you learn, and the decision it supports. The decision stays yours: by default the server shows data and changes nothing, and any change it prepares needs your approval. Ready-to-paste prompts are in [examples/PROMPTS.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/examples/PROMPTS.md).
 
 **Traffic, search, feed, tracking**
 
@@ -79,40 +85,44 @@ Findings from MoonEyes' own accounts and from one anonymised small-business acco
 
 ## Tools
 
-22 tools, all read-only. Full parameters and outputs: [docs/TOOLS.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/TOOLS.md).
+**78 tools** in total. Full parameters and outputs: [docs/TOOLS.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/TOOLS.md). Most only read. The `*_plan_*` tools prepare a change and write nothing. Only four tools write, and only for a client where writing is on: `gads_apply`, `meta_apply`, `openai_ads_apply`, `google_apply`.
+
+| Platform | Reads | Prepares a change (plan) | What the plans can do (all behind the locks of [WRITE.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/WRITE.md)) |
+|---|---|---|---|
+| All | `server_status`, `clients_list`, `client_profile`, `client_check`, `plan_get`, `plan_list`, `audit_log`, `ads_overview` | `rollback_plan` | Undo a plan with a new plan |
+| GA4 | `ga4_report`, `ga4_realtime`, `ga4_properties`, `ga4_custom_definitions`, `ga4_key_events` | `ga4_plan_key_event_create`, `ga4_plan_custom_dimension_create` | Create a key event or a custom dimension |
+| Search Console | `gsc_performance`, `gsc_inspect_url`, `gsc_sitemaps`, `gsc_sites` | `gsc_plan_sitemap_submit` | Submit a sitemap |
+| Merchant Center | `merchant_data_sources`, `merchant_product_issues`, `merchant_report_query`, `merchant_products`, `merchant_account_issues` | `merchant_plan_product_patch` | Change title, description, link, availability or price of a product |
+| Tag Manager | `gtm_inventory`, `gtm_workspace_status`, `gtm_get_tag`, `gtm_get_trigger`, `gtm_get_variable`, `gtm_versions` | `gtm_plan_workspace_create`, `gtm_plan_tag_upsert`, `gtm_plan_trigger_upsert`, `gtm_plan_variable_upsert`, `gtm_plan_quick_preview` | Edit a non-default workspace. Nothing goes live: no version, no publish |
+| Indexing, PageSpeed | `indexing_status`, `pagespeed` | none | none |
+| Google Ads | `gads_accounts`, `gads_performance`, `gads_query`, `gads_conversion_actions` | `gads_plan_pause_entities`, `gads_plan_budget_change`, `gads_plan_add_negatives`, `gads_plan_create_campaign` | Pause, daily budget, negative keywords, one new Search campaign (paused) |
+| Meta ads | `meta_ad_accounts`, `meta_insights`, `meta_campaigns`, `meta_adsets`, `meta_ads_list` | `meta_plan_pause`, `meta_plan_budget_change`, `meta_plan_create_campaign`, `meta_plan_create_adset`, `meta_plan_create_ad` | Pause, daily budget, new campaign, ad set and ad (paused) |
+| Meta pixel, catalog, Instagram, Page | `meta_pixel_health`, `meta_dataset_quality`, `meta_catalog_diagnostics`, `meta_catalog_products`, `meta_ig_insights`, `meta_page_insights` | `meta_eco_plan_catalog_item_update` | Price, sale price, availability, stock of one catalog item |
+| ChatGPT Ads | `openai_ads_account`, `openai_ads_insights`, `openai_ads_conversions`, `openai_ads_campaigns`, `openai_ads_ad_groups`, `openai_ads_ads` | `openai_ads_plan_pause`, `openai_ads_plan_budget_change`, `openai_ads_plan_create_campaign` | Pause, daily budget, new campaign (paused) |
+
+What the main read tools answer:
 
 | Tool | Service | What it answers |
 |---|---|---|
-| `server_status` | All | Which services are configured, does the token work |
 | `ga4_report` | GA4 | Any report: channels, landing pages, purchases, revenue, by period |
-| `ga4_realtime` | GA4 | Last 30 minutes, e.g. to check a page view is counted once |
-| `ga4_properties` | GA4 | Every GA4 account and property you can read, to find a property id |
 | `gsc_performance` | Search Console | Clicks, impressions, CTR, position by query, page, country, device, date |
 | `gsc_inspect_url` | Search Console | Is this URL indexed, which canonical did Google pick, last crawl |
-| `gsc_sitemaps` | Search Console | Declared sitemaps, last download, errors |
-| `merchant_data_sources` | Merchant Center | Feeds, labels, countries, fetch URLs |
 | `merchant_product_issues` | Merchant Center | Products with disapprovals or warnings, all pages |
-| `merchant_report_query` | Merchant Center | Any Merchant Query Language report |
 | `gtm_inventory` | Tag Manager | Tags, triggers, variables, live version |
-| `indexing_status` | Indexing API | What Google knows about a submitted URL |
 | `pagespeed` | PageSpeed Insights | Lighthouse performance and SEO scores, Core Web Vitals |
-| `gads_accounts` | Google Ads | Customer accounts the token can read |
 | `gads_performance` | Google Ads | Spend, clicks, conversions, value, ROAS by account, campaign or ad group |
 | `gads_query` | Google Ads | One read-only GAQL `SELECT` on reporting resources |
-| `meta_ad_accounts` | Meta Ads | Ad accounts the token can read |
 | `meta_insights` | Meta Ads | Spend, reach, purchases, value, ROAS by level, with breakdowns |
-| `openai_ads_account` | ChatGPT Ads | The ad account behind the key (connection test) |
 | `openai_ads_insights` | ChatGPT Ads | Impressions, clicks, spend, conversions, attributed sales |
-| `openai_ads_conversions` | ChatGPT Ads | Click-through and view-through conversions per campaign, ad group or ad |
 | `ads_overview` | Google Ads, Meta, ChatGPT Ads | The three platforms side by side for one period |
 
 ## Paid media connectors
 
-Optional. Configure one, two or all three; the others answer `not_configured`.
+Optional. Configure one, two or all three; the others answer `not_configured`. The table lists the original reading tools; the full list, with the plan tools, is above.
 
 | Platform | Tools | You need |
 |---|---|---|
-| Google Ads | `gads_accounts`, `gads_performance`, `gads_query` | A customer id (`GADS_CUSTOMER_ID`), a manager id if you use one, and a **separate** authorization: `google-ecommerce-mcp setup-ads --client-secret client_secret.json`. The developer token is optional |
+| Google Ads | `gads_accounts`, `gads_performance`, `gads_query` | A customer id (`GADS_CUSTOMER_ID`), a manager id if you use one, and a **separate** authorization: `google-ecommerce-mcp setup-ads --client-secret client_secret.json`. No developer token (Google ended them on 9 September 2026) |
 | Meta Ads | `meta_ad_accounts`, `meta_insights` | A system user token with only `ads_read` (`google-ecommerce-mcp set-secret meta-access-token`) and `META_AD_ACCOUNT_ID` |
 | ChatGPT Ads | `openai_ads_account`, `openai_ads_insights`, `openai_ads_conversions` | An advertiser API key from Ads Manager (`google-ecommerce-mcp set-secret openai-ads-key`). One key is one account |
 | All | `ads_overview` | At least one of the above |
@@ -121,9 +131,9 @@ Step by step, with the GAQL rules, every error and the known limits: [docs/ADS.m
 
 **Attribution warning.** Each platform attributes conversions independently, with its own windows, dates and model, so the same order can be counted by several of them. The sum of the platforms' conversions is **not deduplicated and overstates real orders**. `ads_overview` repeats this in every answer. Read the figures as "what each platform claims", and compare them with GA4 and, outside this server, with your orders.
 
-**Read-only, with one caveat.** The Google Ads permission (`adwords`) can write and Google offers no read-only version. The server only sends read requests, but the token itself could write, so it is stored apart from your other Google token. ChatGPT Ads documents no read-only key either. See [Security notes](#security-notes).
+**Reads by default, with one caveat.** The Google Ads permission (`adwords`) can write and Google offers no read-only version. Without writing turned on, the server only sends read requests, but the token itself could write, so it is stored apart from your other Google token. ChatGPT Ads documents no read-only key either, and the same key serves reading and writing. See [Security notes](#security-notes).
 
-**Tested offline only.** All behaviour was checked against fake responses; real-account trials are still to do. Not yet confirmed: the timezone ChatGPT Ads returns with `time_granularity=none`, Meta's longer view windows (`7d_view`, `28d_view`; the tool does not offer them), and whether a ChatGPT Ads key can be limited to reading.
+**Tested offline only, reading and writing.** All behaviour was checked against fake responses; real-account trials are still to do, and no write has ever been sent to a real account. Not yet confirmed: the timezone ChatGPT Ads returns with `time_granularity=none`, Meta's longer view windows (`7d_view`, `28d_view`; the tool does not offer them), and whether a ChatGPT Ads key can be limited to reading.
 
 ## Client reporting
 
@@ -140,12 +150,13 @@ The plan, the input contract, the colour rules, the KPI formulas and common mist
 ## Who is it for
 
 - **Shop owner.** You want straight answers (what sold, what is broken, which ads spend for nothing) without opening six dashboards. Install, ask in plain language, decide yourself.
-- **Agency.** You audit several shops. One instance per shop (see the two-shops client config), the same read-only checks each time, and attribution caveats written into the answers you hand to a client.
-- **Developer.** You want a small, readable, tested server: plain HTTP calls, per-platform allow-lists, structured errors. Pull requests welcome (see Contributing).
+- **Agency.** You work for several clients. One install, one registry ([docs/MULTI-CLIENT.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/MULTI-CLIENT.md)), the same checks each time, attribution caveats written into the answers you hand to a client, and writing turned on only for the clients and platforms you choose.
+- **Developer.** You want a small, readable, tested server: plain HTTP calls, per-platform allow-lists, one write path, structured errors. Pull requests welcome (see Contributing).
 
 ## What it will not do
 
-- **No writes, anywhere.** It cannot create, edit, pause or delete a campaign, change a budget or a bid, edit a feed or a tag, or publish anything. To act on what you learn, use the platform's own interface.
+- **No change without a plan you can read.** By default it writes nothing. With writing on for a client, it still cannot activate a paused campaign, delete or archive anything, publish a Tag Manager container, set bids, or upload conversions and customer lists in this version. Everything it creates is paused. To do those, use the platform's own interface.
+- **No change that costs money without you at a terminal.** Budgets, new campaigns and price changes are applied only after you run `google-ecommerce-mcp approve` yourself. This does not protect you from an assistant that has a shell on your machine (see [docs/SECURITY.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/SECURITY.md)).
 - **No causal attribution.** It reports what each platform and GA4 recorded. It cannot say whether an ad caused a sale (incrementality).
 - **No real order count.** Your shop's back office (WooCommerce, Shopify...) is not read, so it cannot tell you actual orders, margins or returns. It does not know your consent rate either.
 - **No deduplicated conversions, no currency conversion.** It will not merge the platforms' conversions into one "true" number, and it adds spends only when they share one currency.
@@ -215,7 +226,7 @@ Full walkthrough with every click explained: [docs/SETUP-GOOGLE-CLOUD.md](https:
 ```bash
 # with uv (recommended): nothing to install, uvx fetches the package from PyPI
 uvx google-ecommerce-mcp setup --client-secret path/to/client_secret.json --with-merchant
-# read-only scopes only by default; --with-merchant / --with-indexing add the write-capable ones you need
+# read scopes only by default; --with-merchant / --with-indexing add the write-capable ones you need
 
 # or with pip
 pip install google-ecommerce-mcp
@@ -270,7 +281,7 @@ claude mcp add google-ecommerce -e GA4_PROPERTY_ID=123456789 -e GSC_SITE_URL=sc-
   -- uvx google-ecommerce-mcp
 ```
 
-Every variable is optional: a tool for a service you did not configure simply answers `not_configured`. For the ad platforms, put ids in the config (`GADS_CUSTOMER_ID`, `META_AD_ACCOUNT_ID`) and secrets in the keyring with the commands below the table.
+Every variable is optional: a tool for a service you did not configure simply answers `not_configured`. These variables describe **one shop** (legacy mode). For several clients, create a registry instead and leave the ids out of this config: [docs/QUICKSTART.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/QUICKSTART.md), [docs/MULTI-CLIENT.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/MULTI-CLIENT.md). Once a registry exists, the id variables below are ignored. For the ad platforms, put ids in the config (`GADS_CUSTOMER_ID`, `META_AD_ACCOUNT_ID`) and secrets in the keyring with the commands below the table.
 
 | Variable | Example | Used by |
 |---|---|---|
@@ -282,7 +293,7 @@ Every variable is optional: a tool for a service you did not configure simply an
 | `GOOGLE_TOKEN_FILE` | `~/.config/google-ecommerce-mcp/token.json` | store the token in a file instead of the keyring |
 | `GADS_CUSTOMER_ID` | `1234567890` | Google Ads tools |
 | `GADS_LOGIN_CUSTOMER_ID` | `1234567890` | manager (MCC) id, only if you reach the account through one |
-| `GADS_DEVELOPER_TOKEN` | | optional; sent only when set |
+| `GADS_DEVELOPER_TOKEN` | | not needed since 9 September 2026; sent only when set |
 | `GADS_TOKEN_FILE` | `~/.config/google-ecommerce-mcp/ads-token.json` | store the Google Ads token in a file instead of the keyring (must differ from `GOOGLE_TOKEN_FILE`) |
 | `GADS_API_VERSION` | `v26` (default) | Google Ads REST version |
 | `GADS_ALLOW_SENSITIVE_QUERIES` | `1` | lifts the resource lists of `gads_query` (personal data possible) |
@@ -291,6 +302,10 @@ Every variable is optional: a tool for a service you did not configure simply an
 | `META_API_VERSION` | `v26.0` (default) | Graph API version |
 | `OPENAI_ADS_API_KEY` | | ChatGPT Ads key. Prefer `set-secret openai-ads-key` |
 | `ADS_TRUST_ENV` | `1` (exactly) | use `HTTPS_PROXY`, `NO_PROXY` and `REQUESTS_CA_BUNDLE` for the Ads connectors (corporate proxy) |
+| `GEM_CLIENT` | `acme` | pin this server process to one client of the registry |
+| `GEM_CLIENTS_FILE` | a path | use another client registry file than the default `clients.json` |
+| `GEM_WRITE` | `1` (exactly) | **allow writing at all**. Unset means every apply is refused. See [docs/WRITE.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/WRITE.md) |
+| `GEM_STATE_DIR` | a path | where plans, approvals and the journal are kept |
 
 Command for the client report: `google-ecommerce-mcp report --input report.json --output report.html [--lang fr|en] [--brand-name NAME] [--accent #RRGGBB] [--logo FILE] [--force]` (see [docs/REPORTING.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/REPORTING.md)).
 
@@ -308,23 +323,26 @@ google-ecommerce-mcp set-secret openai-ads-key         # hidden prompt, stored i
 
 ## Security notes
 
-Details: [docs/SECURITY.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/SECURITY.md).
+Details, the full list of guardrails and the **known limits**: [docs/SECURITY.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/SECURITY.md).
 
-- Read-only is enforced, not just declared: every request is checked against an allow-list before it is sent, and CI fails if any tool tries an endpoint outside it. `readOnlyHint` is only a hint.
-- `setup` requests read-only scopes only. Google has no read-only scope for **Merchant Center** (`content`) or the **Indexing API** (`indexing`); they are requested only with `--with-merchant` / `--with-indexing`, and `server_status` flags them when present.
-- **Paid media.** Each ad platform has its own allow-list (host pinned, a few read-only endpoints, no `mutate`, `create`, `update`, `delete`). Google Ads queries go through a GAQL validator before being sent. Redirects are never followed, answers are capped at 20 MB, secrets are masked in every error, and the environment's proxy is used only if you set `ADS_TRUST_ENV=1`.
-- **Google Ads scope caveat.** `setup-ads` requests the `adwords` scope, which can write and cannot be limited. It is stored in its own keyring entry (`oauth-token-ads`), apart from the read-only Google token. ChatGPT Ads documents no read-only key, and a Meta system user token is long-lived: dedicate each credential to this server and revoke it when you stop. See [docs/SECURITY.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/SECURITY.md).
+- **Reading is read-only, enforced.** Every read request is checked against an allow-list before it is sent, and CI fails if a tool tries an endpoint outside it. `readOnlyHint` is only a hint.
+- **Writing is off by default and opt-in.** It needs `GEM_WRITE=1`, `enabled` for the client and platform, an allowed account, budget caps, paused creations, a field allow-list, a signed single-use token bound to the exact plan, a journal that must be writable, and, for money, personal data, irreversible or high-risk plans, your approval in a terminal. It never activates, deletes or publishes.
+- **The limits you must know.** The terminal approval does not stop an assistant that has a shell or file access on your machine. A Google Ads token and a ChatGPT Ads key cannot be split into read and write. The write policy is a file you (or anything running as you) can edit. No write was ever verified on a real account.
+- `setup` requests read scopes only. Google has no read-only scope for **Merchant Center** (`content`) or the **Indexing API** (`indexing`); they are requested only with `--with-merchant` / `--with-indexing`. Write scopes for GA4, Tag Manager, Search Console and Merchant Center live in a separate token created by `setup --client <name> --write`.
+- **Paid media.** Each ad platform has its own allow-list (host pinned, a few read endpoints). Google Ads queries go through a GAQL validator before being sent. Redirects are never followed, answers are capped at 20 MB, secrets are masked in every error, and the environment's proxy is used only if you set `ADS_TRUST_ENV=1`.
+- **Google Ads scope caveat.** `setup-ads` requests the `adwords` scope, which can write and cannot be limited. It is stored in its own keyring entry, apart from the Google read token. ChatGPT Ads documents no read-only key, and a Meta system user token is long-lived: dedicate each credential to this server and revoke it when you stop.
 - Every result carries `fetched_at` and `freshness`; report tools return the `date_range` queried, resolved in the data's timezone, with `data_complete`.
 - Revoke access at any time from your [Google account permissions](https://myaccount.google.com/permissions).
 
 ## Limitations
 
-- The Merchant API is recent and Google keeps changing it; the older Content API for Shopping is being shut down. Open an issue if a call breaks.
-- One site, Merchant account and container per server instance; GA4 tools accept any readable `property_id`. Run several instances for several shops.
+- The Merchant API is recent and Google keeps changing it; the older Content API for Shopping has been shut down, so only the Merchant API is used. Open an issue if a call breaks.
+- Without a client registry (legacy mode): one site, Merchant account and container per server instance, and writing is not available. With a registry: any number of clients, each with its own ids and secrets.
 - GA4 Data API quotas apply to `ga4_report`. Each ad platform has its own quotas, returned as `rate_limited`; nothing is retried automatically.
-- **Paid media connectors are untested on real accounts** (offline tests only). Platform conversions are attributed independently and are not deduplicated; spends are never converted between currencies.
+- **Neither the paid media connectors nor any write is tested on real accounts** (offline tests only). Platform conversions are attributed independently and are not deduplicated; spends are never converted between currencies.
 - Ad platforms keep changing their APIs (defaults: Google Ads `v26`, Meta `v26.0`; both are settable). Open an issue if a call breaks.
-- One Google Ads customer, one Meta ad account and one ChatGPT Ads key per server instance; `customer_id` and `account_id` parameters read other accounts the credential can see.
+- One Google Ads customer, one Meta ad account and one ChatGPT Ads key per client; `customer_id` and `account_id` parameters read other accounts the credential can see, but a client can only plan changes on its own accounts.
+- Writing, version 0.5.0: bids are refused (which blocks some creations), activation, deletion and publishing do not exist, and `max_plan_budget_micros` is not usable.
 
 ## Contributing
 
@@ -337,7 +355,7 @@ pip install -e ".[dev]"
 pytest
 ```
 
-Tests run offline with a fake HTTP session; no Google, Meta or OpenAI account needed.
+Tests run offline with a fake HTTP session; no Google, Meta or OpenAI account needed. Maintainers: see [docs/RELEASING.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/RELEASING.md).
 
 ## License
 
