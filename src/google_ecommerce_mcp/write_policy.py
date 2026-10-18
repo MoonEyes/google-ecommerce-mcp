@@ -41,7 +41,13 @@ Locks (each refusal is {"error", "detail", "fix", "op_id"}):
                URL, whatever the builder's label: every created entity needs an explicit PAUSED status, at the
                FIRST level of body or params (or directly in a Google Ads create / update object); a nested
                PAUSED (tracking_specs[0].status) does not count. Meta POST .../copies also needs
-               status_option PAUSED (a copy otherwise inherits the source's status).
+               status_option PAUSED (a copy otherwise inherits the source's status). Google Ads only, two
+               narrow exemptions (_gads_status_exempt): a NEGATIVE keyword (campaignCriterionOperation.create
+               with negative the bool True and a keyword, or sharedCriterionOperation.create with a keyword)
+               needs no status (it only reduces spend); a campaignBudgetOperation.create needs none only when
+               its resourceName is a temporary id of the op's account (customers/<id>/campaignBudgets/-N) used
+               by a campaignOperation.create PAUSED in the SAME op, and referenced nowhere else. A positive
+               criterion, negative "true"/false, or a budget created alone still need PAUSED (status_missing).
   activation   any other op setting ENABLED/ACTIVE: allow_activate, and the op must be flagged financial
   references   budget / bidding-strategy references (campaignBudget, budget_id, shared_budget...) and, outside
                a creation, re-parenting ids (campaign_id, adset_id, ad_group_id...) change what is spent: the op
@@ -54,7 +60,8 @@ Locks (each refusal is {"error", "detail", "fix", "op_id"}):
                to be flagged pii
   bidding      bid / bidding-strategy / target CPA-ROAS fields are not supported (refused): known keys and
                prefixes, any whole BID_WORDS word (maxCpc, enhanced_cpc, fixedCpm, max_bid, tcpa...)
-  budget       daily budget fields (micros; Meta daily_budget in minor units of the account currency, converted
+  budget       daily budget fields (micros, OpenAI Ads daily_spend_limit_micros included, any other
+               daily_spend_limit* key is unsupported; Meta daily_budget in minor units of the account currency, converted
                with its decimals; a currency of unknown decimals is refused): the op must be
                financial, max_daily_budget_micros and cap_currency set, account currency (from `before` only)
                known and equal, value <= cap, and for an update value <= baseline * (1 + max_increase_pct/100),
@@ -102,7 +109,10 @@ KNOWN_STATUS_VALUES = ACTIVE_VALUES | PAUSED_VALUES | REMOVE_VALUES
 # Daily budget field -> multiplier to micros; None = minor units of the account currency (Meta daily_budget),
 # converted with the currency exponent (MINOR_UNIT_DECIMALS).
 DAILY_BUDGET_KEYS: dict[str, int | None] = {"amountMicros": 1, "amount_micros": 1, "daily_budget_micros": 1,
-                                            "dailyBudgetMicros": 1, "budget_micros": 1, "daily_budget": None}
+                                            "dailyBudgetMicros": 1, "budget_micros": 1, "daily_budget": None,
+                                            # OpenAI Ads campaign.budget.daily_spend_limit_micros (micros of the
+                                            # account currency, from the snapshot like every budget)
+                                            "daily_spend_limit_micros": 1}
 # Decimals of the minor unit, per currency (Meta "offset": 1 = 0 decimals, 100 = 2). Misfiling a currency as
 # 0-decimal only over-counts (stricter), so the Meta offset-1 currencies are listed there. Any currency not
 # listed is refused for minor-unit budgets (currency_unit_unknown).
@@ -214,7 +224,10 @@ _OVERRIDE_NK = frozenset(_nk(k) for k in METHOD_OVERRIDE_KEYS)
 _BUDGET_REF_NK = frozenset(_nk(k) for k in BUDGET_REFERENCE_KEYS)
 _REPARENT_NK = frozenset(_nk(k) for k in REPARENT_KEYS)
 _UNSUPPORTED_NK = frozenset(_nk(k) for k in UNSUPPORTED_BUDGET_KEYS)
-_UNSUPPORTED_PREFIXES = ("lifetimebudget", "lifetimespend", "totalamount", "spendcap", "dailyspendlimit")
+_UNSUPPORTED_PREFIXES = ("lifetimebudget", "lifetimespend", "totalamount", "spendcap")
+# Prefixes refused unless the key is EXACTLY a DAILY_BUDGET_KEYS field: daily_spend_limit_micros is capped like
+# any daily budget, any other daily_spend_limit* key (no micros, another unit) stays budget_kind_unsupported.
+_UNSUPPORTED_UNLESS_DAILY = ("dailyspendlimit",)
 _BIDDING_NK = frozenset(_nk(k) for k in BIDDING_KEYS)
 _BIDDING_PREFIXES = ("bid", "targetcpa", "targetroas", "targetspend", "targetimpressionshare", "targetcpm",
                      "targetcpv", "maximizeconversion", "manualcp", "percentcpc", "commission",
@@ -462,11 +475,87 @@ def _create_values(*objs: Any) -> list[Any]:
 def _creates(*objs: Any) -> list[dict]:
     """Every created entity: a `create` dict, each item of a `create` list; any other `create` value counts as
     an entity without status ({}), so it fails the PAUSED check."""
-    out: list[dict] = []
-    for value in _create_values(*objs):
-        value = _decode(value)
-        items = value if isinstance(value, (list, tuple)) else [value]
-        out.extend(item if isinstance(item, dict) else {} for item in items)
+    return [entity for _, entity in _create_entries(*objs)]
+
+
+def _create_entries(*objs: Any) -> list[tuple[str, dict]]:
+    """(normalized operation kind, created entity) for every entity of _creates: the kind is the key right
+    above `create` ("campaigncriterionoperation" for mutateOperations[i].campaignCriterionOperation.create),
+    "" when that parent is not a key (operations[i].create, a top-level create)."""
+    out: list[tuple[str, dict]] = []
+    for obj in objs:
+        for parent, key, value in _walk(obj):
+            if not (isinstance(key, str) and _nk(key) == "create") or value is None:
+                continue
+            kind = _nk(parent[-1]) if parent and isinstance(parent[-1], str) else ""
+            value = _decode(value)
+            items = value if isinstance(value, (list, tuple)) else [value]
+            out.extend((kind, item if isinstance(item, dict) else {}) for item in items)
+    return out
+
+
+# ------------------------------------------------------------------ Google Ads creations without a status
+# Negative keywords (campaign criterion negative=true, shared criterion of a negative list) only restrict where
+# ads show: they reduce spend, and Google Ads gives them no PAUSED status. A campaign budget has no PAUSED
+# status either; it spends nothing unless a campaign uses it, so it is exempt only when the SAME mutate creates
+# a PAUSED campaign using it (temporary resource name) and nothing else references it.
+_GADS_TEMP_BUDGET_RE = re.compile(r"customers/([0-9]{1,20})/campaignBudgets/(-[1-9][0-9]{0,18})")
+
+
+def _gads_negative_keyword(kind: str, entity: dict) -> bool:
+    """A campaign criterion with negative True (the bool, never "true" nor 1) and a keyword, or a shared
+    criterion with a keyword (and no negative other than True). Nothing else (placements, audiences, a positive
+    keyword) is a negative."""
+    keyword = entity.get("keyword")
+    if not isinstance(keyword, dict) or not keyword:
+        return False
+    if kind == "campaigncriterionoperation":
+        return entity.get("negative") is True
+    if kind == "sharedcriterionoperation":
+        return "negative" not in entity or entity.get("negative") is True
+    return False
+
+
+def _gads_paused_campaign_budgets(entries: list[tuple[str, dict]]) -> dict[str, int]:
+    """{temporary budget resource name: number of campaigns created PAUSED with it as campaignBudget}."""
+    out: dict[str, int] = {}
+    for kind, entity in entries:
+        if kind != "campaignoperation":
+            continue
+        budget = entity.get("campaignBudget")
+        statuses = _direct_statuses(entity)
+        if (isinstance(budget, str) and _GADS_TEMP_BUDGET_RE.fullmatch(budget) and statuses
+                and all(s in PAUSED_VALUES for s in statuses)):
+            out[budget] = out.get(budget, 0) + 1
+    return out
+
+
+def _gads_status_exempt(op: WriteOp, entries: list[tuple[str, dict]]) -> list[bool]:
+    """Per created entity (same order as entries): True when it needs no PAUSED status (google_ads only):
+    a negative keyword (_gads_negative_keyword), or a campaign budget created with a temporary resource name of
+    the op's account that a campaign created PAUSED in the same op uses, the budget's name appearing nowhere
+    else in body/params than in its own resourceName and in those paused campaigns."""
+    if op.platform != "google_ads":
+        return [False] * len(entries)
+    paused_users = _gads_paused_campaign_budgets(entries)
+    counts: dict[str, int] = {}
+    for text in _strings(list(_payload(op))):
+        if text in paused_users:
+            counts[text] = counts.get(text, 0) + 1
+    account = _norm_account(op.platform, str(op.account_id))
+    budget_names = [e.get("resourceName") for k, e in entries if k == "campaignbudgetoperation"]
+    out = []
+    for kind, entity in entries:
+        if _gads_negative_keyword(kind, entity):
+            out.append(True)
+            continue
+        name = entity.get("resourceName")
+        match = _GADS_TEMP_BUDGET_RE.fullmatch(name) if isinstance(name, str) else None
+        out.append(bool(kind == "campaignbudgetoperation" and match
+                        and _norm_account(op.platform, match.group(1)) == account
+                        and budget_names.count(name) == 1
+                        and paused_users.get(name, 0) >= 1
+                        and counts.get(name, 0) == 1 + paused_users[name]))
     return out
 
 
@@ -623,7 +712,8 @@ def _keys(*objs: Any) -> list[str]:
 
 def _is_unsupported(key: str) -> bool:
     n = _nk(key)
-    return n in _UNSUPPORTED_NK or n.startswith(_UNSUPPORTED_PREFIXES)
+    return (n in _UNSUPPORTED_NK or n.startswith(_UNSUPPORTED_PREFIXES)
+            or (n.startswith(_UNSUPPORTED_UNLESS_DAILY) and n not in _BUDGET_NK))
 
 
 def field_words(segment: Any) -> list[str]:
@@ -1067,12 +1157,15 @@ def _op_locks(platform: str, op: WriteOp, policy: WritePolicy,
         add("status_unknown", f"status values {unknown[:5]} are not known "
             f"({sorted(KNOWN_STATUS_VALUES)}).", "Use PAUSED / ENABLED|ACTIVE / REMOVED|DELETED|ARCHIVED.")
     if is_create(op):
-        creates = _creates(*payload)
+        entries = _create_entries(*payload)
+        creates = [c for _, c in entries]
+        exempt = _gads_status_exempt(op, entries)
         create_statuses = [_status_scan({k: v for k, v in c.items() if _is_status_key(k)})[0] for c in creates]
         if any(s in RISKY_VALUES for s in statuses):
             add("status_not_paused", "a creation sets an active or removed status.",
                 "Create it PAUSED (write_policy.force_paused), then activate with a separate set_status plan.")
-        elif (creates and not all(cs and all(s in PAUSED_VALUES for s in cs) for cs in create_statuses)) or (
+        elif (creates and not all(free or (cs and all(s in PAUSED_VALUES for s in cs))
+                                  for cs, free in zip(create_statuses, exempt))) or (
                 not creates and not _top_paused(op)):
             add("status_missing", "a creation has no explicit PAUSED status at the first level of body/params "
                 "(on every created entity; a nested PAUSED does not count).",

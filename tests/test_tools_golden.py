@@ -1,8 +1,13 @@
-"""Smoke golden of the tool list (idea from googleads/google-ads-mcp): names, titles, annotations, and the
-parameters of the Google and client tools are frozen in tests/golden_tools.json.
+"""Golden of the tool list (idea from googleads/google-ads-mcp): the name, title, annotations and parameter
+names of EVERY tool the server registers are frozen in tests/golden_tools.json, in registration order.
 
-Tolerant to the modules that are not written yet (write_core, gads_write, meta_eco...): any tool beyond the golden
-list is accepted, provided it follows the annotation rule: only *_apply tools may write, and they must say so."""
+Annotation rule: only the four *_apply tools may write (readOnlyHint=False, destructiveHint=True); every plan_*
+tool and every read is readOnlyHint=True.
+
+Regenerate after a deliberate change of the tool list, then review the diff:
+
+    python -m pytest tests/test_tools_golden.py --regen-golden
+"""
 
 import asyncio
 import importlib
@@ -11,17 +16,26 @@ from pathlib import Path
 
 import pytest
 
-GOLDEN = json.loads((Path(__file__).parent / "golden_tools.json").read_text(encoding="utf-8"))["tools"]
+GOLDEN_PATH = Path(__file__).parent / "golden_tools.json"
+GOLDEN = json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))["tools"]
 GOOGLE_TOOLS = {"server_status", "ga4_report", "ga4_realtime", "ga4_properties", "gsc_performance",
                 "gsc_inspect_url", "gsc_sitemaps", "merchant_data_sources", "merchant_product_issues",
                 "merchant_report_query", "gtm_inventory", "indexing_status", "pagespeed"}
 CLIENT_TOOLS = {"clients_list", "client_profile", "client_check"}
+APPLY_TOOLS = {"gads_apply", "meta_apply", "openai_ads_apply", "google_apply"}
+COMMENT = ("Frozen tool list (tests/test_tools_golden.py): name, title, annotations and parameter names of every "
+           "tool, in registration order. Only the four *_apply tools have readOnlyHint false. Regenerate only on a "
+           "deliberate change: python -m pytest tests/test_tools_golden.py --regen-golden")
 
 
 @pytest.fixture
 def tools(monkeypatch, tmp_path):
     monkeypatch.setenv("GEM_CLIENTS_FILE", str(tmp_path / "no-registry.json"))
     monkeypatch.delenv("GEM_CLIENT", raising=False)
+    from google_ecommerce_mcp import registry
+
+    real = registry.register_all
+    monkeypatch.setattr(registry, "register_all", lambda mcp, **kw: real(mcp, **{**kw, "freeze": False}))
     import google_ecommerce_mcp.server as module
 
     module = importlib.reload(module)
@@ -34,34 +48,48 @@ def _annotations(tool) -> dict:
             "idempotentHint": a.idempotentHint, "openWorldHint": a.openWorldHint}
 
 
-def test_golden_file_covers_the_22_tools_and_the_client_tools():
+def _entry(tool) -> dict:
+    return {"name": tool.name, "title": tool.title, "annotations": _annotations(tool),
+            "params": sorted(tool.inputSchema.get("properties", {}))}
+
+
+def regen(tools: dict) -> list[dict]:
+    """Rewrite golden_tools.json from the registered tools (LF, trailing newline); returns the entries."""
+    entries = [_entry(t) for t in tools.values()]
+    text = json.dumps({"_comment": COMMENT, "tools": entries}, indent=1, ensure_ascii=False) + "\n"
+    GOLDEN_PATH.write_bytes(text.encode("utf-8"))
+    return entries
+
+
+def test_golden_file_covers_the_google_and_client_tools():
     names = [t["name"] for t in GOLDEN]
-    assert len(names) == len(set(names)) == 25
-    assert GOOGLE_TOOLS | CLIENT_TOOLS <= set(names)
+    assert len(names) == len(set(names))
+    assert GOOGLE_TOOLS | CLIENT_TOOLS | APPLY_TOOLS <= set(names)
+    assert all("params" in t for t in GOLDEN)
 
 
-def test_every_golden_tool_is_registered_unchanged(tools):
-    for entry in GOLDEN:
-        assert entry["name"] in tools, f"{entry['name']} disappeared"
-        tool = tools[entry["name"]]
-        assert tool.title == entry["title"], entry["name"]
-        assert _annotations(tool) == entry["annotations"], entry["name"]
-        if "params" in entry:
-            assert sorted(tool.inputSchema.get("properties", {})) == entry["params"], entry["name"]
+def test_every_registered_tool_matches_the_golden_file(tools, regen_golden):
+    expected = regen(tools) if regen_golden else json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))["tools"]
+    golden = {e["name"]: e for e in expected}
+    assert set(tools) == set(golden), ("only registered", sorted(set(tools) - set(golden)),
+                                       "only in the golden file", sorted(set(golden) - set(tools)))
+    for name, tool in tools.items():
+        assert _entry(tool) == golden[name], name
 
 
-def test_extra_tools_follow_the_annotation_rule(tools):
-    """Tools added by future modules: read-only unless they are *_apply, and *_apply is declared destructive."""
-    golden = {t["name"] for t in GOLDEN}
+def test_annotation_rule_only_the_four_apply_tools_write(tools):
     for name, tool in tools.items():
         ann = tool.annotations
-        if name.endswith("_apply"):
+        if name in APPLY_TOOLS:
             assert ann.readOnlyHint is False and ann.destructiveHint is True and ann.idempotentHint is False, name
             assert "client_id" in tool.inputSchema.get("properties", {}), name
         else:
+            assert not name.endswith("_apply"), f"{name}: a new *_apply tool must be added to APPLY_TOOLS"
             assert ann.readOnlyHint is True and ann.destructiveHint is False, name
-        if name not in golden:
-            assert tool.title and tool.description, name
+        assert tool.title and tool.description, name
+    for entry in GOLDEN:
+        assert entry["annotations"]["readOnlyHint"] is (entry["name"] not in APPLY_TOOLS), entry["name"]
+    assert any("_plan_" in name for name in tools)  # the plan_* tools are part of the frozen list
 
 
 def test_every_google_tool_takes_an_optional_client_id(tools):
@@ -87,9 +115,26 @@ def test_registry_skips_absent_modules_and_reports_what_it_registered(monkeypatc
 
     monkeypatch.setattr(registry, "OPTIONAL_MODULES", (("does_not_exist_yet", "register"),))
     monkeypatch.setattr(registry, "ADS_MODULES", ())
-    out = registry.register_all(FakeMCP())
+    out = registry.register_all(FakeMCP(), freeze=False)
     assert out == {"registry": ["clients_list", "client_profile", "client_check"]}
     assert calls == [("clients_list", True), ("client_profile", True), ("client_check", True)]
+
+
+def test_register_all_freezes_the_allowlists_by_default(monkeypatch):
+    from google_ecommerce_mcp import registry, write_policy
+
+    class FakeMCP:
+        def tool(self, **kwargs):
+            return lambda fn: fn
+
+    monkeypatch.setattr(registry, "OPTIONAL_MODULES", ())
+    monkeypatch.setattr(registry, "ADS_MODULES", ())
+    write_policy._unfreeze_for_tests()
+    registry.register_all(FakeMCP(), freeze=False)
+    assert not write_policy.allowlists_frozen()
+    registry.register_all(FakeMCP())
+    assert write_policy.allowlists_frozen()  # conftest restores the previous state after the test
+    registry.register_all(FakeMCP())  # already frozen: nothing to do, no error
 
 
 def test_registry_does_not_hide_a_broken_module(monkeypatch):

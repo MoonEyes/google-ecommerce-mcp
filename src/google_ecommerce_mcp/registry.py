@@ -5,7 +5,8 @@ register_all(mcp) registers, in this order:
 2. the optional platform and write modules, each only if it is installed (a module that is absent is skipped; a
    module that exists but fails to import raises, so a broken write module never disappears silently);
 3. write_core.register_apply_tools(mcp): plan_get, plan_list, audit_log, rollback_plan and the *_apply tools;
-4. the cross-cutting client tools: clients_list, client_profile, client_check (never a secret value).
+4. the cross-cutting client tools: clients_list, client_profile, client_check (never a secret value);
+5. write_policy.freeze_allowlists() (unless freeze=False): no field allow-list can change afterwards.
 
 Only the *_apply tools may be annotated readOnlyHint=False (tests/test_tools_golden.py enforces it)."""
 
@@ -25,6 +26,8 @@ OPTIONAL_MODULES: tuple[tuple[str, str], ...] = (
     ("merchant_tools", "register"),
     ("gtm_tools", "register"),
     ("google_write", "register"),
+    ("gsc_write", "register"),
+    ("merchant_write", "register"),
     ("gads_write", "register"),
     ("meta_write", "register"),
     ("openai_write", "register"),
@@ -56,9 +59,13 @@ def _import_optional(name: str):
         raise
 
 
-def register_all(mcp: Any) -> dict[str, list[str]]:
+def register_all(mcp: Any, *, freeze: bool = True) -> dict[str, list[str]]:
     """Register every tool that is not defined in server.py. Returns {module: [tool names]} (skipped modules are
-    absent from the result)."""
+    absent from the result).
+
+    freeze (default True, the server): once every module has registered its field allow-lists, close the
+    registry (write_policy.freeze_allowlists, once; already frozen = nothing to do), so no code running later
+    can add or change an allow-list. Tests that rebuild the registry pass freeze=False."""
     registered: dict[str, list[str]] = {}
     for name in ADS_MODULES:
         module = importlib.import_module(f"{__package__}.{name}")
@@ -69,6 +76,11 @@ def register_all(mcp: Any) -> dict[str, list[str]]:
         if hook is not None:
             registered[name] = list(hook(mcp) or [])
     registered["registry"] = _register_client_tools(mcp)
+    if freeze:
+        from . import write_policy
+
+        if not write_policy.allowlists_frozen():
+            write_policy.freeze_allowlists()
     return registered
 
 

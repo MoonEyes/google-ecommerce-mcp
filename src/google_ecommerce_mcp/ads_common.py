@@ -40,7 +40,7 @@ import threading
 import time
 from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Iterable, Sequence, Tuple, Union
-from urllib.parse import parse_qsl, urlsplit
+from urllib.parse import parse_qsl, unquote, urlsplit
 
 import requests
 from mcp.types import ToolAnnotations
@@ -170,12 +170,46 @@ FORBIDDEN_QUERY_KEYS = frozenset({"method", "access_token"})
 _PRINTABLE = re.compile(r"[\x21-\x7e]+")
 
 
+# The ONLY place a percent-encoded '/' (%2F) may appear in a path: Search Console (Webmasters v3) takes the
+# property (https://www.example.com/ as https%3A%2F%2Fwww.example.com%2F) and the sitemap URL encoded in ONE
+# path segment each. host -> (path prefix, names of the segments whose NEXT segment may hold %2F). Any other
+# host, or any other segment, keeps the refusal.
+ENCODED_SLASH_SEGMENTS: dict[str, tuple[str, frozenset[str]]] = {
+    "www.googleapis.com": ("/webmasters/v3/sites/", frozenset({"sites", "sitemaps"})),
+}
+# Escapes refused everywhere, even in an encoded segment: '.', '\\', '%' itself (double encoding: %252F), NUL
+# and the other control characters.
+_FORBIDDEN_ESCAPES = re.compile(r"%(?:2e|5c|25|[01][0-9a-f]|7f)", re.IGNORECASE)
+
+
+def _encoded_slash_ok(host: str, path: str) -> bool:
+    """True when every %2F of path sits in a segment that ENCODED_SLASH_SEGMENTS allows for host (the segment
+    right after a "sites" or "sitemaps" segment, under the pinned prefix), no forbidden escape is used, and the
+    DECODED segment holds no '.' / '..' component (sites/..%2F..%2F/sitemaps/x would climb out once a proxy or
+    the server decodes it)."""
+    rule = ENCODED_SLASH_SEGMENTS.get(host.lower())
+    if rule is None or not path.startswith(rule[0]) or _FORBIDDEN_ESCAPES.search(path):
+        return False
+    segments = path.split("/")
+    for index, segment in enumerate(segments):
+        if "%2f" not in segment.lower():
+            continue
+        if index == 0 or segments[index - 1] not in rule[1]:
+            return False
+        if any(part in (".", "..") for part in unquote(segment).split("/")):
+            return False
+    return True
+
+
 def bare_url(url: Any) -> str | None:
     """scheme://host/path of a URL that passes the allow-list hygiene checks, else None (query dropped).
 
     Refused: non-string, surrounding whitespace, any character outside printable ASCII, ';', a backslash,
-    anything not starting literally with 'https://', user info, '.'/'..' segments, encoded '/' or '.', and a
-    query carrying `method` or `access_token`."""
+    anything not starting literally with 'https://', user info, '.'/'..' segments, encoded '/', '.', '\\' or
+    '%' (double encoding), and a query carrying `method` or `access_token`. One exception (ENCODED_SLASH_SEGMENTS): on
+    https://www.googleapis.com/webmasters/v3/sites/..., the segment after "sites" and the one after "sitemaps"
+    may hold %2F (Search Console property and sitemap URL); even there %2E, %5C, %25 (double encoding),
+    encoded control characters and a '.' / '..' component of the decoded segment are refused."""
     if (not isinstance(url, str) or url != url.strip() or not _PRINTABLE.fullmatch(url) or ";" in url
             or "\\" in url or not url.startswith("https://")):
         return None
@@ -186,7 +220,10 @@ def bare_url(url: Any) -> str | None:
     if parts.scheme != "https" or parts.username or parts.password:
         return None
     path = parts.path
-    if "/../" in path + "/" or "/./" in path + "/" or "%2f" in path.lower() or "%2e" in path.lower():
+    lowered = path.lower()
+    if "/../" in path + "/" or "/./" in path + "/" or "%2e" in lowered or "%25" in lowered or "%5c" in lowered:
+        return None  # dot segments, encoded '.', double encoding (%252F), encoded backslash: on every host
+    if "%2f" in path.lower() and not _encoded_slash_ok(parts.netloc, path):
         return None
     # Graph API honours ?method=delete|post on a GET; a token never travels in the URL (double guard).
     if {k.strip().lower() for k, _ in parse_qsl(parts.query, keep_blank_values=True)} & FORBIDDEN_QUERY_KEYS:
@@ -664,12 +701,19 @@ def _error_object(data: Any) -> Any:
     return data
 
 
-def map_error(platform: str, response: Any, data: Any) -> dict:
+META_WRITE_PERMISSION = "ads_management"
+META_WRITE_SCOPE_FIX = ("grant the ads_management permission to the token (ads_read only reads) and give it access "
+                        "to the ad account with a role that can edit it")
+
+
+def map_error(platform: str, response: Any, data: Any, *, method: str | None = None) -> dict:
     """Turn a failed platform response into {error, detail, fix, platform, http_status, ...}.
 
     error is one of auth_failed, missing_scope, rate_limited (with retry_after_seconds and usage parsed from
     X-Business-Use-Case-Usage / X-Ad-Account-Usage), not_available, too_many_rows, api_error. Secret shapes in
-    detail are masked; AdsClient.call also masks the exact configured secrets."""
+    detail are masked; AdsClient.call also masks the exact configured secrets. method: the HTTP method of the
+    request; for Meta (meta, meta_eco) a missing permission on a request other than GET (a write or its
+    validate-only dry-run) names ads_management, a GET (or no method) names ads_read."""
     status = getattr(response, "status_code", None)
     headers = getattr(response, "headers", None) or {}
     detail = redact(_error_object(data))
@@ -704,6 +748,8 @@ def map_error(platform: str, response: Any, data: Any) -> dict:
         extra: dict[str, Any] = {}
         if platform == "google_ads":
             extra = {"required_scope": ADS_SCOPE_URL, "missing_scopes": [ADS_SCOPE_URL]}
+        elif is_meta and method is not None and str(method).upper() != "GET":
+            return out("missing_scope", META_WRITE_SCOPE_FIX, required_permission=META_WRITE_PERMISSION)
         elif is_meta:
             extra = {"required_permission": "ads_read"}
         return out("missing_scope", fixes["missing_scope"], **extra)
@@ -1002,7 +1048,7 @@ class AdsClient:
             text = body.decode("utf-8", "replace") if body is not None else str(getattr(response, "text", ""))
             data = {"text": text[:500]}
         if not getattr(response, "ok", False):
-            return redact(map_error(self.platform, response, data), secrets)
+            return redact(map_error(self.platform, response, data, method=method), secrets)
         result = data if isinstance(data, dict) else {"items": data if isinstance(data, list) else [data]}
         if cache:
             self.cache.set(key, result)

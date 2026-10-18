@@ -42,10 +42,13 @@ def insight(campaign, spend, impressions, clicks, purchases=None, value=None, ki
 
 
 @pytest.fixture(autouse=True)
-def env(monkeypatch, no_keyring):
-    """Clean environment and in-memory keyring: a real token on this machine never reaches the tests."""
+def env(monkeypatch, no_keyring, tmp_path):
+    """Clean environment and in-memory keyring: a real token on this machine never reaches the tests. No client
+    registry (legacy mode), whatever exists on this machine."""
     for name in ENV:
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("GEM_CLIENTS_FILE", str(tmp_path / "no-registry.json"))
+    monkeypatch.delenv("GEM_CLIENT", raising=False)
     monkeypatch.setenv("META_ACCESS_TOKEN", TOKEN)
     monkeypatch.setenv("META_AD_ACCOUNT_ID", f"act_{ACCOUNT}")
     meta_ads.CLIENT.BLOCKED_ATTEMPTS.clear()
@@ -384,9 +387,10 @@ def test_register_declares_read_only_documented_tools():
     from mcp.server.fastmcp import FastMCP
 
     mcp = FastMCP("test-meta")
-    assert meta_ads.register(mcp) == ["meta_ad_accounts", "meta_insights"]
+    names = ["meta_ad_accounts", "meta_insights", "meta_campaigns", "meta_adsets", "meta_ads_list"]
+    assert meta_ads.register(mcp) == names
     tools = {t.name: t for t in asyncio.run(mcp.list_tools())}
-    assert set(tools) == {"meta_ad_accounts", "meta_insights"}
+    assert set(tools) == set(names)
     for t in tools.values():
         assert t.title and len(t.description) > 60
         assert t.annotations.readOnlyHint is True and t.annotations.destructiveHint is False
@@ -394,7 +398,10 @@ def test_register_declares_read_only_documented_tools():
             assert prop.get("description"), f"{t.name}.{name}"
     props = tools["meta_insights"].inputSchema["properties"]
     assert set(props) == {"level", "start_date", "end_date", "date_preset", "breakdowns", "attribution_windows",
-                          "time_increment", "limit", "account_id"}
+                          "time_increment", "limit", "account_id", "client_id"}
+    for t in tools.values():
+        assert "client_id" in t.inputSchema["properties"], t.name
+        assert "client_id" not in t.inputSchema.get("required", []), t.name
     assert props["limit"]["maximum"] == 500
     assert "7d_view" not in json.dumps(props["attribution_windows"])
 

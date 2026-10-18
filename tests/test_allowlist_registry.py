@@ -3,6 +3,12 @@
 assert_golden(path) is shared with the platform waves: they import their platform modules (which register
 their allow-lists), then call assert_golden(GOLDEN) so that any change of an allow-list or of a money
 exemption shows up as a diff of tests/golden_allowlists.json.
+
+tests/golden_allowlists.json is the registry built by registry.register_all (every module present, in an
+empty registry, freeze=False). Regenerate it after a deliberate change of an allow-list, then review the diff:
+
+    python -m pytest tests/test_allowlist_registry.py --regen-golden
+    (or: python -c "import sys; sys.path[:0] = ['src', 'tests']; import test_allowlist_registry as t; t.regen()")
 """
 
 from __future__ import annotations
@@ -13,9 +19,42 @@ from typing import Any
 
 import pytest
 
+from google_ecommerce_mcp import write_core
 from google_ecommerce_mcp import write_policy as wp
 
 GOLDEN = Path(__file__).with_name("golden_allowlists.json")
+# Actions whose op never carries a body nor params: an EMPTY field list (nothing allowed) is the strictest one.
+NO_PAYLOAD_ACTIONS = frozenset({("openai_ads", "pause")})
+
+
+class _ToolSink:
+    """Stands in for FastMCP: accepts every mcp.tool(...)(fn) and keeps nothing."""
+
+    def tool(self, *args: Any, **kwargs: Any) -> Any:
+        return lambda fn: fn
+
+
+def real_registry_snapshot() -> dict:
+    """golden_allowlists() of a registry filled by registry.register_all(..., freeze=False) from scratch (empty
+    registry and handlers, not permissive); the previous state is put back afterwards."""
+    from google_ecommerce_mcp import registry, server  # noqa: F401  (server's own import runs register_all)
+
+    saved =(wp._FIELD_ALLOWLIST, wp._FROZEN, wp._TEST_PERMISSIVE, write_core._HANDLERS)
+    try:
+        wp._FIELD_ALLOWLIST, wp._FROZEN, wp._TEST_PERMISSIVE, write_core._HANDLERS = {}, False, False, {}
+        registry.register_all(_ToolSink(), freeze=False)
+        assert not wp.allowlists_frozen()
+        return wp.golden_allowlists()
+    finally:
+        wp._FIELD_ALLOWLIST, wp._FROZEN, wp._TEST_PERMISSIVE, write_core._HANDLERS = saved
+
+
+def regen(path: Path | str = GOLDEN) -> dict:
+    """Rewrite the golden file from the real registry (sorted, LF, trailing newline); returns the snapshot."""
+    snap = real_registry_snapshot()
+    _check_shape(snap)
+    Path(path).write_bytes((json.dumps(snap, indent=1, sort_keys=True) + "\n").encode("utf-8"))
+    return snap
 
 
 def _check_shape(snap: Any, *, ordered: bool = True) -> None:
@@ -29,7 +68,8 @@ def _check_shape(snap: Any, *, ordered: bool = True) -> None:
             assert isinstance(action, str) and action == action.lower()
             assert isinstance(entry, dict) and set(entry) == {"fields", "money_ok"}, (platform, action)
             fields, money_ok = entry["fields"], entry["money_ok"]
-            assert fields and fields == sorted(set(fields)), (platform, action)
+            assert fields or (platform, action) in NO_PAYLOAD_ACTIONS, (platform, action)
+            assert fields == sorted(set(fields)), (platform, action)
             assert money_ok == sorted(set(money_ok)) and set(money_ok) <= set(fields), (platform, action)
             assert not any(p.endswith(".*") for p in money_ok), (platform, action)
 
@@ -83,9 +123,51 @@ def test_golden_shape_after_freeze(registry):
     assert wp.golden_allowlists() == snap  # stable
 
 
-def test_real_registry_matches_the_golden_file():
-    """The registry as filled by the imported modules (empty until the platform modules register theirs)."""
-    assert_golden(GOLDEN)
+def test_real_registry_matches_the_golden_file(regen_golden):
+    """The registry as filled by register_all (every module present) equals the golden file EXACTLY: same
+    platforms, actions, fields and money_ok (--regen-golden rewrites the file instead)."""
+    if regen_golden:
+        regen()
+    snap = real_registry_snapshot()
+    expected = json.loads(GOLDEN.read_text(encoding="utf-8"))
+    assert expected, f"{GOLDEN} is empty: run python -m pytest {Path(__file__).name} --regen-golden"
+    assert_golden(GOLDEN, snapshot=snap)
+    assert snap == expected  # exact, key for key
+
+
+def test_golden_file_covers_every_write_platform_present():
+    expected = json.loads(GOLDEN.read_text(encoding="utf-8"))
+    for platform in ("google_ads", "meta", "meta_eco", "openai_ads", "ga4", "gtm"):
+        assert expected.get(platform), platform
+    # openai_ads pause: registered, with NO field (its POST .../pause has no body): an empty list, not a missing
+    # one, so any body or params is field_not_allowed instead of no_field_allowlist
+    assert expected["openai_ads"]["pause"] == {"fields": [], "money_ok": []}
+    assert expected["openai_ads"]["budget_change"]["fields"] == ["budget.dailyspendlimitmicros"]
+    assert set(expected["google_ads"]) >= {"add_negatives", "create_campaign"}
+
+
+def test_openai_pause_with_any_payload_is_refused_by_its_empty_list(registry):
+    from google_ecommerce_mcp.write_core import WriteOp
+
+    wp.register_field_allowlist("openai_ads", "pause", [])
+    base = dict(op_id="o1", platform="openai_ads", account_id="acct", action="pause", method="POST",
+                url="https://api.ads.openai.com/v1/campaigns/c1/pause")
+    assert wp._field_violations(WriteOp(**base)) == []
+    for extra in ({"body": {"status": "paused"}}, {"params": {"name": "x"}}):
+        assert wp._field_violations(WriteOp(**base, **extra))[0][0] == "field_not_allowed", extra
+
+
+def test_register_all_freezes_once_unless_told_not_to(registry):
+    from google_ecommerce_mcp import registry as reg
+
+    reg.register_all(_ToolSink(), freeze=False)
+    assert not wp.allowlists_frozen() and wp.golden_allowlists()
+    reg.register_all(_ToolSink())  # the same lists again, then the freeze
+    assert wp.allowlists_frozen()
+    reg.register_all(_ToolSink())  # already frozen: identical lists are no-ops, no error
+    assert wp.allowlists_frozen()
+    with pytest.raises(ValueError, match="registry_frozen"):
+        wp.register_field_allowlist("openai_ads", "archive", ["status"])
 
 
 def test_assert_golden_placeholder_and_mismatch(registry, tmp_path):

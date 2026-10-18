@@ -59,11 +59,26 @@ def approval_file(c, p):
     (budget_op(), True),                                        # financial
     (pause_op(risk="irreversible"), True),                      # irreversible
     (pause_op(pii=True), True),                                 # personal data
+    (pause_op(risk="high"), True),                              # high risk (GTM custom HTML, jsm variable)
+    (pause_op(risk="medium"), False),                           # medium risk, no money
     (pause_op(), False),                                        # low risk, no money
 ])
 def test_approval_required_flags(op, needed):
     assert write_core.approval_required([op]) is needed
     assert write_core.approval_required([pause_op("x"), op]) is needed
+
+
+def test_high_risk_plan_needs_approval_and_the_preview_says_high_risk(fake):
+    c = ctx()
+    p = plan(c, [pause_op(risk="high")])
+    assert "error" not in p, p
+    assert p["human_approval_required"] is True and "approval_command" in p
+    assert apply(c, p)["error"] == "approval_required" and fake.calls == []
+    lines, _ = write_core._preview_ops([pause_op(risk="high")])
+    assert "[high, HIGH RISK]" in lines[0]
+    assert "HIGH RISK" not in "\n".join(write_core._preview_ops([pause_op(risk="medium")])[0])
+    assert write_core._write_approval("acme", p["plan_id"], approver="moon")["status"] == "approved"
+    assert apply(c, p)["status"] == "applied" and len(fake.calls) == 1
 
 
 def test_plan_output_tells_the_model_a_human_must_approve(fake):

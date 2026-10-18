@@ -838,5 +838,287 @@ def test_non_ascii_status_is_unknown(value):
     assert "status_unknown" in run([pause_op(body={"operations": [{"update": {"status": value}}]})])
 
 
+# ------------------------------------------------------------------ M1: Google Ads negatives need no PAUSED
+MUTATE = f"{GADS}/customers/{ACCOUNT}/googleAds:mutate"
+KEYWORD = {"text": "free", "matchType": "EXACT"}
+
+
+def gads_create(*items, action="add_negatives", financial=False, url=MUTATE, account=ACCOUNT):
+    return WriteOp(op_id="g1", platform="google_ads", account_id=account, action=action, method="POST", url=url,
+                   body={"mutateOperations": list(items)}, risk="low", financial=financial,
+                   before={"account_id": account, "currency": "EUR"})
+
+
+def criterion(**create):
+    return {"campaignCriterionOperation": {"create": {"campaign": f"customers/{ACCOUNT}/campaigns/1", **create}}}
+
+
+def shared(**create):
+    return {"sharedCriterionOperation": {"create": {"sharedSet": f"customers/{ACCOUNT}/sharedSets/2", **create}}}
+
+
+def test_negative_keywords_need_no_paused_status():
+    assert run([gads_create(criterion(negative=True, keyword=KEYWORD))]) == []
+    assert run([gads_create(shared(keyword=KEYWORD))]) == []
+    assert run([gads_create(shared(keyword=KEYWORD, negative=True), criterion(negative=True, keyword=KEYWORD))]) == []
+
+
+@pytest.mark.parametrize("create", [
+    {"negative": False, "keyword": KEYWORD},           # a positive keyword spends
+    {"keyword": KEYWORD},                              # no negative at all = positive
+    {"negative": "true", "keyword": KEYWORD},          # a string is not the bool True
+    {"negative": "True", "keyword": KEYWORD},
+    {"negative": 1, "keyword": KEYWORD},
+    {"negative": True},                                # not a keyword
+    {"negative": True, "keyword": {}},
+    {"negative": True, "keyword": "free"},
+    {"negative": True, "placement": {"url": "x.example"}},
+])
+def test_positive_or_ambiguous_criteria_still_need_paused(create):
+    assert run([gads_create(criterion(**create))]) == ["status_missing"]
+
+
+def test_negative_exemption_is_google_ads_and_operation_kind_only():
+    assert run([gads_create(shared(keyword=KEYWORD, negative=False))]) == ["status_missing"]
+    assert run([gads_create(shared())]) == ["status_missing"]  # no keyword
+    # the same create under another operation kind, or without one
+    inner = criterion(negative=True, keyword=KEYWORD)["campaignCriterionOperation"]
+    assert run([gads_create({"adGroupCriterionOperation": inner})]) == ["status_missing"]
+    flat = dataclasses.replace(gads_create(), body={"operations": [{"create": {"negative": True,
+                                                                               "keyword": KEYWORD}}]})
+    assert run([flat]) == ["status_missing"]
+    meta = meta_op(action="create", url=f"{GRAPH}/act_{ACCOUNT}/adsets",
+                   body={"campaignCriterionOperation": {"create": {"negative": True, "keyword": KEYWORD}}})
+    assert run([meta], platform="meta") == ["status_missing"]
+
+
+def test_a_negative_does_not_exempt_a_positive_or_a_campaign_in_the_same_op():
+    neg = criterion(negative=True, keyword=KEYWORD)
+    assert run([gads_create(neg, criterion(negative=False, keyword=KEYWORD))]) == ["status_missing"]
+    campaign = {"campaignOperation": {"create": {"name": "x"}}}
+    assert run([gads_create(neg, campaign, action="create_campaign")]) == ["status_missing"]
+    active = criterion(negative=True, keyword=KEYWORD, status="ENABLED")
+    assert "status_not_paused" in run([gads_create(active)])
+
+
+# ------------------------------------------------------------------ M1: a budget created with a PAUSED campaign
+TEMP_BUDGET = f"customers/{ACCOUNT}/campaignBudgets/-1"
+
+
+def budget_create(name=TEMP_BUDGET, amount="5000000"):
+    return {"campaignBudgetOperation": {"create": {"resourceName": name, "name": "b", "amountMicros": amount,
+                                                   "deliveryMethod": "STANDARD", "explicitlyShared": False}}}
+
+
+def campaign_create(budget=TEMP_BUDGET, status="PAUSED", name=f"customers/{ACCOUNT}/campaigns/-2"):
+    create = {"resourceName": name, "name": "c", "campaignBudget": budget}
+    if status is not None:
+        create["status"] = status
+    return {"campaignOperation": {"create": create}}
+
+
+def new_campaign(*items):
+    return gads_create(*items, action="create_campaign", financial=True)
+
+
+def test_budget_created_with_its_paused_campaign_needs_no_status():
+    assert run([new_campaign(budget_create(), campaign_create())]) == []
+    # two paused campaigns sharing the new budget, in the same op
+    second = campaign_create(name=f"customers/{ACCOUNT}/campaigns/-3")
+    assert run([new_campaign(budget_create(), campaign_create(), second)]) == []
+
+
+@pytest.mark.parametrize("items", [
+    [budget_create()],                                                     # alone
+    [budget_create(), campaign_create(status=None)],                       # campaign without status
+    [budget_create(), campaign_create(budget=f"customers/{ACCOUNT}/campaignBudgets/-9")],  # another budget
+    [budget_create(name=f"customers/{ACCOUNT}/campaignBudgets/55"), campaign_create(
+        budget=f"customers/{ACCOUNT}/campaignBudgets/55")],                # not a temporary id
+    [budget_create(name=f"customers/{ACCOUNT}/campaignBudgets/-0"), campaign_create(
+        budget=f"customers/{ACCOUNT}/campaignBudgets/-0")],                # -0 is not a temporary id
+    [budget_create(), budget_create(), campaign_create()],                 # the same temporary name twice
+])
+def test_budget_without_its_paused_campaign_still_needs_paused(items):
+    assert "status_missing" in run([new_campaign(*items)])
+
+
+def test_budget_exemption_cannot_be_borrowed():
+    # an enabled campaign using the budget: refused (status_not_paused), never exempted
+    assert "status_not_paused" in run([new_campaign(budget_create(), campaign_create(status="ENABLED"))])
+    # the budget referenced elsewhere in the op (an update moving an existing campaign onto it)
+    move = {"campaignOperation": {"update": {"resourceName": f"customers/{ACCOUNT}/campaigns/7",
+                                             "campaignBudget": TEMP_BUDGET}, "updateMask": "campaign_budget"}}
+    assert "status_missing" in run([new_campaign(budget_create(), campaign_create(), move)])
+    # the campaign in another op of the plan does not count
+    a = new_campaign(budget_create())
+    b = dataclasses.replace(new_campaign(campaign_create()), op_id="g2")
+    assert run([a, b]) == ["status_missing"]
+    # another account's temporary budget name
+    foreign = f"customers/{OTHER}/campaignBudgets/-1"
+    out = run([new_campaign(budget_create(name=foreign), campaign_create(budget=foreign))])
+    assert "status_missing" in out and "account_not_bound" in out
+    # a budget is still capped: over the cap is refused even with its paused campaign
+    assert run([new_campaign(budget_create(amount="60000000"), campaign_create())]) == ["budget_over_cap"]
+    # and on another platform the rule does not exist
+    meta = meta_op(action="create", url=f"{GRAPH}/act_{ACCOUNT}/campaigns", financial=True,
+                   body={"mutateOperations": [budget_create(), campaign_create()]})
+    assert "status_missing" in run([meta], platform="meta")
+
+
+# ------------------------------------------------------------------ M1: OpenAI Ads daily_spend_limit_micros
+OPENAI = "https://api.ads.openai.com/v1"
+OPENAI_BEFORE = {"account_id": ACCOUNT, "currency": "EUR", "budget": {"daily_spend_limit_micros": 10_000_000}}
+
+
+def openai_budget(body, before=None, financial=True):
+    return WriteOp(op_id="o1", platform="openai_ads", account_id=ACCOUNT, action="budget_change", method="POST",
+                   url=f"{OPENAI}/campaigns/c1", body=body, risk="medium", financial=financial,
+                   before=OPENAI_BEFORE if before is None else before)
+
+
+def daily(micros):
+    return {"budget": {"daily_spend_limit_micros": micros}}
+
+
+def test_openai_daily_spend_limit_is_a_capped_daily_budget():
+    assert wp.DAILY_BUDGET_KEYS["daily_spend_limit_micros"] == 1
+    assert "dailyspendlimit" not in wp._UNSUPPORTED_PREFIXES
+    assert run([openai_budget(daily(11_000_000))], platform="openai_ads") == []
+    assert wp.budget_values(daily(11_000_000)) == [11_000_000]
+    assert run([openai_budget(daily(60_000_000))], platform="openai_ads") == ["budget_over_cap",
+                                                                              "increase_too_large"]
+    assert run([openai_budget(daily(13_000_000))], platform="openai_ads") == ["increase_too_large"]
+    assert "financial_flag_missing" in run([openai_budget(daily(1), financial=False)], platform="openai_ads")
+    assert "budget_unparseable" in run([openai_budget(daily(1.5))], platform="openai_ads")
+    # the currency comes from the snapshot only
+    usd = {**OPENAI_BEFORE, "currency": "USD"}
+    assert "currency_mismatch" in run([openai_budget(daily(11_000_000), usd)], platform="openai_ads")
+    no_currency = {k: v for k, v in OPENAI_BEFORE.items() if k != "currency"}
+    body = {"budget": {"daily_spend_limit_micros": 11_000_000}, "currency": "EUR"}
+    assert "currency_unknown" in run([openai_budget(body, no_currency)], platform="openai_ads")
+
+
+@pytest.mark.parametrize("key", ["daily_spend_limit", "daily_spend_limit_amount", "dailySpendLimitMinor",
+                                 "lifetime_spend_limit_micros", "spend_cap"])
+def test_other_spend_limits_stay_unsupported(key):
+    assert "budget_kind_unsupported" in run([openai_budget({"budget": {key: 1}})], platform="openai_ads")
+
+
+def test_openai_write_budget_supported_with_the_real_policy():
+    from google_ecommerce_mcp import openai_write
+
+    assert openai_write.budget_supported() is True
+    assert not wp._is_unsupported("daily_spend_limit_micros") and wp._is_unsupported("daily_spend_limit")
+
+
+# ------------------------------------------------------------------ M1: Meta write permission
+class _Resp:
+    def __init__(self, status):
+        self.status_code, self.headers, self.ok = status, {}, False
+
+
+@pytest.mark.parametrize("platform", ["meta", "meta_eco"])
+def test_meta_permission_error_on_a_write_names_ads_management(platform):
+    from google_ecommerce_mcp.ads_common import map_error
+
+    data = {"error": {"message": "(#200) Requires ads_management permission", "code": 200}}
+    for method in ("POST", "post", "DELETE", "PUT"):
+        out = map_error(platform, _Resp(403), data, method=method)
+        assert out["error"] == "missing_scope" and out["required_permission"] == "ads_management", method
+        assert "ads_management" in out["fix"]
+    for method in ("GET", "get", None):
+        out = map_error(platform, _Resp(403), data, method=method)
+        assert out["required_permission"] == "ads_read" and "ads_management" not in out["fix"], method
+    assert map_error(platform, _Resp(403), data)["required_permission"] == "ads_read"
+    google = map_error("google_ads", _Resp(403), {"error": {"message": "insufficient authentication scopes"}},
+                       method="POST")
+    assert "required_permission" not in google and google["error"] == "missing_scope"
+
+
+def test_ads_client_reports_ads_management_on_a_refused_meta_write():
+    from ads_fakes import FakeResponse
+
+    from google_ecommerce_mcp.ads_common import AdsClient, AllowList
+
+    class Session:
+        trust_env = False
+
+        def request(self, method, url, **kwargs):
+            return FakeResponse(403, {"error": {"message": "(#200) Requires ads_management permission",
+                                                "code": 200}})
+
+    url = f"{GRAPH}/act_{ACCOUNT}"
+    pattern = r"https://graph\.facebook\.com/v23\.0/act_[0-9]+"
+    client = AdsClient("meta", AllowList([("GET", pattern), ("POST", pattern)]))
+    client.session = Session()
+    assert client.call("GET", url)["required_permission"] == "ads_read"
+    assert client.call("POST", url, json={"status": "PAUSED"})["required_permission"] == "ads_management"
+
+
+# ------------------------------------------------------------------ M1: %2F only in Search Console segments
+GSC = "https://www.googleapis.com/webmasters/v3/sites"
+SITE = "https%3A%2F%2Fwww.acme.fr%2F"
+FEED_ENC = "https%3A%2F%2Fwww.acme.fr%2Fsitemap.xml"
+
+
+def test_encoded_slash_is_accepted_in_the_search_console_segments_only():
+    from google_ecommerce_mcp.ads_common import bare_url
+
+    for url in (f"{GSC}/{SITE}/sitemaps/{FEED_ENC}", f"{GSC}/{SITE}/sitemaps", f"{GSC}/sc-domain%3Aacme.fr/sitemaps/"
+                f"{FEED_ENC}", f"{GSC}/{SITE}/searchAnalytics/query", f"{GSC}/{SITE.lower()}/sitemaps"):
+        assert bare_url(url) == url, url
+    assert bare_url(f"{GSC}/{SITE}/sitemaps/{FEED_ENC}?x=1") == f"{GSC}/{SITE}/sitemaps/{FEED_ENC}"
+
+
+@pytest.mark.parametrize("url", [
+    f"{GADS}/customers/{ACCOUNT}%2Fx/campaigns:mutate",                         # Google Ads
+    f"{GADS}/customers/{ACCOUNT}/campaigns%2F1:mutate",
+    f"{GRAPH}/act_{ACCOUNT}%2Fcampaigns",                                         # Meta
+    f"{GRAPH}/{ACCOUNT}%2f",
+    "https://api.ads.openai.com/v1/campaigns/c1%2Fpause",                        # OpenAI Ads
+    f"{GSC}/{SITE}/searchAnalytics%2Fquery",                                     # GSC, another segment
+    f"{GSC}/{SITE}/sitemaps/{FEED_ENC}/x%2Fy",
+    f"https://www.googleapis.com/webmasters/v3/x%2Fsites/{SITE}",
+    f"https://www.googleapis.com/webmasters/v3%2Fsites/{SITE}",
+    f"https://www.googleapis.com/indexing/v3/sites/{SITE}",                      # same host, other API
+    f"https://www.googleapis.com:443/webmasters/v3/sites/{SITE}/sitemaps",       # host with a port
+    f"https://searchconsole.googleapis.com/v1/sites/{SITE}",                     # other host
+    f"https://evil.example/webmasters/v3/sites/{SITE}",
+    f"{GSC}/{SITE.replace('%2F', '%252F')}/sitemaps",                            # double encoding
+    f"{GSC}/{SITE}/sitemaps/{FEED_ENC.replace('%2F', '%252F')}",
+    f"{GADS}/customers/{ACCOUNT}%252F/campaigns:mutate",
+    f"{GSC}/{SITE}/sitemaps/https%3A%2F%2Fwww.acme.fr%2F%2e%2e%2Fx.xml",          # encoded dots
+    f"{GSC}/{SITE}/sitemaps/https%3A%2F%2Fwww.acme.fr%5Cx.xml",                   # encoded backslash
+    f"{GSC}/{SITE}/sitemaps/https%3A%2F%2Fwww.acme.fr%2F%00.xml",                 # encoded control character
+    f"{GSC}/{SITE}/sitemaps/../{FEED_ENC}",                                       # dot segment
+    f"{GSC}/{SITE}/sitemaps/{FEED_ENC};x",                                        # ;
+    f"https://user@www.googleapis.com/webmasters/v3/sites/{SITE}/sitemaps",       # user info
+    f"{GSC}/..%2F..%2F/sitemaps/x",                                               # dot components once decoded
+    f"{GSC}/..%2Fsites/sitemaps/{FEED_ENC}",
+    f"{GSC}/.%2F/sitemaps",
+    f"{GSC}/{SITE}/sitemaps/https%3A%2F%2Fwww.acme.fr%2F..%2F..%2Fx.xml",
+    f"{GSC}/{SITE}/sitemaps/..%2F",
+    f"{GSC}/https%3A%2F%2Fwww.acme.fr%2F.%2F/sitemaps",
+])
+def test_encoded_slash_bypasses_are_refused(url):
+    from google_ecommerce_mcp.ads_common import AllowList, WriteAllowList, bare_url
+
+    assert bare_url(url) is None, url
+    wide = r"https://www\.googleapis\.com/webmasters/v3/sites/[^/]+/sitemaps/[^/]+"
+    assert WriteAllowList([("PUT", wide, None, "write")]).match("PUT", url) is None
+    assert AllowList([("GET", wide)]).is_allowed("GET", url) is False
+
+
+def test_grant_binds_the_encoded_url_as_sent():
+    from google_ecommerce_mcp import ads_common
+
+    url = f"{GSC}/{SITE}/sitemaps/{FEED_ENC}"
+    digest = ads_common.request_digest("PUT", url)
+    assert digest == ads_common.request_digest("PUT", url)
+    decoded = f"{GSC}/https:%2F%2Fwww.acme.fr%2F/sitemaps/{FEED_ENC}"
+    assert digest != ads_common.request_digest("PUT", decoded)
+    assert ads_common.bare_url(url) != ads_common.bare_url(url.replace("%2F", "%2f"))  # never re-normalized
+
+
 def test_ascii_status_with_spaces_still_parses():
     assert run([pause_op(body={"status": "  paused "})]) == []

@@ -12,7 +12,8 @@
                   first error.
     rollback_plan builds a new plan of the inverse ops of what was applied (reverse order) through create_plan.
 
-Human approval: a plan holding a financial, irreversible (risk == "irreversible"), PII (op.pii flag OR a personal
+Human approval: a plan holding a financial, high-risk (risk == "high"), irreversible (risk == "irreversible"),
+PII (op.pii flag OR a personal
 data key anywhere in body/params) or removal / archiving (write_policy.is_remove) op needs, on top of the token
 and the confirm string (which the model reads), an approval record written out of band by
 `google-ecommerce-mcp approve <plan_id> --client <id>` in an interactive terminal (client_cli.run_approve ->
@@ -425,9 +426,10 @@ def _max_risk(ops: Sequence[WriteOp]) -> str:
 
 
 def approval_required(ops: Sequence[WriteOp]) -> bool:
-    """True when the plan needs an out-of-band human approval: a financial, irreversible, removal / archiving
-    or PII op (op.pii, or a personal data key in body / params)."""
-    return any(op.financial or op.pii or op.risk == "irreversible" or _removes(op) or has_pii_keys(op)
+    """True when the plan needs an out-of-band human approval: a financial, high-risk (risk == "high": GTM custom
+    HTML tags, custom JavaScript variables...), irreversible, removal / archiving or PII op (op.pii, or a
+    personal data key in body / params)."""
+    return any(op.financial or op.pii or op.risk in ("high", "irreversible") or _removes(op) or has_pii_keys(op)
                for op in ops)
 
 
@@ -870,7 +872,7 @@ def _preview_ops(ops: Sequence[WriteOp]) -> tuple[list[str], dict]:
     totals: dict[str, int] = {}
     for number, op in enumerate(ops, start=1):
         removal, pii = _removes(op), op.pii or has_pii_keys(op)
-        flags = [op.risk] + (["MONEY"] if op.financial else []) + \
+        flags = [op.risk] + (["HIGH RISK"] if op.risk == "high" else []) + (["MONEY"] if op.financial else []) + \
                 (["IRREVERSIBLE"] if op.risk == "irreversible" else []) + (["REMOVAL"] if removal else []) + \
                 (["PERSONAL DATA"] if pii else [])
         lines.append(f"  {number}. {_clean(op.action, 64)} on account {_clean(op.account_id, 64)} "
