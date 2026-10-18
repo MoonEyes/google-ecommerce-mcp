@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.5.0 (date to be set at release)
+## 0.5.0 (2026-10-18)
 
 Multi-client, and controlled writing. **No write has been tried on a real account: everything below is tested offline only.** Writing is off by default.
 
