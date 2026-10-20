@@ -37,7 +37,7 @@ Legend. **R** = reads only. **Plan** = prepares a change, calls no write endpoin
 |---|---|---|---|
 | `server_status` | R | | Which services are configured for the client and whether its token works |
 | `clients_list` | R | none | The clients of the registry (id, label, sandbox, platforms, writing enabled). No secret |
-| `client_profile` | R | `client_id` | One client's account ids (masked) and write policy per platform |
+| `client_profile` | R | `client_id` | One client's account ids (not masked, unlike `client show` and `doctor`) and write policy per platform |
 | `client_check` | R | `client_id` | Health of one client: services configured, token state and scopes, which secrets are stored (never their values) |
 | `plan_get` | R | `plan_id` | Show a stored plan: operations, risks, status, expiry |
 | `plan_list` | R | `limit` | The client's recent plans |
@@ -123,7 +123,7 @@ All four also take `client_id`. They are annotated `readOnlyHint: false` and `de
 | `gads_plan_pause_entities` | Plan | `level` (campaign, ad group, ad), `ids`, `customer_id` | Plan pausing entities. Nothing else is changed |
 | `gads_plan_budget_change` | Plan | `budget_id` or `campaign_id`, `daily_budget_micros`, `customer_id` | Plan changing a daily budget. Capped by the policy; needs your terminal approval |
 | `gads_plan_add_negatives` | Plan | `keywords`, `match_type`, `campaign_id` or `shared_set_id`, `customer_id` | Plan adding negative keywords you provide |
-| `gads_plan_create_campaign` | Plan | `name`, `daily_budget_micros`, `customer_id` | Plan creating one Search campaign, **paused**, with its own budget and no bidding field. Needs your terminal approval |
+| `gads_plan_create_campaign` | Plan | `name`, `daily_budget_micros`, `customer_id` | Plan creating one Search campaign, **paused**, with its own budget and a fixed manual CPC (no bid amount, not configurable). No ad group, keyword or ad is created. Needs your terminal approval |
 
 ### Meta ads (10)
 
@@ -163,7 +163,6 @@ All four also take `client_id`. They are annotated `readOnlyHint: false` and `de
 | `openai_ads_ad_groups` | R | `campaign_id`, `limit`, `order` | Ad group list |
 | `openai_ads_ads` | R | `ad_group_id`, `limit`, `order` | Ad list |
 | `openai_ads_plan_pause` | Plan | `level`, `entity_ids` | Plan pausing campaigns, ad groups or ads |
-
 | `openai_ads_plan_budget_change` | Plan | `campaign_id`, `daily_budget_micros` | Plan changing a campaign daily budget. Needs your terminal approval |
 | `openai_ads_plan_create_campaign` | Plan | `name`, `daily_budget_micros`, `start_time`, `end_time`, `description` | Plan creating a **paused** campaign. Needs your terminal approval |
 
@@ -191,7 +190,10 @@ Which services are configured and whether the stored token works. No parameters.
 
 ```json
 {"ga4": true, "search_console": true, "merchant_center": true, "tag_manager": false,
- "pagespeed_api_key": false, "token_storage": "os-keyring", "token": "ok", "version": "0.1.0"}
+ "pagespeed_api_key": false, "token_storage": "os-keyring", "token": "ok",
+ "scopes": ["https://www.googleapis.com/auth/analytics.readonly", "https://www.googleapis.com/auth/webmasters.readonly"],
+ "write_capable_scopes": [], "ads": {"google_ads": false, "meta": false, "openai_ads": false},
+ "version": "0.5.0", "fetched_at": "2026-10-20T11:28:44+00:00", "freshness": "live: token tested now"}
 ```
 
 Ask: *"Is the Google MCP server working?"*
@@ -263,7 +265,7 @@ Ask: *"Which GA4 properties can you see? Compare last month's sessions of the sh
 
 ## gsc_performance
 
-Search Console Search Analytics. Needs `GSC_SITE_URL`.
+Search Console Search Analytics. In legacy mode it needs `GSC_SITE_URL`.
 
 | Parameter | Type | Default | Notes |
 |---|---|---|---|
@@ -271,7 +273,9 @@ Search Console Search Analytics. Needs `GSC_SITE_URL`.
 | `start_date` | str | 30 days ago | `YYYY-MM-DD` |
 | `end_date` | str | 2 days ago | Search Console data lags about 2 days |
 | `limit` | int | `50` | max 1,000 |
+| `search_type` | str | `web` | `web`, `image`, `video`, `news`, `discover`, `googleNews` |
 | `page_contains` | str | `""` | keep only pages whose URL contains this text |
+| `site_url` | str | `""` | one of the client's sites; empty uses the configured property |
 
 ```json
 {"rows": [{"query": "wargame terrain", "clicks": 14, "impressions": 820, "ctr": 0.0171, "position": 8.4}],
@@ -294,6 +298,7 @@ URL Inspection API: is one URL indexed, and which canonical did Google choose. N
 | Parameter | Type | Required |
 |---|---|---|
 | `url` | str | yes |
+| `site_url` | str | no |
 
 Returns Google's `indexStatusResult`: `verdict`, `coverageState`, `googleCanonical`, `userCanonical`, `lastCrawlTime`, `robotsTxtState`, `pageFetchState`...
 
@@ -305,7 +310,7 @@ Ask: *"Is https://www.example.com/product/x indexed, and does Google agree with 
 
 ## gsc_sitemaps
 
-Sitemaps declared in Search Console with last submission, last download, errors and warnings. No parameters. Needs `GSC_SITE_URL`.
+Sitemaps declared in Search Console with last submission, last download, errors and warnings. Optional parameter `site_url` (one of the client's sites; empty uses the configured property). In legacy mode it needs `GSC_SITE_URL`.
 
 Ask: *"When did Google last download our sitemap, and does it report errors?"*
 
@@ -660,7 +665,7 @@ Google Ads, Meta and ChatGPT Ads side by side for one period. Sends no request i
  "partial": true, "not_configured": ["openai_ads"], "errors": [], "platforms_without_activity": []}
 ```
 
-- `warning` is always present.
+- `warning` is always present, in French whatever the language of your question.
 - `combined` adds spends only when every platform that returned data has the same known currency; otherwise it is `null` and `combined_reason` says why. A platform without activity adds zeros.
 - `combined.roas` is total value over total spend, never the mean of platform ROAS. It is a ratio of claimed values, not a marketing efficiency ratio (MER): the tool does not read your revenue. Ask for `ga4_report` alongside and compare.
 - A platform that fails or is not configured gets its own block; the others are still returned (`partial: true`).

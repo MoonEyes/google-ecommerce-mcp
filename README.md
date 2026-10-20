@@ -26,6 +26,7 @@ Built by [MoonEyes](https://www.mooneyeswargame.com), a small French shop sellin
 |---|---|
 | [Quickstart](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/QUICKSTART.md) | Your first client in 10 minutes: four commands |
 | [Several clients](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/MULTI-CLIENT.md) | The client registry `clients.json`, secrets per client, isolation, an agency example |
+| [Reading pilot](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/PILOT.md) | A pilot with one client and writing left off: access checklist, steps, how to check writing is off, how to revoke |
 | [Writing: plan, approve, apply](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/WRITE.md) | Turn writing on in 5 steps, three full examples, every lock, every refusal and its fix |
 | [Architecture](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/ARCHITECTURE.md) | Components, the write path, a tool call step by step, design choices, sequence diagrams |
 | [Tool reference](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/TOOLS.md) | Every tool (78): parameters, output, example questions |
@@ -73,11 +74,11 @@ Each case gives the question, the tools the assistant usually calls, what you le
 
 ## Real findings
 
-Findings from MoonEyes' own accounts and from one anonymised small-business account. They show the kind of problem the data revealed, not a promised result. Each states its period and how it was measured. They are single cases, not a benchmark, and a fix that coincides with a better number is a correlation, not a guarantee.
+Findings from MoonEyes' own accounts and from one anonymised small-business account. They show the kind of problem the data revealed, not a promised result. Each states its period and how it was measured. They are single cases, not a benchmark, and a fix that coincides with a better number is a correlation, not a guarantee. The repository holds no raw export behind these figures, so they cannot be re-checked from here.
 
 | Finding | Period | Measured by |
 |---|---|---|
-| Merchant Center: 2,544 listings, 112 disapproved. 224 "weight too high" refusals came from a grams-to-kilograms unit error in the feed (packs sent as about 2 tonnes), since corrected. One false "alcoholic drink" refusal was caused by a product name and went away after renaming 3 products. A duplicate feed source created by the Google for WooCommerce plugin was removed. | Audit of 1-2 June 2026 (MoonEyes) | Merchant Center product statuses and feed sources (the data `merchant_product_issues` and `merchant_data_sources` read) |
+| Merchant Center: 2,544 listings, 112 disapproved. 224 "weight too high" refusals came from a grams-to-kilograms unit error in the feed (packs sent as about 2 tonnes), since corrected. One false "alcoholic drink" refusal was caused by a product name and went away after renaming 3 products. A duplicate feed source created by the Google for WooCommerce plugin was removed. | Audit of 1-2 June 2026 (MoonEyes) | Merchant Center product statuses and feed sources (the same kind of data `merchant_product_issues` and `merchant_data_sources` return; no export of the audit is kept in this repository) |
 | A purchase counted twice: the same Google Ads conversion id was sent both by a WordPress snippet and by Google Tag Manager. The snippet was disabled and GTM stays the single source. The number of gtag occurrences in the served HTML went from 18 to 12 on one page and from 6 to 3 on another. | 2 June 2026 (MoonEyes) | Counting gtag occurrences in the served HTML |
 | GA4 over-counted conversions: 265 conversions for 201 sessions, because phone, e-mail and contact clicks were marked as key events. | The 28 days before the 1-2 June 2026 audit (MoonEyes) | GA4 conversions and sessions |
 | Search Console: 0 clicks and 708 submitted URLs for 0 indexed, the starting point of an indexing work item. | 1 June 2026 (MoonEyes) | Search Console |
@@ -155,7 +156,7 @@ The plan, the input contract, the colour rules, the KPI formulas and common mist
 
 ## What it will not do
 
-- **No change without a plan you can read.** By default it writes nothing. With writing on for a client, it still cannot activate a paused campaign, delete or archive anything, publish a Tag Manager container, set bids, or upload conversions and customer lists in this version. Everything it creates is paused. To do those, use the platform's own interface.
+- **No change without a plan you can read.** By default it writes nothing. With writing on for a client, it still cannot activate a paused campaign, delete or archive anything, publish a Tag Manager container, set a bid amount or choose a bidding strategy (a new Google Ads campaign gets a fixed manual CPC with no bid amount), or upload conversions and customer lists in this version. Everything it creates is paused. To do those, use the platform's own interface.
 - **No change that costs money without you at a terminal.** Budgets, new campaigns and price changes are applied only after you run `google-ecommerce-mcp approve` yourself. This does not protect you from an assistant that has a shell on your machine (see [docs/SECURITY.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/SECURITY.md)).
 - **No causal attribution.** It reports what each platform and GA4 recorded. It cannot say whether an ad caused a sale (incrementality).
 - **No real order count.** Your shop's back office (WooCommerce, Shopify...) is not read, so it cannot tell you actual orders, margins or returns. It does not know your consent rate either.
@@ -240,12 +241,12 @@ Your browser opens the Google consent screen. The token is then stored in your O
 **Check each service with `doctor`:**
 
 ```bash
-google-ecommerce-mcp doctor                          # offline: Service, Set up, Secret, Token, Status, Account
+google-ecommerce-mcp doctor                          # offline; without a registry: Service, Set up, Secret, Token, Status, Account; with one: Client, Platform, Ids, Read, Write, On, Status, Account, Next (plus Live with --live)
 google-ecommerce-mcp doctor --only gads --live       # one service, plus one minimal read call
 google-ecommerce-mcp doctor --live --json            # no secret in the output; ids masked (123***890)
 ```
 
-`--only` takes `ga4,gsc,merchant,gtm,pagespeed,gads,meta,openai` (comma-separated). `doctor` reads this shell's environment and the server entry of your Claude Desktop config (`--config` and `--name` point it elsewhere). The table is followed by "To fix" (the exact command for each problem), "Not set up", a `Result:` line and a `Next command:`. Exit code 0 means all configured services work, 1 that a configured service fails, 2 that nothing is configured. `--live` does not test PageSpeed (it is shown as skipped: it needs a page address and about 30 seconds); ask the assistant to run `pagespeed` instead.
+`--client <name>` limits it to one client of the registry. `--only` takes `ga4,gsc,merchant,gtm,pagespeed,gads,meta,openai` (comma-separated). `doctor` reads this shell's environment and the server entry of your Claude Desktop config (`--config` and `--name` point it elsewhere). The table is followed by "To fix" (the exact command for each problem), "Not set up", a `Result:` line and a `Next command:`. Exit code 0 means all configured services work, 1 that a configured service fails, 2 that nothing is configured. `--live` does not test PageSpeed (it is shown as skipped: it needs a page address and about 30 seconds); ask the assistant to run `pagespeed` instead.
 
 ### Paid media (optional)
 
@@ -306,6 +307,10 @@ Every variable is optional: a tool for a service you did not configure simply an
 | `GEM_CLIENTS_FILE` | a path | use another client registry file than the default `clients.json` |
 | `GEM_WRITE` | `1` (exactly) | **allow writing at all**. Unset means every apply is refused. See [docs/WRITE.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/WRITE.md) |
 | `GEM_STATE_DIR` | a path | where plans, approvals and the journal are kept |
+| `GEM_LANG` | `fr` or `en` | language of the `client`, `quickstart` and `install` messages (default: the system language) |
+| `GEM_WRITE_HMAC_KEY` | a long random string | signing key for plans and approvals (CI); otherwise keyring entry `write-hmac-master`, else a file in the state folder |
+| `GEM_LIVE_TEST` | `1` | with it, apply works only for a client marked `"sandbox": true` |
+| `GEM_SECRET_<CLIENT>_<KIND>` | `GEM_SECRET_ACME_META` | a client's secret read from the environment instead of the keyring (CI) |
 
 Command for the client report: `google-ecommerce-mcp report --input report.json --output report.html [--lang fr|en] [--brand-name NAME] [--accent #RRGGBB] [--logo FILE] [--force]` (see [docs/REPORTING.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/REPORTING.md)).
 
@@ -341,8 +346,8 @@ Details, the full list of guardrails and the **known limits**: [docs/SECURITY.md
 - GA4 Data API quotas apply to `ga4_report`. Each ad platform has its own quotas, returned as `rate_limited`; nothing is retried automatically.
 - **Neither the paid media connectors nor any write is tested on real accounts** (offline tests only). Platform conversions are attributed independently and are not deduplicated; spends are never converted between currencies.
 - Ad platforms keep changing their APIs (defaults: Google Ads `v26`, Meta `v26.0`; both are settable). Open an issue if a call breaks.
-- One Google Ads customer, one Meta ad account and one ChatGPT Ads key per client; `customer_id` and `account_id` parameters read other accounts the credential can see, but a client can only plan changes on its own accounts.
-- Writing, version 0.5.0: bids are refused (which blocks some creations), activation, deletion and publishing do not exist, and `max_plan_budget_micros` is not usable.
+- One Google Ads customer, one Meta ad account and one ChatGPT Ads key per client. With a registry, a `property_id`, `customer_id` or `account_id` that is not the client's own is refused (`id_not_owned`) for reads and for plans; only in legacy mode (no registry) do these parameters read any account the credential can see.
+- Writing, version 0.5.0: bids are refused (which blocks some creations, for example a Meta ad set whose goal needs a bid cap; a new Google Ads campaign uses a fixed manual CPC with no bid amount), activation, deletion and publishing do not exist, and `max_plan_budget_micros` is not usable.
 
 ## Contributing
 

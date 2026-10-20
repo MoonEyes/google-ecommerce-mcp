@@ -19,7 +19,13 @@ pip install -e ".[dev]"
 pytest
 ```
 
-Tests run offline against a fake HTTP session; no Google account is needed. Every new tool needs at least one test. The list of tools, their parameters and their annotations is frozen in `tests/golden_tools.json` (`tests/test_tools_golden.py`); regenerate it only on a deliberate change, with `--regen-golden`. `tests/test_docs_fullcontrol.py` checks that every tool is in `docs/TOOLS.md` and that the version is the same everywhere.
+Tests run offline against a fake HTTP session; no Google account is needed. If a real `clients.json` or real keyring entries exist on your machine, run the suite isolated from your user config, or the tests may read them. From the repo root (bash):
+
+```bash
+T=$(mktemp -d); APPDATA=$T LOCALAPPDATA=$T XDG_CONFIG_HOME=$T GEM_CLIENTS_FILE=$T/none.json GEM_STATE_DIR=$T/state uv run --extra dev python -m pytest -q .
+```
+
+Every new tool needs at least one test. The list of tools, their parameters and their annotations is frozen in `tests/golden_tools.json` (`tests/test_tools_golden.py`); regenerate it only on a deliberate change, with `--regen-golden`. `tests/test_docs_fullcontrol.py` checks that every tool is in `docs/TOOLS.md` and that the version is the same everywhere.
 
 To try a change against real data, run `google-ecommerce-mcp setup` with your own OAuth client, then:
 

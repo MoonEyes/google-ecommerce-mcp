@@ -8,7 +8,7 @@ Want the list without reading this page? Run:
 google-ecommerce-mcp quickstart            # or: quickstart --client acme
 ```
 
-It prints 8 lines (nothing is written, no network): the four commands below for your client, then the two optional writing commands.
+It prints 8 lines (nothing is written, no network): the four commands below for your client, then the two optional writing commands. The text follows your system language (French on a French system); `GEM_LANG=en` forces English.
 
 ```text
 First client in 4 commands (acme = your client's name; nothing is written here):
@@ -59,7 +59,7 @@ google-ecommerce-mcp client set-secret acme openai                              
 google-ecommerce-mcp doctor --client acme
 ```
 
-You get one line per service and, for anything wrong, the exact command to fix it. Add `--live` to make one small real request per service. Exit code 0 means every configured service works.
+You get one row per platform of the client and, for anything wrong, the exact command to fix it. Add `--live` to make one small real request per service. Exit code 0 means every configured service works.
 
 ## 4. Add it to Claude
 

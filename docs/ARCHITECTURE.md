@@ -35,7 +35,7 @@ Interactive version: [`diagrams/architecture-overview.html`](diagrams/architectu
 
 | Component | File | Role |
 |---|---|---|
-| Entry point | `src/google_ecommerce_mcp/__main__.py` | `setup`, `setup-ads`, `check`, `doctor`, `install`, `client ...`, `approve`, `report`, or (default) run the MCP server over stdio |
+| Entry point | `src/google_ecommerce_mcp/__main__.py` | `setup`, `setup-ads`, `set-secret`, `quickstart`, `check`, `install`, `doctor`, `report`, `client ...`, `approve`, or (default, no command) run the MCP server over stdio |
 | Configuration | `config.py` | Reads account ids from environment variables, defines the OAuth scopes |
 | Credentials | `auth.py` | Stores the refresh token in the OS keyring (or a file), refreshes access tokens in memory |
 | Installer | `installer.py` | `install` command: prompts, OAuth setup, Claude Desktop config merge with backup |

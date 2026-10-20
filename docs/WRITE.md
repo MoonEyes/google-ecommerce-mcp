@@ -8,7 +8,7 @@ With writing on, the assistant can **prepare** changes. It cannot make one by it
 2. **Approve.** You read the plan. If it touches money, personal data, deletion or is high risk, you must approve it yourself in a terminal (`google-ecommerce-mcp approve`). The assistant cannot do that step.
 3. **Apply.** The assistant calls the `*_apply` tool with the token. The server re-checks every lock, writes one operation at a time, and records everything in a journal.
 
-What is **not** possible in this version: activating a paused campaign, deleting or removing anything, publishing a Tag Manager container, archiving, bids and bidding strategies, uploading customer lists or conversions.
+What is **not** possible in this version: activating a paused campaign, deleting or removing anything, publishing a Tag Manager container, archiving, setting a bid amount or choosing a bidding strategy (a new Google Ads campaign is created with a fixed manual CPC that has no bid amount), uploading customer lists or conversions.
 
 ## The short path: one command, group by group
 
@@ -165,7 +165,7 @@ Every refusal is an object with `error`, `detail` (where and why) and `fix`. Not
 | `status_missing`, `status_not_paused` | A creation must say `PAUSED` | Nothing to do from the assistant; creations are paused by the builders. Activate in the platform interface |
 | `activation_not_allowed` | Something tries to set `ENABLED` or `ACTIVE` | Not offered. Activate in the platform interface |
 | `delete_not_allowed`, `irreversible_not_allowed`, `pii_not_allowed` | Removal, an irreversible change or personal data, and the matching switch is false | Not offered in this version |
-| `bidding_not_supported` | The request contains a bid or bidding strategy field | Not supported in this version. Set the bid in the platform interface |
+| `bidding_not_supported` | The request contains a bid or bidding strategy field | Not supported in this version. Set the bid or strategy in the platform interface. The only bidding field ever sent is the fixed empty `manualCpc` of a new Google Ads campaign |
 | `budget_cap_missing`, `cap_currency_missing` | The client has no `max_daily_budget_micros` or `cap_currency` | Add both to the client's write policy in `clients.json` |
 | `currency_mismatch`, `currency_unknown`, `currency_unit_unknown` | The account currency differs from `cap_currency`, or could not be read | Align `cap_currency` with the account currency; check read access |
 | `budget_over_cap` | New daily budget above `max_daily_budget_micros` | Choose a smaller budget, or raise the cap yourself in `clients.json` |
@@ -173,7 +173,7 @@ Every refusal is an object with `error`, `detail` (where and why) and `fix`. Not
 | `plan_budget_over_cap` | The budgets of the plan add up above the ceiling | Split the plan |
 | `too_many_ops`, `empty_plan` | More than `max_ops_per_plan` operations, or none | Split, or raise `max_ops_per_plan` (up to 100) |
 | `before_unknown` | The current value could not be read, so a change cannot be bounded | Check read access, then plan again |
-| `dry_run_failed` | The platform (or the local check) rejected an operation | Read `detail`, fix the values, plan again. Nothing was written |
+| `dry_run_failed` | The platform (or the local check) rejected an operation | Read `detail` (for Google Ads it ends with the field path in square brackets when Google gives one), fix the values, plan again. Nothing was written |
 | `approval_required`, `approval_invalid` | The plan needs your approval, or the record does not match the plan | Run the `approval_command` shown, in a terminal, then apply again |
 | `preview_incomplete` | The plan is too big to show in full, so it cannot be approved | Split it into smaller plans |
 | `confirm_mismatch` | `confirm` is not the exact text of the plan | Pass the `confirm` value from the plan |

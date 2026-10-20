@@ -557,6 +557,41 @@ def test_dry_run_error_names_the_missing_field_path():
     assert "mutate_operations.campaign_bidding_strategy" in gads_write._messages(resp)[0]
 
 
+def test_manual_cpc_duplicated_on_two_campaign_operations_is_refused(env):
+    import copy
+    op = gads_write.create_campaign_op(ACME_CID, "Brand FR", 5_000_000, op_id="op1",
+                                       before={"account_id": ACME_CID, "currency": "EUR"})
+    op.body["mutateOperations"].append(copy.deepcopy(op.body["mutateOperations"][1]))
+    assert "bidding_not_supported" in _bidding_codes(op)
+
+
+def test_manual_cpc_stays_refused_when_not_a_dict_or_null(env):
+    for bad in (None, [], "", {"enhancedCpcEnabled": False}):
+        op = gads_write.create_campaign_op(ACME_CID, "Brand FR", 5_000_000, op_id="op1",
+                                           before={"account_id": ACME_CID, "currency": "EUR"})
+        _campaign_create(op)["manualCpc"] = bad
+        assert "bidding_not_supported" in _bidding_codes(op), bad
+
+
+def test_dry_run_error_message_ends_with_the_bracketed_field_path_for_manual_cpc():
+    resp = {"error": "api_error", "detail": {"details": [{"errors": [{
+        "errorCode": {"biddingError": "BIDDING_STRATEGY_NOT_SUPPORTED"}, "message": "Not allowed.",
+        "location": {"fieldPathElements": [{"fieldName": "mutate_operations", "index": 1},
+                                           {"fieldName": "campaign_operation"}, {"fieldName": "create"},
+                                           {"fieldName": "manual_cpc"}]}}]}]}}
+    assert gads_write._messages(resp) == [
+        "BIDDING_STRATEGY_NOT_SUPPORTED: Not allowed. [mutate_operations.campaign_operation.create.manual_cpc]"]
+
+
+def test_error_messages_without_a_path_have_no_brackets_and_are_capped():
+    plain = {"detail": {"details": [{"errors": [{"errorCode": {"x": "Y"}, "message": "m" * 400}]}]}}
+    out = gads_write._messages(plain)
+    assert len(out) == 1 and len(out[0]) == 300 and "[" not in out[0]
+    many = {"detail": {"details": [{"errors": [{"message": f"e{i}"} for i in range(5)]}]}}
+    assert gads_write._messages(many) == ["e0", "e1", "e2"]
+    assert gads_write._messages({"error": "boom", "detail": "text"}) == ["boom"]
+
+
 # write_policy exempts Google Ads negative keywords and a budget created with a PAUSED campaign from the PAUSED
 # rule (_gads_status_exempt); the bypass attempts are in tests/test_write_policy_security.py.
 def test_add_negatives_full_flow(env):
