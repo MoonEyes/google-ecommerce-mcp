@@ -482,6 +482,19 @@ def _validate_registry(data: Any) -> dict:
     return {"version": REGISTRY_VERSION, "clients": clients}
 
 
+class _DuplicateKey(ValueError):
+    """A JSON object repeats a key (args[0])."""
+
+
+def _reject_duplicate_keys(pairs: list) -> dict:
+    seen: dict = {}
+    for key, value in pairs:
+        if key in seen:
+            raise _DuplicateKey(key)
+        seen[key] = value
+    return seen
+
+
 def load_registry(path: Path | None = None) -> dict | None:
     """Validated registry, or None when the file does not exist (legacy mode). Fails closed: a broken registry
     raises ClientError(registry_invalid), it never falls back to the environment."""
@@ -493,7 +506,10 @@ def load_registry(path: Path | None = None) -> dict | None:
     except OSError as exc:
         raise _invalid(path, f"unreadable ({type(exc).__name__})") from None
     try:
-        data = json.loads(text)
+        data = json.loads(text, object_pairs_hook=_reject_duplicate_keys)
+    except _DuplicateKey as exc:
+        raise _invalid(path, f"duplicate key {exc.args[0]!r} in a JSON object (the last value would silently "
+                             "win); remove the extra one") from None
     except ValueError as exc:
         raise _invalid(path, f"not valid JSON (line {getattr(exc, 'lineno', '?')})") from None
     try:

@@ -95,6 +95,7 @@ FIELD_ALLOWLISTS: dict[str, tuple[str, ...]] = {
         f"{_CAMPAIGN_CREATE}.resourceName", f"{_CAMPAIGN_CREATE}.name", f"{_CAMPAIGN_CREATE}.status",
         f"{_CAMPAIGN_CREATE}.advertisingChannelType", f"{_CAMPAIGN_CREATE}.campaignBudget",
         f"{_CAMPAIGN_CREATE}.containsEuPoliticalAdvertising", f"{_CAMPAIGN_CREATE}.networkSettings.*",
+        f"{_CAMPAIGN_CREATE}.manualCpc",
     ),
 }
 # Exact paths naming money (a "budget" word) that are allowed: the budget entity created with the campaign and
@@ -103,7 +104,7 @@ MONEY_OK: dict[str, tuple[str, ...]] = {
     "create_campaign": (
         f"{_BUDGET_CREATE}.resourceName", f"{_BUDGET_CREATE}.name", f"{_BUDGET_CREATE}.amountMicros",
         f"{_BUDGET_CREATE}.deliveryMethod", f"{_BUDGET_CREATE}.explicitlyShared",
-        f"{_CAMPAIGN_CREATE}.campaignBudget",
+        f"{_CAMPAIGN_CREATE}.campaignBudget", f"{_CAMPAIGN_CREATE}.manualCpc",
     ),
 }
 ACTIONS = tuple(FIELD_ALLOWLISTS)
@@ -337,14 +338,16 @@ def negatives_op(customer: str, keywords: list[str], match_type: str, *, op_id: 
 def create_campaign_op(customer: str, name: str, amount_micros: int, *, op_id: str,
                        before: dict | None = None) -> WriteOp:
     """One atomic googleAds:mutate: a dedicated daily budget (explicitlyShared false, temporary id -1) and a
-    Search campaign PAUSED using it (temporary id -2), Google Search only, no bidding field (Google applies its
-    default), not EU political advertising. financial (it creates a budget)."""
+    Search campaign PAUSED using it (temporary id -2), Google Search only, fixed manual CPC (empty manualCpc: no
+    bid amount, no enhanced CPC; Google requires a bidding strategy), not EU political advertising. financial
+    (it creates a budget)."""
     budget_name = f"customers/{customer}/campaignBudgets/-1"
     budget = {"resourceName": budget_name, "name": f"{name} - budget", "amountMicros": str(int(amount_micros)),
               "deliveryMethod": "STANDARD", "explicitlyShared": False}
     campaign = write_policy.force_paused({
         "resourceName": f"customers/{customer}/campaigns/-2", "name": name, "status": "PAUSED",
         "advertisingChannelType": "SEARCH", "campaignBudget": budget_name,
+        "manualCpc": {},  # required bidding oneof; fixed here, never caller-supplied (no bid, no enhanced CPC)
         "containsEuPoliticalAdvertising": "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
         "networkSettings": {"targetGoogleSearch": True, "targetSearchNetwork": False,
                             "targetContentNetwork": False, "targetPartnerSearchNetwork": False}}, PLATFORM)
@@ -480,7 +483,10 @@ def _messages(resp: dict) -> list[str]:
                     prefix = ""
                     if isinstance(code, dict) and code:
                         prefix = f"{next(iter(code.values()))}: "
-                    found.append(f"{prefix}{error['message']}"[:200])
+                    path = ".".join(str(e.get("fieldName")) for e in
+                                    ((error.get("location") or {}).get("fieldPathElements") or [])
+                                    if isinstance(e, dict) and e.get("fieldName"))
+                    found.append(f"{prefix}{error['message']}{f' [{path}]' if path else ''}"[:300])
         if not found and detail.get("message"):
             found.append(str(detail["message"])[:200])
     return found[:3] or [str(resp.get("error"))]
@@ -742,7 +748,8 @@ def _gads_plan_create_campaign(name: str, daily_budget_micros: int, customer_id:
                                client_id: Optional[str] = None) -> dict:
     """Plan creating one Google Ads Search campaign, PAUSED, with its own daily budget (amountMicros in micros
     of the account currency; not shared), Google Search network only, in one atomic request dry-run by Google.
-    No ad group, keyword, ad nor bidding setting is created (none is allowed here). It stays PAUSED: activate it
+    No ad group, keyword nor ad is created; the bidding strategy is fixed (manual CPC, no bid amount, not
+    configurable). It stays PAUSED: activate it
     in the Google Ads interface once it is complete. Financial: human approval before gads_apply."""
     title = _clean_text(name, "name", 200)
     if isinstance(daily_budget_micros, bool) or not isinstance(daily_budget_micros, int) \

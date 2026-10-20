@@ -744,6 +744,27 @@ def _bidding(*objs: Any) -> list[str]:
     return sorted({k for k in _keys(*objs) if _is_bidding(k) and not _is_unsupported(k)})
 
 
+def _without_fixed_manual_cpc(op: WriteOp, payload: tuple) -> tuple:
+    """google_ads + create_campaign only: the payload minus the ONE `manualCpc` that is exactly {} on
+    mutateOperations[i].campaignOperation.create (the fixed bidding strategy the server sets itself: no bid
+    amount, no enhanced CPC). Anything else (another action, another place, a second occurrence, any child such
+    as enhancedCpcEnabled or a bid) is returned untouched, so bidding_not_supported still fires on it."""
+    body = op.body
+    if op.platform != "google_ads" or str(op.action).lower() != "create_campaign" or not isinstance(body, dict):
+        return payload
+    if sum(1 for _, key, _ in _walk(body) if _nk(key) == "manualcpc") != 1:
+        return payload
+    operations = body.get("mutateOperations")
+    for item in operations if isinstance(operations, list) else []:
+        create = (item.get("campaignOperation") or {}).get("create") if isinstance(item, dict) else None
+        if isinstance(create, dict) and isinstance(create.get("manualCpc"), dict) and not create["manualCpc"]:
+            stripped_create = {k: v for k, v in create.items() if k != "manualCpc"}
+            stripped_item = {**item, "campaignOperation": {**item["campaignOperation"], "create": stripped_create}}
+            stripped = {**body, "mutateOperations": [stripped_item if x is item else x for x in operations]}
+            return (stripped,) + tuple(payload[1:])
+    return payload
+
+
 def currency_of(op: WriteOp) -> str | None:
     """Account currency from the op's `before` snapshot only (never from the body the builder wrote)."""
     return _currency_in(op.before)
@@ -1200,7 +1221,7 @@ def _op_locks(platform: str, op: WriteOp, policy: WritePolicy,
     if unsupported:
         add("budget_kind_unsupported", f"fields {unsupported} (lifetime/total/spend cap) are not supported.",
             "Change daily budgets only, or do it in the platform's interface.")
-    bidding = _bidding(*payload)
+    bidding = _bidding(*_without_fixed_manual_cpc(op, payload))
     if bidding:
         add("bidding_not_supported", f"fields {bidding[:5]} change bids or the bidding strategy, which no cap "
             "bounds.", "Change bids in the platform's interface.")

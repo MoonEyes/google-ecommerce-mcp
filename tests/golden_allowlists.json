@@ -47,6 +47,7 @@
     "mutateoperations.campaignoperation.create.advertisingchanneltype",
     "mutateoperations.campaignoperation.create.campaignbudget",
     "mutateoperations.campaignoperation.create.containseupoliticaladvertising",
+    "mutateoperations.campaignoperation.create.manualcpc",
     "mutateoperations.campaignoperation.create.name",
     "mutateoperations.campaignoperation.create.networksettings.*",
     "mutateoperations.campaignoperation.create.resourcename",
@@ -58,7 +59,8 @@
     "mutateoperations.campaignbudgetoperation.create.explicitlyshared",
     "mutateoperations.campaignbudgetoperation.create.name",
     "mutateoperations.campaignbudgetoperation.create.resourcename",
-    "mutateoperations.campaignoperation.create.campaignbudget"
+    "mutateoperations.campaignoperation.create.campaignbudget",
+    "mutateoperations.campaignoperation.create.manualcpc"
    ]
   },
   "pause": {
