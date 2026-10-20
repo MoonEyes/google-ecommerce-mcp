@@ -56,7 +56,7 @@ Files are created private: mode `600` on POSIX, and on Windows the server restri
 }
 ```
 
-The schema is closed: an unknown field is refused, and a broken file is **refused, not guessed** (`registry_invalid`; the server never falls back to the environment variables). Normally you do not edit it by hand: `client add` fills the ids with checks. You do edit it for the money limits (see [WRITE.md](WRITE.md#turn-writing-on-in-5-steps)).
+The schema is closed: an unknown field is refused, and a broken file, including one that repeats a key in the same JSON object, is **refused, not guessed** (`registry_invalid`; the server never falls back to the environment variables). Normally you do not edit it by hand: `client add` fills the ids with checks. You do edit it for the money limits (see [WRITE.md](WRITE.md#turn-writing-on-in-5-steps)).
 
 | Part | Rules |
 |---|---|
@@ -83,7 +83,7 @@ google-ecommerce-mcp client disable-write acme google_ads
 
 `client add --yes` asks nothing and takes one flag per id (for scripts). `remove`, `enable-write`, `set-secret` and `approve` need a real terminal. The prompts are in French or English from your system language (`GEM_LANG=fr|en` forces one).
 
-The assistant sees the registry through three tools: `clients_list` (ids, labels, which platforms and which writing families are on, no account id), `client_profile` (one client's ids, masked, and its write policy) and `client_check` (token state and which secrets are present).
+The assistant sees the registry through three tools: `clients_list` (ids, labels, which platforms and which writing families are on, no account id), `client_profile` (one client's account ids in clear and its write policy; `client show` and `doctor` mask the ids) and `client_check` (token state and which secrets are present).
 
 ## Secrets, per client
 
@@ -147,7 +147,7 @@ What it does not do: isolate clients from **you** or from a process running as y
 | `platform_not_configured` | The client has no id for this platform | `client add <name> --replace` and give the id |
 | `id_not_owned` | The id given does not belong to this client | Use the client's own ids (`client show <name>`) |
 | `pinned_client` | The process is pinned to another client | Omit `client_id`, or use the server entry pinned to that client |
-| `registry_invalid` | `clients.json` cannot be read or breaks the schema | Fix or remove the entry named in the message, or delete the file to go back to legacy mode |
+| `registry_invalid` | `clients.json` cannot be read, is not valid JSON, repeats a key in one JSON object (the message names the key), or breaks the schema | Fix or remove the entry or the repeated key named in the message, or delete the file to go back to legacy mode |
 
 ## Legacy mode (no registry)
 
@@ -176,3 +176,5 @@ google-ecommerce-mcp client enable-write gamma google_ads
 ```
 
 and set `GEM_WRITE=1` only in a server entry pinned to `gamma` (`GEM_CLIENT=gamma`) until you trust the setup. For Claude Desktop, `google-ecommerce-mcp install --client gamma --pin --name google-gamma --skip-auth --write` does both: it asks your consent group by group (Google properties, Google Ads, Meta, ChatGPT Ads, typed client name each time), then writes an entry with `GEM_CLIENT=gamma`, `GEM_WRITE=1` and the package pinned to its exact version. `--yes` never answers these questions. See [WRITE.md](WRITE.md#the-short-path-one-command-group-by-group).
+
+To start with reading only on one real client, see [PILOT.md](PILOT.md).

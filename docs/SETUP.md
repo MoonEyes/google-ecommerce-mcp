@@ -70,7 +70,7 @@ Never ask a client to send a password. Never accept a token or key pasted in an 
 
 ## Recommended order, with a check after each step
 
-After each step, run the check for that service. It shows one row per service (Service, Set up, Secret, Token, Status, Account, with ids masked as `123***890`), then a "To fix" list with the exact command for each problem, a "Not set up" list, a `Result:` line and the next command to run.
+After each step, run the check for that service (`doctor --client <name>` limits it to one client of the registry). Without a registry it shows one row per service (Service, Set up, Secret, Token, Status, Account, with ids masked as `123***890`), then a "To fix" list with the exact command for each problem, a "Not set up" list, a `Result:` line and the next command to run.
 
 ```bash
 google-ecommerce-mcp doctor --only <service> --live

@@ -77,7 +77,7 @@ Run `setup` on a machine with a browser using `--token-file`, then copy the toke
 
 ## Doctor says
 
-`google-ecommerce-mcp doctor [--live] [--json] [--only <services>] [--config <file>] [--name <server>]` prints a table (Service, Set up, Secret, Token, Status, Account), then "To fix" with the exact command for each problem, "Not set up", a `Result:` line and a `Next command:`. It reads this shell's environment and the server entry of your Claude Desktop config. Exit code: `0` all fine, `1` a configured service fails, `2` nothing is configured.
+`google-ecommerce-mcp doctor [--client <name>] [--live] [--json] [--only <services>] [--config <file>] [--name <server>]` prints a table. Without a client registry the columns are Service, Set up, Secret, Token, Status, Account. With a registry there is one row per client and platform (Client, Platform, Ids, Read, Write, On, Status, Account, Next, plus Live with `--live`), and `--client` limits it to one client. Then "To fix" with the exact command for each problem, "Not set up", a `Result:` line and a `Next command:`. It reads this shell's environment and the server entry of your Claude Desktop config. Exit code: `0` all fine, `1` a configured service fails, `2` nothing is configured.
 
 Status column: **OK**, **FIX** (set up but something is wrong; the problem and the command are under "To fix"), **not set up**, **optional** (PageSpeed without a key).
 
@@ -124,6 +124,8 @@ Google Ads, Meta Ads and ChatGPT Ads. Full list of codes: [ADS.md](ADS.md#struct
 
 **`missing_scope`.** Google Ads: run `setup-ads` and grant the Google Ads scope (`required_scope` names it). Meta: the token lacks `ads_read` or access to the ad account (`required_permission`); regenerate it and assign the ad account to the system user.
 
+**A Google Ads write is refused with a message ending in a bracketed path.** `dry_run_failed` or a failed `gads_apply` quotes Google's own message and, when Google names it, the field it concerns in square brackets, for example `[mutate_operations.campaign_operation.create.manual_cpc]` (messages are cut at 300 characters). Read the path first: it tells you which part of the request Google rejected. Nothing was written by a dry run. Include the message in an issue if it points at a field this server builds.
+
 **`rate_limited`.** The platform quota is hit. Wait `retry_after_seconds` if it is given, then shorten the period, lower `limit`, or ask for `level=account` instead of `ad`. Meta answers also carry `usage` with the percentages Meta reports. Nothing is retried automatically.
 
 **`not_available`.** Google Ads: enable the *Google Ads API* in the Cloud project of your OAuth client, check the customer id (digits) and `GADS_API_VERSION` (default `v26`). Meta: check `META_AD_ACCOUNT_ID`, `META_API_VERSION` (default `v26.0`) and that the token can see the account (`meta_ad_accounts`). ChatGPT Ads: the endpoint or account is not available to this key.
@@ -160,7 +162,7 @@ Google Ads, Meta Ads and ChatGPT Ads. Full list of codes: [ADS.md](ADS.md#struct
 
 **`client_required`.** Two clients or more are registered and the call gave no `client_id`. Name the client in your question, or pin a server entry with `GEM_CLIENT=<name>`. See [MULTI-CLIENT.md](MULTI-CLIENT.md#errors).
 
-**`unknown_client` / `id_not_owned` / `pinned_client` / `registry_invalid`.** Each carries `detail` and `fix`. `client list` shows what exists; `client show <name>` shows the ids a client owns (masked). A `registry_invalid` means `clients.json` is broken: the server refuses to guess, and does not fall back to environment variables.
+**`unknown_client` / `id_not_owned` / `pinned_client` / `registry_invalid`.** Each carries `detail` and `fix`. `client list` shows what exists; `client show <name>` shows the ids a client owns (masked). A `registry_invalid` means `clients.json` is broken (unreadable, not valid JSON, a key repeated in the same JSON object, or a value the schema rejects): the server refuses to guess, and does not fall back to environment variables. If the `detail` says `duplicate key`, a copy-paste left the same key twice in one object (for example two `max_daily_budget_micros` for a client): delete the extra one, since the last value would otherwise silently win.
 
 **My `GA4_PROPERTY_ID` (or another id variable) is ignored.** Once a registry exists the id variables are ignored, by design. Put the id in the client: `client add <name> --replace`.
 

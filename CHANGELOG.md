@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Google Ads campaign creation is no longer refused for a missing bidding strategy.** `gads_plan_create_campaign` now sends a fixed, empty `manualCpc` (manual CPC with no bid amount and no enhanced CPC), because Google requires a bidding strategy on a new campaign. It is set by the server, never by the caller, and the write policy accepts only that one exact empty object at that one place: any other bidding field (a bid amount, `enhancedCpcEnabled`, a target CPA or ROAS) is still refused with `bidding_not_supported`. **This exemption is tested offline only; no campaign was created on a real account.**
+- **`clients.json` with a repeated JSON key is refused.** Two identical keys in one object (for example two `max_daily_budget_micros` on the same client) used to let the last value win silently. It is now `registry_invalid`, and the message names the repeated key.
+- **Google Ads error messages carry the field path.** An error from the API now ends with the path of the field it concerns, in square brackets (for example `[mutate_operations.campaign_operation.create.manual_cpc]`), and each per-error message is now cut at 300 characters instead of 200 (the fallback message stays cut at 200).
+
+### Notes for contributors
+
+- When a real `clients.json` exists on your machine, run the test suite with an isolated config folder, or the tests read your real registry. The command is in `CONTRIBUTING.md`.
+
 ## 0.5.0 (2026-10-18)
 
 Multi-client, and controlled writing. **No write has been tried on a real account: everything below is tested offline only.** Writing is off by default.
@@ -12,7 +24,7 @@ Multi-client, and controlled writing. **No write has been tried on a real accoun
 - **Controlled writing, one path for everything: plan, approve, apply, journal.** A `*_plan_*` tool builds the change, checks the client's policy, snapshots the current state, runs a dry run (native when the platform has one, otherwise local), and returns a diff, the risks, a signed single-use `confirmation_token` and the exact `confirm` text. Only the four `*_apply` tools write. `rollback_plan` builds a new plan that undoes an applied one. Guide: `docs/WRITE.md`.
 - **56 new tools (78 in total).**
   - Cross-cutting: `clients_list`, `client_profile`, `client_check`, `plan_get`, `plan_list`, `audit_log`, `rollback_plan`, `gads_apply`, `meta_apply`, `openai_ads_apply`, `google_apply`.
-  - Google Ads: `gads_conversion_actions`; plans `gads_plan_pause_entities`, `gads_plan_budget_change`, `gads_plan_add_negatives`, `gads_plan_create_campaign` (Search, paused, own budget, no bidding field).
+  - Google Ads: `gads_conversion_actions`; plans `gads_plan_pause_entities`, `gads_plan_budget_change`, `gads_plan_add_negatives`, `gads_plan_create_campaign` (Search, paused, own budget; see Unreleased for the bidding strategy).
   - Meta ads: `meta_campaigns`, `meta_adsets`, `meta_ads_list`; plans `meta_plan_pause`, `meta_plan_budget_change`, `meta_plan_create_campaign`, `meta_plan_create_adset`, `meta_plan_create_ad` (all created paused).
   - ChatGPT Ads: `openai_ads_campaigns`, `openai_ads_ad_groups`, `openai_ads_ads`; plans `openai_ads_plan_pause`, `openai_ads_plan_budget_change`, `openai_ads_plan_create_campaign` (paused).
   - Meta pixel, catalog, Instagram, Page: `meta_pixel_health`, `meta_dataset_quality`, `meta_catalog_diagnostics`, `meta_catalog_products`, `meta_ig_insights`, `meta_page_insights`; plan `meta_eco_plan_catalog_item_update`.
@@ -59,7 +71,7 @@ Multi-client, and controlled writing. **No write has been tried on a real accoun
 - **The terminal approval does not protect against an assistant that has a shell or file access** on your machine (a pseudo-terminal, or the signing key).
 - **The Google Ads token (`adwords`) and the ChatGPT Ads API key cannot be split into read and write.** Only this server's policy stands between the assistant and a change.
 - The write policy is a file you, or anything running as you, can edit.
-- Bids and bidding strategies are refused, which blocks some creations (for example a Meta ad set whose goal needs a bid cap).
+- Bids and bidding strategies are refused, which blocks some creations (for example a Meta ad set whose goal needs a bid cap). The one exception is the fixed, empty manual CPC that `gads_plan_create_campaign` sets itself (see Unreleased).
 - `max_plan_budget_micros` cannot be used: the registry does not accept it. The plan-level ceiling is `max_daily_budget_micros` times `max_ops_per_plan`.
 - A running server keeps the credentials it has in memory until it restarts, after `client remove` or a revocation: restart the MCP client.
 - The read token of a client with Merchant Center or Indexing carries a Google write scope (`content`, `indexing`): Google has no read-only scope for them.

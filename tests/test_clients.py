@@ -229,6 +229,15 @@ def test_pinning_in_legacy_mode(env, monkeypatch):
     assert info.value.code == "unknown_client"
 
 
+def test_duplicate_json_key_is_refused_not_silently_overwritten(env):
+    _, path = env
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('{"version": 1, "clients": {"acme": {"label": "a", "label": "b"}}}', encoding="utf-8")
+    with pytest.raises(ClientError) as info:
+        resolve(None)
+    assert info.value.code == "registry_invalid" and "duplicate key 'label'" in info.value.detail
+
+
 @pytest.mark.parametrize("entry, needle", [
     ({"accounts": {}, "token": "x"}, "unknown field"),
     ({"secrets": {"meta": "EAAsecretvalue1234567890"}}, "keyring entry name"),

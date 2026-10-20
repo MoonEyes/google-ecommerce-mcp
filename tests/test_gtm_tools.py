@@ -95,6 +95,59 @@ def test_get_tag_without_secrets_has_no_mask_note(gworld):
     assert "secrets_masked" not in out and "copy_note" not in out
 
 
+def test_get_trigger_returns_the_fingerprint_and_flags_updatable(gworld):
+    trigger = gworld.add_entity("6111", "2111", "5", "triggers", {
+        "name": "Lead event", "type": "customEvent",
+        "customEventFilter": [{"type": "equals", "parameter": [
+            {"type": "template", "key": "arg0", "value": "{{_event}}"},
+            {"type": "template", "key": "arg1", "value": "lead"}]}]})
+    out = gtm_tools.gtm_get_trigger(trigger["triggerId"], "5", client_id="acme")
+    assert out["trigger"]["name"] == "Lead event" and out["fingerprint"] == trigger["fingerprint"]
+    assert out["updatable"] is True and out["fields_not_supported_for_update"] == []
+    assert "untrusted_text" in out and out["workspace_id"] == "5"
+    assert {c["auth"] for c in gworld.calls} == {"Bearer " + bearer("acme", "READ")}
+    assert gworld.writes() == []
+
+
+def test_get_trigger_flags_an_unknown_field_as_not_updatable(gworld):
+    trigger = gworld.add_entity("6111", "2111", "5", "triggers", {
+        "name": "Lead event", "type": "customEvent", "somethingNew": {"x": 1}})
+    out = gtm_tools.gtm_get_trigger(trigger["triggerId"], "5", client_id="acme")
+    assert out["updatable"] is False and out["fields_not_supported_for_update"] == ["somethingNew"]
+    assert gworld.writes() == []
+
+
+def test_get_variable_returns_fingerprint_and_flags_updatable(gworld):
+    var = gworld.add_entity("6111", "2111", "5", "variables", {
+        "name": "cart value", "type": "jsm",
+        "parameter": [{"type": "template", "key": "javascript", "value": "function(){return 1}"}]})
+    out = gtm_tools.gtm_get_variable(var["variableId"], "5", client_id="acme")
+    assert out["variable"]["name"] == "cart value" and out["fingerprint"] == var["fingerprint"]
+    assert out["updatable"] is True and "untrusted_text" in out
+    assert "function(){return 1}" in str(out) and "secrets_masked" not in out
+    assert {c["auth"] for c in gworld.calls} == {"Bearer " + bearer("acme", "READ")}
+    assert gworld.writes() == []
+
+
+def test_get_variable_masks_secrets_and_flags_unknown_fields(gworld):
+    var = gworld.add_entity("6111", "2111", "5", "variables", {
+        "name": "api", "type": "c", "futureField": 1, "parameter": [
+            {"type": "template", "key": "apiSecret", "value": "s3cr3t-value"},
+            {"type": "template", "key": "value", "value": "visible"}]})
+    out = gtm_tools.gtm_get_variable(var["variableId"], "5", client_id="acme")
+    assert "s3cr3t-value" not in str(out) and "visible" in str(out)
+    assert out["secrets_masked"] == ["apiSecret"] and "never send them back" in out["copy_note"]
+    assert out["updatable"] is False and out["fields_not_supported_for_update"] == ["futureField"]
+    assert gworld.writes() == []
+
+
+@pytest.mark.parametrize("tool", [gtm_tools.gtm_get_trigger, gtm_tools.gtm_get_variable])
+def test_get_trigger_and_variable_refuse_bad_ids_without_network(gworld, tool):
+    assert tool("../1", "5", client_id="acme")["error"] == "bad_request"
+    assert tool("1", "x", client_id="acme")["error"] == "bad_request"
+    assert gworld.calls == []
+
+
 def test_reads_refuse_bad_ids_without_network(gworld):
     out = gtm_tools.gtm_get_tag("../1", "5", client_id="acme")
     assert out["error"] == "bad_request" and gworld.calls == []

@@ -161,11 +161,11 @@ Off by default. Turn it on per client and per platform ([WRITE.md](WRITE.md)). W
 
 | Platform | What you can plan | Always true |
 |---|---|---|
-| Google Ads | Pause campaigns, ad groups or ads; change a daily budget; add negative keywords you provide; create one Search campaign | New things are created **paused**, with their own budget, and no bidding setting |
+| Google Ads | Pause campaigns, ad groups or ads; change a daily budget; add negative keywords you provide; create one Search campaign | New things are created **paused**, with their own budget. A new campaign uses manual CPC with no bid amount (fixed, you cannot change it here) |
 | Meta Ads | Pause campaigns, ad sets or ads; change a daily budget (minor units); create a campaign, an ad set and an ad | New things are created **paused**. Bids and spend caps are not supported |
 | ChatGPT Ads | Pause campaigns, ad groups or ads; change a campaign daily budget; create a campaign | New campaigns are created **paused** |
 
-Not available in this version, on any platform: activating, deleting or archiving, bids and bidding strategies, uploading conversions or audiences, publishing. A budget change needs your approval in a terminal and respects the client's cap (`max_daily_budget_micros` in the account currency) and the 20 % per 24 hours limit.
+Not available in this version, on any platform: activating, deleting or archiving, choosing bids or bidding strategies (a new Google Ads campaign is created with a fixed manual CPC that has no bid amount), uploading conversions or audiences, publishing. A budget change needs your approval in a terminal and respects the client's cap (`max_daily_budget_micros` in the account currency) and the 20 % per 24 hours limit.
 
 Things to know before you try:
 
@@ -409,7 +409,7 @@ All tests run offline against fake responses written from each platform's docume
 
 Other known limits:
 
-- One ad account per platform per server instance (`GADS_CUSTOMER_ID`, `META_AD_ACCOUNT_ID`; a ChatGPT Ads key is one account). `customer_id` and `account_id` parameters let you query another account the token can read. Run several instances for several unrelated businesses.
+- In legacy mode, one ad account per platform per server instance (`GADS_CUSTOMER_ID`, `META_AD_ACCOUNT_ID`; a ChatGPT Ads key is one account), and `customer_id` and `account_id` let you query another account the token can read. With a client registry, each client has its own accounts and secrets, and an id that is not the client's own is refused (`id_not_owned`, see MULTI-CLIENT.md).
 - Currencies are never converted; `ads_overview` refuses to add spends across currencies.
 - Platform data lags: the most recent days and conversions still inside their attribution window can change. Each answer carries `date_range.data_complete` or an equivalent settling note.
 - The tools report what the platforms say. They do not read your shop's back office, so they cannot tell you real orders, margins or returns.

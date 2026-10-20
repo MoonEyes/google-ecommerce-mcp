@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import dataclasses
 import json
 import re
 import subprocess
@@ -508,7 +509,87 @@ def test_create_campaign_body_is_paused_search_without_bidding(env):
     assert campaign["status"] == "PAUSED" and campaign["advertisingChannelType"] == "SEARCH"
     assert campaign["campaignBudget"] == budget["resourceName"] == f"customers/{ACME_CID}/campaignBudgets/-1"
     assert budget["explicitlyShared"] is False and budget["amountMicros"] == "5000000"
-    assert op.financial and write_policy._bidding(op.body) == [] and write_policy._field_violations(op) == []
+    assert op.financial and write_policy._field_violations(op) == []
+    # the one bidding setting: a fixed EMPTY manualCpc (Google requires a strategy); no bid amount, no eCPC
+    assert campaign["manualCpc"] == {}
+    assert write_policy._bidding(*write_policy._without_fixed_manual_cpc(op, write_policy._payload(op))) == []
+    assert "bidding_not_supported" not in _bidding_codes(op)
+
+
+def _campaign_create(op):
+    return op.body["mutateOperations"][1]["campaignOperation"]["create"]
+
+
+def _bidding_codes(op):
+    from test_write_core import FakeCtx, open_policy
+    return {v["error"] for v in write_policy.check_ops(FakeCtx(), "google_ads", [op], open_policy())}
+
+
+@pytest.mark.parametrize("injected", [
+    {"manualCpc": {"enhancedCpcEnabled": True}},
+    {"manualCpc": {}, "maximizeConversions": {}},
+    {"manualCpc": {}, "targetCpa": {"targetCpaMicros": "1000000"}},
+    {"manualCpc": {"cpcBidMicros": "1000000"}},
+])
+def test_create_campaign_refuses_any_other_bidding_field(env, injected):
+    op = gads_write.create_campaign_op(ACME_CID, "Brand FR", 5_000_000, op_id="op1",
+                                       before={"account_id": ACME_CID, "currency": "EUR"})
+    _campaign_create(op).update(injected)
+    assert "bidding_not_supported" in _bidding_codes(op)
+
+
+def test_empty_manual_cpc_is_refused_outside_create_campaign(env):
+    op = gads_write.create_campaign_op(ACME_CID, "Brand FR", 5_000_000, op_id="op1",
+                                       before={"account_id": ACME_CID, "currency": "EUR"})
+    op = dataclasses.replace(op, action="budget_change")
+    assert "bidding_not_supported" in _bidding_codes(op)
+    twice = gads_write.create_campaign_op(ACME_CID, "Brand FR", 5_000_000, op_id="op1",
+                                          before={"account_id": ACME_CID, "currency": "EUR"})
+    twice.body["mutateOperations"][0]["campaignBudgetOperation"]["create"]["manualCpc"] = {}
+    assert "bidding_not_supported" in _bidding_codes(twice)
+
+
+def test_dry_run_error_names_the_missing_field_path():
+    resp = {"error": "api_error", "detail": {"details": [{"errors": [{
+        "errorCode": {"fieldError": "REQUIRED"}, "message": "The required field was not present.",
+        "location": {"fieldPathElements": [{"fieldName": "mutate_operations", "index": 1},
+                                           {"fieldName": "campaign_bidding_strategy"}]}}]}]}}
+    assert "mutate_operations.campaign_bidding_strategy" in gads_write._messages(resp)[0]
+
+
+def test_manual_cpc_duplicated_on_two_campaign_operations_is_refused(env):
+    import copy
+    op = gads_write.create_campaign_op(ACME_CID, "Brand FR", 5_000_000, op_id="op1",
+                                       before={"account_id": ACME_CID, "currency": "EUR"})
+    op.body["mutateOperations"].append(copy.deepcopy(op.body["mutateOperations"][1]))
+    assert "bidding_not_supported" in _bidding_codes(op)
+
+
+def test_manual_cpc_stays_refused_when_not_a_dict_or_null(env):
+    for bad in (None, [], "", {"enhancedCpcEnabled": False}):
+        op = gads_write.create_campaign_op(ACME_CID, "Brand FR", 5_000_000, op_id="op1",
+                                           before={"account_id": ACME_CID, "currency": "EUR"})
+        _campaign_create(op)["manualCpc"] = bad
+        assert "bidding_not_supported" in _bidding_codes(op), bad
+
+
+def test_dry_run_error_message_ends_with_the_bracketed_field_path_for_manual_cpc():
+    resp = {"error": "api_error", "detail": {"details": [{"errors": [{
+        "errorCode": {"biddingError": "BIDDING_STRATEGY_NOT_SUPPORTED"}, "message": "Not allowed.",
+        "location": {"fieldPathElements": [{"fieldName": "mutate_operations", "index": 1},
+                                           {"fieldName": "campaign_operation"}, {"fieldName": "create"},
+                                           {"fieldName": "manual_cpc"}]}}]}]}}
+    assert gads_write._messages(resp) == [
+        "BIDDING_STRATEGY_NOT_SUPPORTED: Not allowed. [mutate_operations.campaign_operation.create.manual_cpc]"]
+
+
+def test_error_messages_without_a_path_have_no_brackets_and_are_capped():
+    plain = {"detail": {"details": [{"errors": [{"errorCode": {"x": "Y"}, "message": "m" * 400}]}]}}
+    out = gads_write._messages(plain)
+    assert len(out) == 1 and len(out[0]) == 300 and "[" not in out[0]
+    many = {"detail": {"details": [{"errors": [{"message": f"e{i}"} for i in range(5)]}]}}
+    assert gads_write._messages(many) == ["e0", "e1", "e2"]
+    assert gads_write._messages({"error": "boom", "detail": "text"}) == ["boom"]
 
 
 # write_policy exempts Google Ads negative keywords and a budget created with a PAUSED campaign from the PAUSED
@@ -566,7 +647,8 @@ def test_field_allow_lists_registered_by_register(env):
         "mutateoperations.campaignbudgetoperation.create.explicitlyshared",
         "mutateoperations.campaignbudgetoperation.create.name",
         "mutateoperations.campaignbudgetoperation.create.resourcename",
-        "mutateoperations.campaignoperation.create.campaignbudget"}
+        "mutateoperations.campaignoperation.create.campaignbudget",
+        "mutateoperations.campaignoperation.create.manualcpc"}
     gads_write.register(env.mcp.__class__("again"))  # identical lists again: a no-op
     write_policy.freeze_allowlists()
     try:
