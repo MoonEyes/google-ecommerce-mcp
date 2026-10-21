@@ -17,6 +17,7 @@ Built by [MoonEyes](https://www.mooneyeswargame.com), a small French shop sellin
 ![python](https://img.shields.io/badge/python-3.10%2B-blue)
 [![PyPI](https://img.shields.io/pypi/v/google-ecommerce-mcp)](https://pypi.org/project/google-ecommerce-mcp/)
 [![MCP Registry](https://img.shields.io/badge/MCP%20Registry-io.github.MoonEyes%2Fgoogle--ecommerce--mcp-blue)](https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.MoonEyes/google-ecommerce-mcp)
+[![LightNow capabilities](https://lightnow.ai/badge/io.github.MoonEyes/google-ecommerce-mcp)](https://lightnow.ai/servers/io.github.MoonEyes/google-ecommerce-mcp)
 
 ![Architecture overview](https://raw.githubusercontent.com/MoonEyes/google-ecommerce-mcp/main/docs/diagrams/architecture-overview.png)
 
