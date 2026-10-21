@@ -11,6 +11,7 @@ Copy, adapt the dates, paste into your assistant. Each line names the tools it u
 ## SEO
 
 - *"Queries with more than 100 impressions and an average position between 5 and 15 over the last 3 months. For each, the landing page."* (`gsc_performance` with `dimensions: ["query", "page"]`)
+- *"Which queries of this client rank 5 to 15 with at least 200 impressions, and which pages get impressions but no clicks?"* (`gsc_opportunities`, once with `dimension: "query"` and once with `"page"`)
 - *"Is /product/ruined-tower indexed? Which canonical did Google pick, and when was it last crawled?"* (`gsc_inspect_url`)
 - *"Pages that get impressions but no clicks: titles to rewrite."* (`gsc_performance` with `dimensions: ["page"]`)
 - *"When did Google last read our sitemaps, and are there errors?"* (`gsc_sitemaps`)
@@ -19,6 +20,7 @@ Copy, adapt the dates, paste into your assistant. Each line names the tools it u
 
 - *"Organic search sessions, purchases and revenue per month this year."* (`ga4_report` with `yearMonth`, `channel_group: "Organic Search"`)
 - *"List the GTM tags with their triggers. Is any GA4 tag firing twice on all pages?"* (`gtm_inventory`)
+- *"Are any of acme's key events inflating conversions? Check page_view, phone and e-mail clicks, and compare key events with sessions before we read any ROAS."* (`ga4_key_event_audit`)
 - *"I just opened the home page once in a private window. How many page views does realtime show?"* (`ga4_realtime`)
 - *"Which GA4 properties can you see? Compare last month's revenue of the shop and the blog."* (`ga4_properties`, then `ga4_report` with `property_id`)
 
@@ -161,3 +163,9 @@ LIMIT 100
 ```
 
 `metrics.cost_micros` comes back as `metrics.cost` in currency units. Product titles can include brand names but no personal data. Conversions here are Google Ads' own, not deduplicated with other platforms.
+
+## Speed section when Lighthouse fails
+
+> Mobile PageSpeed of the home page and the top 3 product pages. If Lighthouse fails on a page, still give me its real-user (CrUX) values and say which lab values are missing and why.
+
+`pagespeed`

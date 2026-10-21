@@ -54,6 +54,22 @@
    ]
   },
   {
+   "name": "ga4_key_event_audit",
+   "title": "GA4 key event audit",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "end_date",
+    "property_id",
+    "start_date"
+   ]
+  },
+  {
    "name": "ga4_realtime",
    "title": "GA4 realtime",
    "annotations": {
@@ -117,6 +133,26 @@
     "days",
     "dimension",
     "limit",
+    "site_url"
+   ]
+  },
+  {
+   "name": "gsc_opportunities",
+   "title": "Search Console opportunities",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "days",
+    "dimension",
+    "limit",
+    "max_position",
+    "min_impressions",
+    "min_position",
     "site_url"
    ]
   },

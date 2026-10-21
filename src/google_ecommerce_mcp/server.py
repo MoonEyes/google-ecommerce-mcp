@@ -601,6 +601,53 @@ def ga4_compare(
     return out
 
 
+@tool("GA4 key event audit")
+@_guard("GA4 processed data; the last 24 to 48 hours can still change")
+def ga4_key_event_audit(
+    start_date: Annotated[str, Field(description="YYYY-MM-DD, NdaysAgo, yesterday or today")] = "28daysAgo",
+    end_date: Annotated[str, Field(description="YYYY-MM-DD, NdaysAgo, yesterday or today")] = "yesterday",
+    property_id: PROPERTY_ID = "",
+    client_id: CLIENT_ID = None,
+) -> dict:
+    """Which GA4 events are marked as key events (conversions), and do they inflate conversions: more key events
+    than sessions, page_view or other engagement events marked as key, contact clicks (phone, e-mail, WhatsApp)
+    marked as key. Two Data API runReport calls: events with eventCount and keyEvents, then the property totals
+    of sessions, keyEvents and ecommercePurchases. Returns "key_events" (event_name, event_count, key_events,
+    share_pct, flags), "totals", "key_events_per_session", "findings" ({code, severity, event_name, detail}), the
+    unit and definition of each metric under "metrics" and a "date_range" with "data_complete". Heuristics: check
+    in GA4 Admin > Events > Key events before changing anything. Run it first on a new property, before reading
+    any conversion rate or ROAS."""
+    from . import ga4_audit
+
+    scope = _as_scope(client_id)
+    try:
+        prop = _ga4_property(property_id, scope)
+    except ValueError as exc:
+        return {"error": "invalid_property_id", "detail": str(exc)}
+    url = f"https://analyticsdata.googleapis.com/v1beta/properties/{prop}:runReport"
+    resp_a = _call("POST", url, json=ga4_audit.request_events(start_date, end_date), scope=scope)
+    if "error" in resp_a:
+        return resp_a
+    resp_b = _call("POST", url, json=ga4_audit.request_totals(start_date, end_date), scope=scope)
+    partial = "error" in resp_b
+    out = ga4_audit.audit(ga4_audit.parse_events(resp_a), None if partial else ga4_audit.parse_totals(resp_b))
+    meta = resp_a.get("metadata", {})
+    headers: list[dict] = []
+    for header in list(resp_a.get("metricHeaders", [])) + ([] if partial else list(resp_b.get("metricHeaders", []))):
+        if header.get("name") not in {h.get("name") for h in headers}:
+            headers.append(header)
+    out["metrics"] = metrics.ga4_metric_info(headers, meta.get("currencyCode"))
+    out["date_range"] = metrics_date_range(start_date, end_date, meta.get("timeZone"), GA4_SETTLING_NOTE)
+    out["data_complete"] = out["date_range"].get("data_complete")
+    out["property_id"] = prop
+    if resp_a.get("rowCount", 0) > len(resp_a.get("rows", [])):
+        out["events_truncated"] = True
+    if partial:
+        out["partial"] = True
+        out["partial_error"] = {"step": "totals", **resp_b}
+    return out
+
+
 @tool("GA4 realtime")
 @_guard("realtime: last 30 minutes")
 def ga4_realtime(
@@ -794,6 +841,56 @@ def gsc_moves(
         "current": metrics_date_range(*periods[0], metrics.GSC_TIMEZONE, GSC_SETTLING_NOTE),
         "previous": metrics_date_range(*periods[1], metrics.GSC_TIMEZONE, GSC_SETTLING_NOTE),
         "note": gsc_tools.MOVES_NOTE}
+    if site_url:
+        out["site_url"] = _site_url(site_url, scope)
+    return out
+
+
+@tool("Search Console opportunities")
+@_guard("Search Console data lags about 2 days; the last days of the period may be incomplete")
+def gsc_opportunities(
+    site_url: SITE_URL = "",
+    days: Annotated[int, Field(description="Length of the period in days (7 to 90): the last N days, ending 2 days "
+                               "ago", ge=7, le=90)] = 28,
+    dimension: Annotated[Literal["query", "page"], Field(description="What to list: query or page")] = "query",
+    min_impressions: Annotated[int, Field(description="Minimum impressions in the period for a row to count "
+                                          "(1 to 100000)", ge=1, le=100000)] = 100,
+    min_position: Annotated[float, Field(description="Best average position kept in striking_distance (1 to 100)",
+                                         ge=1, le=100)] = 5.0,
+    max_position: Annotated[float, Field(description="Worst average position kept in striking_distance (1 to 100)",
+                                         ge=1, le=100)] = 15.0,
+    limit: Annotated[int, Field(description="Rows returned in each list (1 to 200)", ge=1, le=200)] = 25,
+    client_id: CLIENT_ID = None,
+) -> dict:
+    """Search Console opportunities: the queries (or pages) ranking between min_position and max_position with at
+    least min_impressions ("striking_distance"), and the ones with impressions but zero clicks ("no_clicks"), each
+    sorted by impressions. One request over the last N days ending 2 days ago. Read only."""
+    from . import gsc_opportunities as opp
+    from . import gsc_tools
+
+    if min_position > max_position:
+        return {"error": "invalid_range", "detail": f"min_position {min_position} is greater than max_position "
+                f"{max_position}", "fix": "swap min_position and max_position"}
+    scope = _as_scope(client_id)
+    site = _site(scope, site_url)
+    today, _ = metrics.today_in(metrics.GSC_TIMEZONE)
+    start, end = gsc_tools.moves_periods(today, days)[0]
+    url = f"https://www.googleapis.com/webmasters/v3/sites/{site}/searchAnalytics/query"
+    resp = _call("POST", url, json={"startDate": start, "endDate": end, "dimensions": [dimension],
+                                    "rowLimit": opp.FETCH_ROWS}, scope=scope)
+    if "error" in resp:
+        return resp
+    rows = resp.get("rows", [])
+    out = opp.find_opportunities(rows, dimension, min_impressions, min_position, max_position, limit)
+    out["truncated"] = len(rows) >= opp.FETCH_ROWS
+    if out["truncated"]:
+        out["truncated_note"] = opp.TRUNCATED_NOTE
+    out["filters"] = {"dimension": dimension, "days": days, "min_impressions": min_impressions,
+                      "min_position": min_position, "max_position": max_position, "limit": limit}
+    if dimension == "query":
+        out["note"] = opp.ANONYMIZED_NOTE
+    out["metrics"] = metrics.GSC_METRICS
+    out["date_range"] = metrics_date_range(start, end, metrics.GSC_TIMEZONE, GSC_SETTLING_NOTE)
     if site_url:
         out["site_url"] = _site_url(site_url, scope)
     return out
@@ -1029,20 +1126,56 @@ def pagespeed(
         return {"error": "blocked", "detail": str(exc)}
     except (requests.RequestException, ValueError) as exc:
         return {"error": "network", "detail": str(exc)}
+    if not isinstance(data, dict):
+        return {"error": "pagespeed_error", "detail": str(data)[:300]}
     if "error" in data:
+        if not isinstance(data["error"], dict):
+            return {"error": "pagespeed_error", "detail": str(data["error"])[:300]}
         message = data["error"].get("message", "")
         hint = "set PAGESPEED_API_KEY (Google Cloud API key with the PageSpeed Insights API enabled)" if "Quota" in message else ""
         return {"error": message, "hint": hint}
-    lh, audits = data["lighthouseResult"], data["lighthouseResult"]["audits"]
-    out = {"performance": round(lh["categories"]["performance"]["score"] * 100),
-           "seo": round(lh["categories"]["seo"]["score"] * 100),
-           "lcp": audits["largest-contentful-paint"]["displayValue"],
-           "cls": audits["cumulative-layout-shift"]["displayValue"],
-           "tbt": audits["total-blocking-time"]["displayValue"],
-           "field_data": data.get("loadingExperience", {}).get("overall_category")}
     field = _field_metrics(data.get("loadingExperience"))
+    if not isinstance(data.get("lighthouseResult"), dict) and field is None:
+        return {"error": "lighthouse_failed", "detail": "no lighthouseResult",
+                "fix": "retry later or test another URL; a page that does not load in Lighthouse has no lab values"}
+    out = _lab_values(data)
+    experience = data.get("loadingExperience")
+    out["field_data"] = experience.get("overall_category") if isinstance(experience, dict) else None
     if field:
         out["field_metrics"] = field
+    return out
+
+
+def _lab_values(data: dict) -> dict:
+    """Lighthouse lab values of a runPagespeed response. performance and seo are 0 to 100 (the API types a category
+    score as possibly null), lcp, cls and tbt are Lighthouse display strings; a value Lighthouse did not produce is
+    None. lab_error {code, message} and partial: true are added when lighthouseResult.runtimeError reports a failed
+    run (code other than NO_ERROR) or when lighthouseResult is missing."""
+    lh = data.get("lighthouseResult")
+    if not isinstance(lh, dict):
+        lh = {}
+    categories = lh.get("categories") if isinstance(lh.get("categories"), dict) else {}
+    audits = lh.get("audits") if isinstance(lh.get("audits"), dict) else {}
+
+    def score(name):
+        category = categories.get(name)
+        value = category.get("score") if isinstance(category, dict) else None
+        return round(value * 100) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+    def display(audit_id):
+        audit = audits.get(audit_id)
+        return (audit.get("displayValue") or None) if isinstance(audit, dict) else None
+
+    out = {"performance": score("performance"), "seo": score("seo"),
+           "lcp": display("largest-contentful-paint"), "cls": display("cumulative-layout-shift"),
+           "tbt": display("total-blocking-time")}
+    runtime = lh.get("runtimeError")
+    code = runtime.get("code") if isinstance(runtime, dict) else None
+    if code and code != "NO_ERROR":
+        out["lab_error"] = {"code": str(code), "message": str(runtime.get("message") or "")[:300]}
+        out["partial"] = True
+    elif not lh:
+        out["partial"] = True
     return out
 
 
