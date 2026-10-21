@@ -8,6 +8,13 @@
 - **`clients.json` with a repeated JSON key is refused.** Two identical keys in one object (for example two `max_daily_budget_micros` on the same client) used to let the last value win silently. It is now `registry_invalid`, and the message names the repeated key.
 - **Google Ads error messages carry the field path.** An error from the API now ends with the path of the field it concerns, in square brackets (for example `[mutate_operations.campaign_operation.create.manual_cpc]`), and each per-error message is now cut at 300 characters instead of 200 (the fallback message stays cut at 200).
 
+### Added
+
+- **`client pilot-check <client>`: an offline readiness check for a read-only pilot.** Prints, for GA4, Search Console and Merchant Center, whether an id is set and a read token exists, whether writing is off for every family and `GEM_WRITE` unset, and whether the Claude Desktop entry is pinned to an exact version. Last line `Pilot: ready for read-only use` (exit 0) or the list of things to fix with the exact command (exit 1). No network call, no secret shown. See [docs/PILOT.md](docs/PILOT.md).
+- **`examples/demo/`: three synthetic answers (`ga4_report`, `gsc_performance`, `merchant_product_issues`) for a demo without a network.** Labelled "synthetic demo data, shop name Demo Shop".
+- **`gsc_moves`: Search Console week-over-week moves.** It reads only. Compares the last N days (ending 2 days ago) with the N days before for queries or pages, and returns the biggest losers and gainers by clicks with impressions, CTR and position for both periods, totals and both date ranges. A query missing from one period counts as a full loss or gain. Tested offline only.
+- **`ga4_compare`: one period against an earlier one in a single call.** It only reads. Sends one GA4 `runReport` with two date ranges (this month against last month, the last 7 days against the 7 before, or the same dates a year earlier) and returns per row both values, the absolute and percent change (`null` percent when the previous value is 0), totals, the unit of each metric, both date ranges resolved in the property timezone with `data_complete`, and `biggest_moves` (top 5 rows by absolute change of the first metric). Same endpoint and allow-list as `ga4_report`. Tested offline only.
+
 ### Notes for contributors
 
 - When a real `clients.json` exists on your machine, run the test suite with an isolated config folder, or the tests read your real registry. The command is in `CONTRIBUTING.md`.
