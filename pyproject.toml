@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "google-ecommerce-mcp"
-version = "0.5.0"
+version = "0.6.0"
 description = "Multi-client MCP server for online shops: read GA4, Search Console, Merchant Center, Tag Manager, PageSpeed, Google Ads, Meta Ads and ChatGPT Ads, and prepare controlled, human-approved changes (off by default, plan then approve then apply, never tested on a real account)."
 readme = "README.md"
 license = "MIT"
