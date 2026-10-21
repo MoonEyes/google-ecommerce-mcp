@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+Nothing yet.
+
+## 0.6.0 (2026-10-21)
+
+Four read tools for an agency pilot, an offline readiness check, and three fixes. **Everything is tested offline only: no new tool and no write was tried on a real account.**
+
 ### Fixed
 
 - **`pagespeed` no longer raises when Lighthouse returns a null score or no audit.** A null category score gives `performance` or `seo` `null`, a missing audit gives `null` for `lcp`, `cls` or `tbt`, and the CrUX `field_metrics` are kept. A failed Lighthouse run adds `lab_error` (`code`, `message`) and `partial: true`; no Lighthouse result and no field data gives `error: "lighthouse_failed"` with a `fix`; an API error sent as plain text gives `error: "pagespeed_error"`. A normal response is unchanged. Tested offline only.
@@ -21,6 +27,7 @@
 ### Notes for contributors
 
 - When a real `clients.json` exists on your machine, run the test suite with an isolated config folder, or the tests read your real registry. The command is in `CONTRIBUTING.md`.
+- `tests/test_meta_eco_write.py::test_tampered_token_is_refused` could pass a token unchanged when the real token happened to end in `xx` (about one run in 4,000); it now always alters the last character.
 
 ## 0.5.0 (2026-10-18)
 

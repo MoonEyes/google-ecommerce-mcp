@@ -43,7 +43,7 @@ def test_version_is_identical_everywhere():
     assert server["version"] == pyproject, "server.json version differs from pyproject.toml"
     assert server["packages"][0]["version"] == pyproject, "server.json packages[0].version differs"
     assert init == pyproject, "__init__.__version__ differs from pyproject.toml"
-    assert pyproject == "0.5.0"
+    assert pyproject == "0.6.0"
 
 
 def test_package_description_does_not_claim_read_only():
@@ -97,7 +97,7 @@ def test_plan_and_apply_tools_named_in_the_docs_exist():
                 unknown.add((path.name, name))
     assert not unknown, f"documented tools that do not exist: {sorted(unknown)}"
     changelog = text(ROOT / "CHANGELOG.md")
-    section = changelog.split("## 0.5.0", 1)[1].split("\n## 0.4.1", 1)[0]
+    section = changelog.split("## 0.6.0", 1)[1].split("\n## 0.4.1", 1)[0]
     unknown_changelog = {n for n in pattern.findall(section) if n not in known}
     assert not unknown_changelog, f"CHANGELOG names tools that do not exist: {sorted(unknown_changelog)}"
 

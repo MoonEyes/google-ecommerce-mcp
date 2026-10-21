@@ -287,8 +287,9 @@ def test_global_switch_off_refuses(graph, monkeypatch):
 
 def test_tampered_token_is_refused(graph):
     p = plan(inventory=2)
-    out = write_core._apply_tool("meta_apply", "acme", p["plan_id"], p["confirmation_token"][:-2] + "xx",
-                                 p["confirm"])
+    token = p["confirmation_token"]
+    tampered = token[:-1] + ("a" if token[-1] != "a" else "b")  # always differs from the real token
+    out = write_core._apply_tool("meta_apply", "acme", p["plan_id"], tampered, p["confirm"])
     assert "error" in out and graph.posts() == []
 
 
