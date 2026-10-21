@@ -1,6 +1,6 @@
 # Tool reference
 
-**80 tools.** Most only read. A second group, the `*_plan_*` tools, **prepares** a change and writes nothing. Only four tools, the `*_apply` tools, can write, and only when you turned writing on (see [WRITE.md](WRITE.md)). Every tool returns JSON. On failure a tool returns an object with an `error` key instead of raising:
+**82 tools.** Most only read. A second group, the `*_plan_*` tools, **prepares** a change and writes nothing. Only four tools, the `*_apply` tools, can write, and only when you turned writing on (see [WRITE.md](WRITE.md)). Every tool returns JSON. On failure a tool returns an object with an `error` key instead of raising:
 
 | `error` value | Meaning | Fix |
 |---|---|---|
@@ -27,7 +27,7 @@ Report tools (`ga4_report`, `ga4_realtime`, `gsc_performance`) also return:
 - `metrics`: the unit (`count`, `ratio 0 to 1`, `seconds`, the property currency...) and a short definition of each metric;
 - `date_range`: `start` and `end` as calendar dates in the data's `timezone` (GA4 property timezone, Pacific Time for Search Console), the `requested` values when they were relative (`7daysAgo`), and `data_complete`. When it is `false`, `settling_from` is the first day Google can still revise: do not compare those days with complete ones. When some sub-requests fail, `merchant_product_issues` and `gtm_inventory` return what they could read with `partial: true` and the failing part in `partial_error` / `partial_errors`.
 
-## All 80 tools
+## All 82 tools
 
 Legend. **R** = reads only. **Plan** = prepares a change, calls no write endpoint (platform dry runs aside), returns a signed plan; it changes nothing. **Apply** = the only tools that write. Almost every tool takes an optional `client_id` (needed once two clients are registered, see [MULTI-CLIENT.md](MULTI-CLIENT.md)); it is left out of the "key parameters" column. Detailed sections follow for the original 22 tools. Where they say "needs `GA4_PROPERTY_ID`" (or another id variable), that is legacy mode; with a client registry the id comes from the client's entry in `clients.json` and the variable is ignored.
 
@@ -56,12 +56,13 @@ Legend. **R** = reads only. **Plan** = prepares a change, calls no write endpoin
 
 All four also take `client_id`. They are annotated `readOnlyHint: false` and `destructiveHint: true`, so your MCP client asks you before each call. They refuse unless every lock of [WRITE.md](WRITE.md#the-locks-in-one-table) is open.
 
-### GA4 (8)
+### GA4 (9)
 
 | Tool | Type | Key parameters | What it does |
 |---|---|---|---|
 | `ga4_report` | R | `dimensions`, `metrics`, `start_date`, `end_date`, `limit`, `channel_group`, `property_id` | Any GA4 report |
 | `ga4_compare` | R | `metrics`, `dimensions`, `period`, `compare_to`, `limit`, `property_id` | One period against an earlier one (this month vs last month, 7 days vs the 7 before), with changes, totals and biggest moves |
+| `ga4_key_event_audit` | R | `start_date`, `end_date`, `property_id` | Which events are key events and whether they inflate conversions (more key events than sessions, page_view or contact clicks marked as key) |
 | `ga4_realtime` | R | `dimensions`, `metrics`, `property_id` | Last 30 minutes |
 | `ga4_properties` | R | `max_pages` | Every GA4 property you can read |
 | `ga4_custom_definitions` | R | `property_id` | Custom dimensions and metrics of the property |
@@ -69,12 +70,13 @@ All four also take `client_id`. They are annotated `readOnlyHint: false` and `de
 | `ga4_plan_key_event_create` | Plan | `event_name`, `counting_method`, `property_id` | Plan marking an event as a key event |
 | `ga4_plan_custom_dimension_create` | Plan | `display_name`, `parameter_name`, `scope`, `description`, `disallow_ads_personalization`, `property_id` | Plan registering a custom dimension (it cannot be renamed or deleted afterwards, only archived in GA4) |
 
-### Search Console (5)
+### Search Console (6)
 
 | Tool | Type | Key parameters | What it does |
 |---|---|---|---|
 | `gsc_performance` | R | `dimensions`, `start_date`, `end_date`, `limit`, `search_type`, `page_contains`, `site_url` | Clicks, impressions, CTR, position |
 | `gsc_moves` | R | `site_url`, `days`, `dimension`, `limit` | Queries or pages that lost and gained the most clicks, last N days against the N before |
+| `gsc_opportunities` | R | `site_url`, `days`, `dimension`, `min_impressions`, `min_position`, `max_position`, `limit` | Queries or pages ranking 5 to 15 with real impressions, and those with impressions but no clicks |
 | `gsc_inspect_url` | R | `url`, `site_url` | URL Inspection: indexed, canonical, last crawl |
 | `gsc_sitemaps` | R | `site_url` | Declared sitemaps and their errors |
 | `gsc_sites` | R | none | Every property the token can see (useful with several clients) |
@@ -177,8 +179,8 @@ Then apply it with the matching `*_apply` tool. The full procedure, with example
 ## Contents of the detailed sections
 
 - [server_status](#server_status)
-- GA4: [ga4_report](#ga4_report), [ga4_compare](#ga4_compare), [ga4_realtime](#ga4_realtime), [ga4_properties](#ga4_properties)
-- Search Console: [gsc_performance](#gsc_performance), [gsc_inspect_url](#gsc_inspect_url), [gsc_sitemaps](#gsc_sitemaps)
+- GA4: [ga4_report](#ga4_report), [ga4_compare](#ga4_compare), [ga4_key_event_audit](#ga4_key_event_audit), [ga4_realtime](#ga4_realtime), [ga4_properties](#ga4_properties)
+- Search Console: [gsc_performance](#gsc_performance), [gsc_moves](#gsc_moves), [gsc_opportunities](#gsc_opportunities), [gsc_inspect_url](#gsc_inspect_url), [gsc_sitemaps](#gsc_sitemaps)
 - Merchant Center: [merchant_data_sources](#merchant_data_sources), [merchant_product_issues](#merchant_product_issues), [merchant_report_query](#merchant_report_query)
 - Tag Manager: [gtm_inventory](#gtm_inventory)
 - [indexing_status](#indexing_status), [pagespeed](#pagespeed)
@@ -265,6 +267,49 @@ A period against an earlier one in ONE call: GA4 Data API `runReport` with two d
 ```
 
 Ask: *"Compare last month with the month before: which channels gained or lost the most sessions and revenue?"*
+
+---
+
+## ga4_key_event_audit
+
+Which events of a GA4 property are marked as key events (conversions), and whether they inflate conversions. Run it first on a client's property, before reading any conversion rate or ROAS. It only reads: two GA4 Data API `runReport` calls (events with `eventCount` and `keyEvents`, then the property totals of `sessions`, `keyEvents` and `ecommercePurchases`), the same endpoint and allow-list as `ga4_report`. Needs `GA4_PROPERTY_ID` (or the client's property).
+
+| Parameter | Type | Default | Notes |
+|---|---|---|---|
+| `start_date` | str | `28daysAgo` | `YYYY-MM-DD`, `NdaysAgo`, `yesterday` or `today`, as in `ga4_report` |
+| `end_date` | str | `yesterday` | same formats |
+| `property_id` | str | `""` | numeric property id of the client |
+
+- `key_events`: the events with at least one key event in the period, biggest first. Each has `event_name`, `event_count`, `key_events` (count), `share_pct` (percent of all key events, 1 decimal) and `flags` (finding codes that concern this event). Up to 250 events are read; `events_truncated` is true if GA4 had more.
+- `totals`: `sessions`, `key_events`, `ecommerce_purchases` (counts). `key_events_per_session` is `key_events / sessions` with 2 decimals, `null` when there is no session.
+- `findings`: a list of `{code, severity, event_name, detail}`:
+
+| `code` | Severity | When |
+|---|---|---|
+| `key_events_exceed_sessions` | high | total key events > total sessions: a visit can count as several conversions |
+| `engagement_event_marked_key` | high | `page_view`, `session_start`, `first_visit`, `user_engagement` or `scroll` is a key event |
+| `contact_click_marked_key` | medium | a key event name contains phone, tel, mail, contact, whatsapp or click (any case) |
+| `purchase_not_key_event` | info | `ecommercePurchases` > 0 but `purchase` is not a key event |
+| `no_key_events` | info | no key event in the period |
+
+- These are heuristics: the name match is loose (an event called `hotel_booking` contains "tel"), and a contact click can be a legitimate goal. `rule_note` repeats it: check in GA4 Admin > Events > Key events before changing anything. This tool changes nothing; to change a key event, use `ga4_plan_key_event_create` or GA4 itself.
+- `metrics` gives the unit and definition of each metric. `date_range` is resolved to calendar dates in the property timezone with `data_complete` (and `settling_from` when the last days can still change); `data_complete` is repeated at the top level.
+- If the second call (totals) fails after the first succeeded, the answer keeps the events with `partial: true` and `partial_error` (`step: "totals"` plus the error). Then `sessions` and `ecommerce_purchases` are `null` and the checks that need them are skipped. If the first call fails, the error passes through unchanged: `missing_scope`, `api_disabled`, `rate_limited`, `not_authenticated`, `network`, `blocked`. A `property_id` that is not the client's is refused before any request.
+
+```json
+{"key_events": [{"event_name": "page_view", "event_count": 500, "key_events": 500, "share_pct": 90.6,
+                 "flags": ["engagement_event_marked_key"]},
+                {"event_name": "phone_click", "event_count": 40, "key_events": 40, "share_pct": 7.2,
+                 "flags": ["contact_click_marked_key"]}],
+ "totals": {"sessions": 201, "key_events": 552, "ecommerce_purchases": 12}, "key_events_per_session": 2.75,
+ "findings": [{"code": "key_events_exceed_sessions", "severity": "high", "event_name": null,
+               "detail": "552 key events for 201 sessions: one visit counts as more than one conversion, so conversion rates and ROAS built on key events are inflated"}],
+ "date_range": {"start": "2026-09-23", "end": "2026-10-20", "timezone": "Europe/Paris", "data_complete": false},
+ "data_complete": false, "property_id": "123456789",
+ "rule_note": "heuristics, check in GA4 Admin > Events > Key events before changing anything"}
+```
+
+Ask: *"Are any of acme's key events inflating conversions?"*
 
 ---
 
@@ -464,6 +509,7 @@ PageSpeed Insights (Lighthouse) performance and SEO scores plus Core Web Vitals.
 ```
 
 - `performance`, `seo`, `lcp`, `cls`, `tbt`: **lab** values (Lighthouse, one simulated load), as text formatted by Google.
+- A lab value can be `null`: Lighthouse sometimes returns no score or no audit (a page that fails to load, a timeout). The call still answers, the CrUX `field_metrics` are kept, and when Lighthouse reports a failure the answer adds `lab_error` (`{"code": "NO_FCP", "message": "..."}`, message cut at 300 characters) and `partial: true`. If Lighthouse produced nothing **and** Google has no field data, the answer is `{"error": "lighthouse_failed", "detail", "fix"}`; an error sent as plain text by the API is `{"error": "pagespeed_error", "detail"}`.
 - `field_data`: the overall Chrome UX Report (CrUX) category when Google has enough real-user data, otherwise `null`.
 - `field_metrics`: the **field** values, 75th percentile of real visits over the last 28 days (CrUX): `lcp_ms` and `inp_ms` in milliseconds, `cls` as a score (the API sends it multiplied by 100; it is divided back here), and each metric's category when Google gives one. Only the metrics Google returned are present. `origin_fallback: true` means Google had too little data for this URL and answered for the whole site (origin). The key is **absent** when Google has no field data for the URL nor its origin (low traffic): never zeros.
 
@@ -746,3 +792,37 @@ Search Console week-over-week moves. Two `searchAnalytics.query` calls (the last
 ```
 
 Ask: *"Which queries lost the most clicks this week compared with last week?"*
+
+---
+
+## gsc_opportunities
+
+Search Console opportunities for an SEO section: the queries (or pages) ranking just off page one, and the ones that show up but get no clicks. One `searchAnalytics.query` call over the last `days` days (ending 2 days ago, Pacific Time), filtered and sorted for you. It reads only; it uses the same endpoint as `gsc_performance`.
+
+| Parameter | Type | Default | Notes |
+|---|---|---|---|
+| `site_url` | str | `""` | one of the client's sites; empty uses the configured property |
+| `days` | int | `28` | length of the period, 7 to 90 |
+| `dimension` | str | `query` | `query` or `page` |
+| `min_impressions` | int | `100` | rows under this many impressions are ignored (1 to 100000) |
+| `min_position` | float | `5.0` | best average position kept in `striking_distance` (1 to 100) |
+| `max_position` | float | `15.0` | worst average position kept in `striking_distance` (1 to 100) |
+| `limit` | int | `25` | rows returned in each list (1 to 200) |
+
+- `striking_distance`: rows with `min_position <= position <= max_position` and impressions at or above `min_impressions`, sorted by impressions (highest first). Each row has the query or page, `clicks`, `impressions`, `ctr` (ratio 0 to 1, 4 decimals) and `position` (average, 1 decimal).
+- `no_clicks`: rows with zero clicks and impressions at or above `min_impressions`, at any position, sorted by impressions. Typical use: titles and descriptions to rewrite.
+- `striking_count` and `no_clicks_count` count every match before `limit` cuts the lists; `rows_seen` is the number of rows Google returned.
+- The request asks for up to 5,000 rows. `truncated` is true when that ceiling was reached; rows beyond it (the lowest by clicks) are then missing from both lists, and `truncated_note` says so.
+- For `query`, Google leaves anonymized queries out of the rows; `note` says so.
+- `min_position` above `max_position` returns `invalid_range` (fix: swap them) before any request. Search Console errors pass through unchanged: `missing_scope`, `api_disabled`, `rate_limited`, `not_authenticated`, `network`. A `site_url` that is not the client's is refused.
+- `filters` echoes the arguments used; `date_range` is in Pacific Time with `data_complete`, as in `gsc_performance`. No `dataState` is sent (final data only).
+
+```json
+{"striking_distance": [{"query": "wargame terrain", "clicks": 10, "impressions": 400, "ctr": 0.025, "position": 8.0}],
+ "no_clicks": [{"query": "resin ruins", "clicks": 0, "impressions": 1000, "ctr": 0.0, "position": 20.0}],
+ "striking_count": 1, "no_clicks_count": 1, "rows_seen": 4, "truncated": false,
+ "filters": {"dimension": "query", "days": 28, "min_impressions": 100, "min_position": 5.0, "max_position": 15.0, "limit": 25},
+ "date_range": {"start": "2026-09-22", "end": "2026-10-19", "timezone": "America/Los_Angeles", "data_complete": true}}
+```
+
+Ask: *"Which queries of acme rank 5 to 15 with at least 200 impressions?"*

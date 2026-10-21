@@ -36,7 +36,7 @@ from mcp.client import stdio as mcp_stdio  # noqa: E402
 from mcp.client.stdio import StdioServerParameters, stdio_client  # noqa: E402
 
 SRC = str(Path(__file__).resolve().parents[1] / "src")
-TOTAL_TIMEOUT = 180.0  # 80 tools, each called once over stdio
+TOTAL_TIMEOUT = 180.0  # 82 tools, each called once over stdio
 
 # Minimal valid arguments for every tool (required parameters only, plus dates where the tool needs them to get
 # past input validation and reach its configuration check).
@@ -45,10 +45,12 @@ TOOL_ARGS: dict[str, dict] = {
     "server_status": {},
     "ga4_report": {},
     "ga4_compare": {},
+    "ga4_key_event_audit": {},
     "ga4_realtime": {},
     "ga4_properties": {},
     "gsc_performance": {},
     "gsc_moves": {},
+    "gsc_opportunities": {},
     "gsc_inspect_url": {"url": "https://shop.example/"},
     "gsc_sitemaps": {},
     "merchant_data_sources": {},
@@ -143,10 +145,12 @@ EXPECTED_ERROR: dict[str, str | None] = {
     "server_status": None,
     "ga4_report": "not_configured",
     "ga4_compare": "not_configured",
+    "ga4_key_event_audit": "not_configured",
     "ga4_realtime": "not_configured",
     "ga4_properties": "not_authenticated",      # needs no id, stops at the missing token
     "gsc_performance": "not_configured",
     "gsc_moves": "not_configured",
+    "gsc_opportunities": "not_configured",
     "gsc_inspect_url": "not_configured",
     "gsc_sitemaps": "not_configured",
     "merchant_data_sources": "not_configured",

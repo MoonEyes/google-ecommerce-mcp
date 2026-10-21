@@ -75,6 +75,8 @@ Run `setup` on a machine with a browser using `--token-file`, then copy the toke
 
 **PageSpeed `Quota exceeded`.** Set `PAGESPEED_API_KEY` to your own restricted key (or, with clients, `client set-secret <client> pagespeed`). The server calls `pagespeedonline.googleapis.com`; with a key restricted in Cloud Console, enable the *PageSpeed Insights API* in the same project.
 
+**PageSpeed `lighthouse_failed`, or `performance: null` with `lab_error`.** Lighthouse could not load or score the page (error code in `lab_error.code`, for example `NO_FCP`). Retry later or test another URL. When `field_metrics` is present it is still valid: it comes from real visits (CrUX), not from the failed lab run.
+
 ## Doctor says
 
 `google-ecommerce-mcp doctor [--client <name>] [--live] [--json] [--only <services>] [--config <file>] [--name <server>]` prints a table. Without a client registry the columns are Service, Set up, Secret, Token, Status, Account. With a registry there is one row per client and platform (Client, Platform, Ids, Read, Write, On, Status, Account, Next, plus Live with `--live`), and `--client` limits it to one client. Then "To fix" with the exact command for each problem, "Not set up", a `Result:` line and a `Next command:`. It reads this shell's environment and the server entry of your Claude Desktop config. Exit code: `0` all fine, `1` a configured service fails, `2` nothing is configured.

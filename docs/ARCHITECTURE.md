@@ -12,7 +12,7 @@ Interactive version: [`diagrams/architecture-overview.html`](diagrams/architectu
  MCP client (Claude Desktop, Claude Code)
         |  stdio (JSON-RPC)
         v
- server.py + registry.py : 80 tools, most take a client_id
+ server.py + registry.py : 82 tools, most take a client_id
         |
         +-- read tools ------------> clients.py (client_id -> ClientContext: ids, secrets, policy)
         |                                  |
@@ -39,7 +39,7 @@ Interactive version: [`diagrams/architecture-overview.html`](diagrams/architectu
 | Configuration | `config.py` | Reads account ids from environment variables, defines the OAuth scopes |
 | Credentials | `auth.py` | Stores the refresh token in the OS keyring (or a file), refreshes access tokens in memory |
 | Installer | `installer.py` | `install` command: prompts, OAuth setup, Claude Desktop config merge with backup |
-| Tools | `server.py`, `registry.py` | The first FastMCP tools for the Google services, one HTTP session, every call wrapped so errors come back as data. `registry.py` registers every other tool (80 in total) in a fixed order and freezes the field allow-lists at the end |
+| Tools | `server.py`, `registry.py` | The first FastMCP tools for the Google services, one HTTP session, every call wrapped so errors come back as data. `registry.py` registers every other tool (82 in total) in a fixed order and freezes the field allow-lists at the end |
 | Clients | `clients.py`, `paths.py`, `secrets_store.py`, `client_cli.py` | The client registry, the immutable `ClientContext`, per-client secrets, the `client` and `approve` commands. See [MULTI-CLIENT.md](MULTI-CLIENT.md) |
 | Write path | `write_core.py`, `write_policy.py`, `write_tokens.py`, `write_journal.py` | The single path for every change. See [The write path](#the-write-path) |
 | Doctor | `doctor.py` | `doctor` command: per service, set up / secret present / token / status and the exact command to fix it; `--live` makes one minimal read call through the existing tools; never prints a secret, ids masked. Exit code 0, 1 or 2 |

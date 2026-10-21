@@ -29,7 +29,7 @@ Built by [MoonEyes](https://www.mooneyeswargame.com), a small French shop sellin
 | [Reading pilot](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/PILOT.md) | A pilot with one client and writing left off: access checklist, steps, how to check writing is off, how to revoke |
 | [Writing: plan, approve, apply](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/WRITE.md) | Turn writing on in 5 steps, three full examples, every lock, every refusal and its fix |
 | [Architecture](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/ARCHITECTURE.md) | Components, the write path, a tool call step by step, design choices, sequence diagrams |
-| [Tool reference](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/TOOLS.md) | Every tool (80): parameters, output, example questions |
+| [Tool reference](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/TOOLS.md) | Every tool (82): parameters, output, example questions |
 | [Setup, one service at a time](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/SETUP.md) | Which services you need, access checklist and e-mail template for a client, install order with `doctor` checks, revocation |
 | [Client reporting](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/REPORTING.md) | Monthly report plan, KPI formulas, the `report` command and its input contract |
 | [Guided install prompts](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/examples/INSTALL-PROMPT.md) | A prompt to paste into Claude to be guided step by step ([French](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/examples/INSTALL-PROMPT.fr.md)) |
@@ -78,7 +78,7 @@ Each case gives the question, the tools the assistant usually calls, what you le
 2. **Which searches are one push away from page one?** *"Queries ranking 5 to 15 with more than 100 impressions, and their landing page."* Tools: `gsc_performance`. You learn which pages already earn impressions but few clicks. Decision: which titles, descriptions and internal links to rewrite first.
 3. **Which disapproved products still get visits?** *"Products disapproved in Merchant Center that still receive organic clicks."* Tools: `merchant_product_issues`, `gsc_performance`. You learn which feed errors hit pages people still visit. Decision: fix those products before the rest.
 4. **Is the tracking trustworthy?** *"Is GA4 loaded twice? Does the purchase tag fire once? Is the workspace the same as the live version?"* Tools: `gtm_inventory`, `ga4_realtime`. You learn whether purchases or page views may be double counted and whether unpublished changes exist. Decision: publish, remove a duplicate tag, or leave it.
-5. **Preparing a redesign.** *"Which landing pages earn money and organic clicks, which will need a 301, and what is today's speed baseline?"* Tools: `ga4_report` (dimension `landingPage`), `gsc_performance`, `gsc_moves`, `gsc_inspect_url`, `pagespeed`. You learn which URLs to preserve, which redirects to plan, and the before-numbers to compare with after. Decision: the redirect map and what must not change.
+5. **Preparing a redesign.** *"Which landing pages earn money and organic clicks, which will need a 301, and what is today's speed baseline?"* Tools: `ga4_report` (dimension `landingPage`), `gsc_performance`, `gsc_moves`, `gsc_opportunities`, `gsc_inspect_url`, `pagespeed`. You learn which URLs to preserve, which redirects to plan, and the before-numbers to compare with after. Decision: the redirect map and what must not change.
 
 **Paid media** (needs the connectors below)
 
@@ -96,19 +96,19 @@ Findings from MoonEyes' own accounts and from one anonymised small-business acco
 |---|---|---|
 | Merchant Center: 2,544 listings, 112 disapproved. 224 "weight too high" refusals came from a grams-to-kilograms unit error in the feed (packs sent as about 2 tonnes), since corrected. One false "alcoholic drink" refusal was caused by a product name and went away after renaming 3 products. A duplicate feed source created by the Google for WooCommerce plugin was removed. | Audit of 1-2 June 2026 (MoonEyes) | Merchant Center product statuses and feed sources (the same kind of data `merchant_product_issues` and `merchant_data_sources` return; no export of the audit is kept in this repository) |
 | A purchase counted twice: the same Google Ads conversion id was sent both by a WordPress snippet and by Google Tag Manager. The snippet was disabled and GTM stays the single source. The number of gtag occurrences in the served HTML went from 18 to 12 on one page and from 6 to 3 on another. | 2 June 2026 (MoonEyes) | Counting gtag occurrences in the served HTML |
-| GA4 over-counted conversions: 265 conversions for 201 sessions, because phone, e-mail and contact clicks were marked as key events. | The 28 days before the 1-2 June 2026 audit (MoonEyes) | GA4 conversions and sessions |
+| GA4 over-counted conversions: 265 conversions for 201 sessions, because phone, e-mail and contact clicks were marked as key events. | The 28 days before the 1-2 June 2026 audit (MoonEyes) | GA4 conversions and sessions (the check `ga4_key_event_audit` automates) |
 | Search Console: 0 clicks and 708 submitted URLs for 0 indexed, the starting point of an indexing work item. | 1 June 2026 (MoonEyes) | Search Console |
 | A Google Ads account showed 96 conversions at EUR 2.16 each for 10 real bookings. Real cost: EUR 207.57 / 10 = about EUR 20.76 per booking, 9.6 times the displayed figure. Cause: `page_view` and a page event were marked as key events under a target-CPA bid strategy; fixed by keeping only the booking event. Small local-services business, anonymised. | 26 August to 22 September 2026 | Google Ads console (read in the Ads interface, not with these tools) |
 
 ## Tools
 
-**80 tools** in total. Full parameters and outputs: [docs/TOOLS.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/TOOLS.md). Most only read. The `*_plan_*` tools prepare a change and write nothing. Only four tools write, and only for a client where writing is on: `gads_apply`, `meta_apply`, `openai_ads_apply`, `google_apply`.
+**82 tools** in total. Full parameters and outputs: [docs/TOOLS.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/TOOLS.md). Most only read. The `*_plan_*` tools prepare a change and write nothing. Only four tools write, and only for a client where writing is on: `gads_apply`, `meta_apply`, `openai_ads_apply`, `google_apply`.
 
 | Platform | Reads | Prepares a change (plan) | What the plans can do (all behind the locks of [WRITE.md](https://github.com/MoonEyes/google-ecommerce-mcp/blob/main/docs/WRITE.md)) |
 |---|---|---|---|
 | All | `server_status`, `clients_list`, `client_profile`, `client_check`, `plan_get`, `plan_list`, `audit_log`, `ads_overview` | `rollback_plan` | Undo a plan with a new plan |
-| GA4 | `ga4_report`, `ga4_compare`, `ga4_realtime`, `ga4_properties`, `ga4_custom_definitions`, `ga4_key_events` | `ga4_plan_key_event_create`, `ga4_plan_custom_dimension_create` | Create a key event or a custom dimension |
-| Search Console | `gsc_performance`, `gsc_moves`, `gsc_inspect_url`, `gsc_sitemaps`, `gsc_sites` | `gsc_plan_sitemap_submit` | Submit a sitemap |
+| GA4 | `ga4_report`, `ga4_compare`, `ga4_key_event_audit`, `ga4_realtime`, `ga4_properties`, `ga4_custom_definitions`, `ga4_key_events` | `ga4_plan_key_event_create`, `ga4_plan_custom_dimension_create` | Create a key event or a custom dimension |
+| Search Console | `gsc_performance`, `gsc_moves`, `gsc_opportunities`, `gsc_inspect_url`, `gsc_sitemaps`, `gsc_sites` | `gsc_plan_sitemap_submit` | Submit a sitemap |
 | Merchant Center | `merchant_data_sources`, `merchant_product_issues`, `merchant_report_query`, `merchant_products`, `merchant_account_issues` | `merchant_plan_product_patch` | Change title, description, link, availability or price of a product |
 | Tag Manager | `gtm_inventory`, `gtm_workspace_status`, `gtm_get_tag`, `gtm_get_trigger`, `gtm_get_variable`, `gtm_versions` | `gtm_plan_workspace_create`, `gtm_plan_tag_upsert`, `gtm_plan_trigger_upsert`, `gtm_plan_variable_upsert`, `gtm_plan_quick_preview` | Edit a non-default workspace. Nothing goes live: no version, no publish |
 | Indexing, PageSpeed | `indexing_status`, `pagespeed` | none | none |
@@ -122,7 +122,9 @@ What the main read tools answer:
 | Tool | Service | What it answers |
 |---|---|---|
 | `ga4_report` | GA4 | Any report: channels, landing pages, purchases, revenue, by period |
+| `ga4_key_event_audit` | GA4 | Which events are key events, and whether they inflate conversions (more key events than sessions, page_view or contact clicks marked as key) |
 | `gsc_performance` | Search Console | Clicks, impressions, CTR, position by query, page, country, device, date |
+| `gsc_opportunities` | Search Console | Queries or pages ranking 5 to 15 with real impressions, and those with impressions but no clicks |
 | `gsc_inspect_url` | Search Console | Is this URL indexed, which canonical did Google pick, last crawl |
 | `merchant_product_issues` | Merchant Center | Products with disapprovals or warnings, all pages |
 | `gtm_inventory` | Tag Manager | Tags, triggers, variables, live version |
