@@ -19,12 +19,14 @@ WriteGrant. Account of an op = the GA4 property id (in the URL path: bound by wr
 from __future__ import annotations
 
 import dataclasses
+import datetime
 import re
 from typing import Annotated, Any, Literal, Optional
 
 from pydantic import Field
 
 from . import google_write as gw
+from . import metrics
 from .write_core import PlatformHandler, WriteOp
 
 PLATFORM = "ga4"
@@ -319,6 +321,226 @@ def ga4_plan_custom_dimension_create(
                  f"Create {scope} custom dimension {body['displayName']!r} on parameter {body['parameterName']!r} "
                  f"(property {prop}); {IMMUTABLE_NOTE}",
                  f"GA4: custom dimension {body['parameterName']}")
+
+
+# ------------------------------------------------------------------ ga4_compare (pure logic)
+# The tool itself lives in server.py (it sends the runReport request with the server's own read-only client); the
+# period arithmetic and the pairing of the two date ranges live here so they can be tested without any request.
+# API: properties.runReport with two dateRanges, DateRange.name, and the dateRange dimension that GA4 adds to the
+# response when a request has several ranges:
+# https://developers.google.com/analytics/devguides/reporting/data/v1/rest/v1beta/properties/runReport
+COMPARE_PERIODS = ("last_7_days", "last_14_days", "last_28_days", "last_30_days", "last_90_days", "this_month",
+                   "last_month")
+COMPARE_TO = ("previous_period", "previous_year")
+COMPARE_FETCH_LIMIT = 10000  # rows asked from GA4 (both ranges together); the tool returns far fewer
+COMPARE_SIDES = ("current", "previous")
+BIGGEST_MOVES = 5
+SETTLING_NOTE = "GA4 can still revise the last 24 to 48 hours; compare complete days only"
+_CUSTOM_PERIOD = re.compile(r"(\d{4}-\d{2}-\d{2}):(\d{4}-\d{2}-\d{2})")
+
+
+def _years_ago(day: datetime.date) -> datetime.date:
+    try:
+        return day.replace(year=day.year - 1)
+    except ValueError:  # 29 February
+        return day.replace(year=day.year - 1, day=28)
+
+
+def _month_before(first_of_month: datetime.date) -> tuple[datetime.date, datetime.date]:
+    """(first day, last day) of the month before the month that starts on first_of_month."""
+    last = first_of_month - datetime.timedelta(days=1)
+    return last.replace(day=1), last
+
+
+def compare_ranges(period: str, compare_to: str, today: datetime.date) -> dict[str, tuple[datetime.date, datetime.date]]:
+    """{"current": (start, end), "previous": (start, end)} as calendar dates. Raises ValueError (message = what to
+    change) for an unknown period, an unknown compare_to or a period with no complete day yet.
+
+    last_N_days end yesterday (today is partial). this_month is the month to date up to yesterday and, against
+    previous_period, is aligned: the same number of days of the month before, so a partial month is never set
+    against a full one. last_month is the whole previous calendar month. A custom period is "YYYY-MM-DD:YYYY-MM-DD"."""
+    period = (period or "").strip()
+    compare_to = (compare_to or "").strip()
+    if compare_to not in COMPARE_TO:
+        raise ValueError(f"compare_to must be one of {', '.join(COMPARE_TO)}, got {compare_to!r}")
+    one_day = datetime.timedelta(days=1)
+    yesterday = today - one_day
+    custom = _CUSTOM_PERIOD.fullmatch(period)
+    if custom:
+        try:
+            start, end = (datetime.date.fromisoformat(g) for g in custom.groups())
+        except ValueError:
+            raise ValueError(f"period {period!r} holds an impossible date") from None
+        if end < start:
+            raise ValueError(f"period {period!r} ends before it starts")
+        kind = "custom"
+    elif period in COMPARE_PERIODS and period.endswith("_days"):
+        days = int(period.split("_")[1])
+        start, end, kind = yesterday - datetime.timedelta(days=days - 1), yesterday, "days"
+    elif period == "this_month":
+        start, end, kind = today.replace(day=1), yesterday, "month_to_date"
+        if end < start:
+            raise ValueError("this_month has no complete day yet (today is the 1st); use last_month or last_7_days")
+    elif period == "last_month":
+        start, end = _month_before(today.replace(day=1))
+        kind = "month"
+    else:
+        raise ValueError(f"period must be one of {', '.join(COMPARE_PERIODS)} or YYYY-MM-DD:YYYY-MM-DD, got {period!r}")
+    if compare_to == "previous_year":
+        previous = (_years_ago(start), _years_ago(end))
+    elif kind == "month":
+        previous = _month_before(start)
+    elif kind == "month_to_date":
+        first, last = _month_before(start)
+        previous = (first, min(last, first + (end - start)))
+    else:
+        length = (end - start) + one_day
+        previous = (start - length, start - one_day)
+    return {"current": (start, end), "previous": previous}
+
+
+def compare_body(ranges: dict, dimensions: list[str], metric_names: list[str]) -> dict:
+    """runReport body: both ranges named current / previous, ordered by the first metric so that, if GA4 cuts the
+    rows, it is the small ones that go. The dateRange dimension is added by GA4 itself."""
+    dims = [d for d in dimensions if d != "dateRange"]
+    return {"dateRanges": [{"startDate": ranges[side][0].isoformat(), "endDate": ranges[side][1].isoformat(),
+                            "name": side} for side in COMPARE_SIDES],
+            "dimensions": [{"name": d} for d in dims], "metrics": [{"name": m} for m in metric_names],
+            "orderBys": [{"metric": {"metricName": metric_names[0]}, "desc": True}],
+            "limit": COMPARE_FETCH_LIMIT, "metricAggregations": ["TOTAL"]}
+
+
+def _change(current: Any, previous: Any) -> dict:
+    """Absolute change and percent change (12.5 = +12.5 %). Previous 0: percent is None, never a division."""
+    both = all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in (current, previous))
+    if not both:
+        return {"change": None, "change_pct": None}
+    diff = round(current - previous, 6)
+    if previous == 0:
+        if current == 0:
+            return {"change": diff, "change_pct": 0.0}
+        return {"change": diff, "change_pct": None, "change_pct_note": "previous value is 0: percent change undefined"}
+    return {"change": diff, "change_pct": round(diff / abs(previous) * 100, 2)}
+
+
+def _pair(current: dict, previous: dict, names: list[str]) -> dict:
+    """{metric: {current, previous, change, change_pct}}; a range with no row for the key counts as 0."""
+    return {n: {"current": current.get(n, 0), "previous": previous.get(n, 0),
+                **_change(current.get(n, 0), previous.get(n, 0))} for n in names}
+
+
+def _side(value: Any) -> str | None:
+    return {"current": "current", "previous": "previous", "date_range_0": "current",
+            "date_range_1": "previous"}.get(str(value or "").strip())
+
+
+def compare_response(resp: dict, limit: int) -> dict:
+    """Pair the rows of the two ranges. Returns rows (each: dimension values, per metric current / previous /
+    change / change_pct, and present_in when a key exists in one range only), totals, metrics (unit and
+    definition), currency, row counts and biggest_moves. An error response is returned unchanged."""
+    if "error" in resp:
+        return resp
+    dims = [d["name"] for d in resp.get("dimensionHeaders", [])]
+    headers = resp.get("metricHeaders", [])
+    names = [m["name"] for m in headers]
+    types = [m.get("type", "") for m in headers]
+    meta = resp.get("metadata", {})
+    raw_rows = resp.get("rows", [])
+    if "dateRange" not in dims and (raw_rows or resp.get("totals")):
+        return {"error": "unexpected_response", "detail": "GA4 answered without the dateRange dimension",
+                "fix": "retry; if it persists, call ga4_report once per period"}
+    at = dims.index("dateRange") if "dateRange" in dims else -1
+    key_dims = [d for d in dims if d != "dateRange"]
+
+    def values(row: dict) -> dict:
+        return {n: metrics.to_number(v.get("value"), t) for n, t, v in zip(names, types, row.get("metricValues", []))}
+
+    def dimension(row: dict, index: int) -> Any:
+        found = row.get("dimensionValues", [])
+        return found[index].get("value") if 0 <= index < len(found) else None
+
+    paired: dict[tuple, dict] = {}
+    for row in raw_rows:
+        side = _side(dimension(row, at))
+        if side:
+            key = tuple(v.get("value") for i, v in enumerate(row.get("dimensionValues", [])) if i != at)
+            paired.setdefault(key, {})[side] = values(row)
+    pairs = []
+    for key, sides in paired.items():
+        item = dict(zip(key_dims, key))
+        item["metrics"] = _pair(sides.get("current", {}), sides.get("previous", {}), names)
+        if len(sides) < 2:
+            item["present_in"] = sorted(sides)
+        pairs.append(item)
+    first = names[0] if names else None
+    if first:
+        pairs.sort(key=lambda r: (r["metrics"][first]["current"], r["metrics"][first]["previous"]), reverse=True)
+    out: dict = {"rows": pairs[:limit], "row_count": len(pairs), "truncated": len(pairs) > limit}
+    fetched_total = resp.get("rowCount", len(raw_rows))
+    if fetched_total > len(raw_rows):
+        out["fetch_truncated"] = True
+        out["fetch_truncated_note"] = (f"GA4 holds {fetched_total} rows for the two ranges and {len(raw_rows)} were "
+                                       "fetched (largest first by the first metric): rows beyond are missing from "
+                                       "the comparison, totals still cover everything")
+    totals: dict[str, dict] = {}
+    for row in resp.get("totals", []):
+        side = _side(dimension(row, at))
+        if side:
+            totals[side] = values(row)
+    if totals:
+        out["totals"] = _pair(totals.get("current", {}), totals.get("previous", {}), names)
+    out["metrics"] = metrics.ga4_metric_info(headers, meta.get("currencyCode"))
+    if meta.get("currencyCode"):
+        out["currency"] = meta["currencyCode"]
+    if first:
+        moving = [p for p in pairs if p["metrics"][first]["change"]]
+        moving.sort(key=lambda p: abs(p["metrics"][first]["change"]), reverse=True)
+        out["ranked_by"] = first
+        out["biggest_moves"] = [{**{d: p[d] for d in key_dims}, "metric": first, **p["metrics"][first]}
+                                for p in moving[:BIGGEST_MOVES]]
+    if any(i.get("unit", "").startswith("ratio") for i in out["metrics"].values()):
+        out["ratio_note"] = ("for a ratio metric, change is a difference in ratio points and change_pct the "
+                             "relative change")
+    out["change_pct_note"] = "change_pct is a percentage: 12.5 means +12.5 % against the previous range"
+    return out
+
+
+def run_compare(send: Any, *, period: str, compare_to: str, dimensions: list[str], metric_names: list[str],
+                limit: int, today: datetime.date | None = None) -> dict:
+    """Send ONE runReport with both ranges (a second only when the property's own calendar day differs from the UTC
+    day the ranges were first computed on and that shifts them) and return the paired result with both date ranges
+    resolved in the property timezone. send(body) -> the Data API response dict (or an error dict)."""
+    if not metric_names:
+        return {"error": "invalid_request", "detail": "metrics is empty", "fix": "pass at least one GA4 metric"}
+    assumed = today or metrics.today_in(None)[0]
+    try:
+        ranges = compare_ranges(period, compare_to, assumed)
+    except ValueError as exc:
+        return {"error": "invalid_period", "detail": str(exc),
+                "fix": "use a period and a compare_to from the tool description"}
+    resp = send(compare_body(ranges, dimensions, metric_names))
+    if "error" in resp:
+        return resp
+    timezone = resp.get("metadata", {}).get("timeZone")
+    local_today, _ = metrics.today_in(timezone)
+    if local_today != assumed:
+        try:
+            fixed = compare_ranges(period, compare_to, local_today)
+        except ValueError as exc:
+            return {"error": "invalid_period", "detail": str(exc), "fix": "use another period"}
+        if fixed != ranges:
+            ranges = fixed
+            resp = send(compare_body(ranges, dimensions, metric_names))
+            if "error" in resp:
+                return resp
+    out = compare_response(resp, limit)
+    if "error" in out:
+        return out
+    info = {side: metrics.date_range_info(ranges[side][0].isoformat(), ranges[side][1].isoformat(), timezone, 2,
+                                          SETTLING_NOTE) for side in COMPARE_SIDES}
+    out["date_range"] = {**info, "period": period, "compare_to": compare_to}
+    out["data_complete"] = info["current"].get("data_complete", False)
+    return out
 
 
 # ------------------------------------------------------------------ registration

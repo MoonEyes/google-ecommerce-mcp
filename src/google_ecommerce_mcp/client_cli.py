@@ -8,6 +8,7 @@
     client enable-write <name> <family>   explicit confirmation; write.<family>.enabled=true + account_allow
     client disable-write <name> <family>
     client set-secret <name> <kind>       hidden prompt (meta, openai, meta-capi, pagespeed)
+    client pilot-check <name>             offline: is the client ready for a read-only pilot? (pilot_check.py)
     approve <plan_id> [--client X]        out-of-band human approval of a financial / irreversible / removal /
                                           PII plan; shows every op in full before asking to retype the plan id
 
@@ -274,6 +275,11 @@ def add_subcommands(sub: Any) -> None:
     ss = csub.add_parser("set-secret", help="store a client's secret in the OS keyring (hidden prompt)")
     ss.add_argument("name")
     ss.add_argument("kind", help=f"one of: {', '.join(secrets_store.PASTEABLE_KINDS)}")
+    pc = csub.add_parser("pilot-check", help="offline check that a client is ready for a read-only pilot")
+    pc.add_argument("name")
+    pc.add_argument("--config", help="Claude Desktop config file (default: the standard location for this OS)")
+    pc.add_argument("--server-name", help="name of the server entry in that config (default: found by itself)")
+    pc.add_argument("--json", action="store_true", help="machine-readable output (no secret)")
 
 
 def add_approve_subcommand(sub: Any) -> None:
@@ -546,6 +552,16 @@ def _cmd_set_secret(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_pilot_check(args: argparse.Namespace) -> int:
+    from . import pilot_check
+
+    try:
+        ctx = _context(args.name)
+    except ClientError as exc:
+        return _err(exc)
+    return pilot_check.run(ctx, config=args.config, server_name=args.server_name, as_json=args.json)
+
+
 def run(args: argparse.Namespace) -> int:
     """Dispatch `client <subcommand>`; returns the exit code (0 ok, 1 refused/failed, 2 usage)."""
     command = getattr(args, "client_command", None)
@@ -564,10 +580,12 @@ def run(args: argparse.Namespace) -> int:
             return _cmd_write(args, False)
         if command == "set-secret":
             return _cmd_set_secret(args)
+        if command == "pilot-check":
+            return _cmd_pilot_check(args)
     except ClientError as exc:  # broken registry, etc.
         return _err(exc)
     return _usage("client: no subcommand given.",
-                  "google-ecommerce-mcp client add|list|show|remove|enable-write|disable-write|set-secret")
+                  "google-ecommerce-mcp client add|list|show|remove|enable-write|disable-write|set-secret|pilot-check")
 
 
 def run_approve(args: argparse.Namespace) -> int:

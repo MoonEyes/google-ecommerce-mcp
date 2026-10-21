@@ -93,3 +93,20 @@ Example client name: `pilot-acme`. Run these yourself, in a terminal.
 5. Check: `google-ecommerce-mcp client list` no longer shows the client.
 
 Writing was never on in this pilot, so there is nothing to disable. If you want writing later, read [WRITE.md](WRITE.md) and [SECURITY.md](SECURITY.md) first, and try it on a test client.
+
+## Check readiness offline
+
+`client pilot-check` answers "is this client ready for a read-only pilot?" without any network call. It reads the registry, whether the keyring entries exist (never their values), this shell's environment and the server entry of the Claude Desktop config.
+
+```bash
+google-ecommerce-mcp client pilot-check pilot-acme
+```
+
+It prints one line per service (GA4, Search Console, Merchant Center: id set, read token), whether writing is off for every family and whether `GEM_WRITE` is unset, whether the Claude Desktop entry is pinned to an exact version, then one last line:
+
+- `Pilot: ready for read-only use` when the check passes (reading tools only), exit code 0.
+- Or `Pilot: not ready, N things to fix`, exit code 1, each thing followed by the exact command.
+
+What blocks the pilot: GA4 or Search Console without an id or without a usable read token, a Merchant Center id without a usable read token (Merchant Center without an id is optional), any `write.<family>.enabled` set to `true`, or `GEM_WRITE` set in the shell or in the Claude Desktop entry. A Claude Desktop entry that is not pinned to an exact version, or not found (you may use Claude Code), is shown as advice and does not block. Options: `--config <file>` for another Claude Desktop config, `--server-name <name>` to name the entry, `--json` for machine-readable output.
+
+Run `doctor --client pilot-acme --live` afterwards for the live test. For a demo without a network, [examples/demo](../examples/demo/README.md) holds synthetic answers.

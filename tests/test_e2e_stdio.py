@@ -36,7 +36,7 @@ from mcp.client import stdio as mcp_stdio  # noqa: E402
 from mcp.client.stdio import StdioServerParameters, stdio_client  # noqa: E402
 
 SRC = str(Path(__file__).resolve().parents[1] / "src")
-TOTAL_TIMEOUT = 180.0  # 78 tools, each called once over stdio
+TOTAL_TIMEOUT = 180.0  # 80 tools, each called once over stdio
 
 # Minimal valid arguments for every tool (required parameters only, plus dates where the tool needs them to get
 # past input validation and reach its configuration check).
@@ -44,9 +44,11 @@ PERIOD = {"start_date": "2026-09-01", "end_date": "2026-09-30"}
 TOOL_ARGS: dict[str, dict] = {
     "server_status": {},
     "ga4_report": {},
+    "ga4_compare": {},
     "ga4_realtime": {},
     "ga4_properties": {},
     "gsc_performance": {},
+    "gsc_moves": {},
     "gsc_inspect_url": {"url": "https://shop.example/"},
     "gsc_sitemaps": {},
     "merchant_data_sources": {},
@@ -140,9 +142,11 @@ NO_FRESHNESS = WRITE_TOOLS | PLAN_TOOLS | {"clients_list", "client_profile", "cl
 EXPECTED_ERROR: dict[str, str | None] = {
     "server_status": None,
     "ga4_report": "not_configured",
+    "ga4_compare": "not_configured",
     "ga4_realtime": "not_configured",
     "ga4_properties": "not_authenticated",      # needs no id, stops at the missing token
     "gsc_performance": "not_configured",
+    "gsc_moves": "not_configured",
     "gsc_inspect_url": "not_configured",
     "gsc_sitemaps": "not_configured",
     "merchant_data_sources": "not_configured",
@@ -306,7 +310,7 @@ def test_server_answers_every_tool_over_real_stdio(tmp_path, spawned):
     assert info.version == __version__  # not the mcp library version
     assert out["init"].capabilities.tools is not None
 
-    # tools/list: every tool of the golden list (78 when written), read-only annotations except the four
+    # tools/list: every tool of the golden list (80 when written), read-only annotations except the four
     # *_apply tools, valid JSON schemas
     tools = {t.name: t for t in out["tools"]}
     assert len(out["tools"]) == len(GOLDEN_TOOLS) == len(tools) == len(TOOL_ARGS)

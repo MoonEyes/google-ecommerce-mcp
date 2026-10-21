@@ -1,6 +1,6 @@
 # Tool reference
 
-**78 tools.** Most only read. A second group, the `*_plan_*` tools, **prepares** a change and writes nothing. Only four tools, the `*_apply` tools, can write, and only when you turned writing on (see [WRITE.md](WRITE.md)). Every tool returns JSON. On failure a tool returns an object with an `error` key instead of raising:
+**80 tools.** Most only read. A second group, the `*_plan_*` tools, **prepares** a change and writes nothing. Only four tools, the `*_apply` tools, can write, and only when you turned writing on (see [WRITE.md](WRITE.md)). Every tool returns JSON. On failure a tool returns an object with an `error` key instead of raising:
 
 | `error` value | Meaning | Fix |
 |---|---|---|
@@ -27,7 +27,7 @@ Report tools (`ga4_report`, `ga4_realtime`, `gsc_performance`) also return:
 - `metrics`: the unit (`count`, `ratio 0 to 1`, `seconds`, the property currency...) and a short definition of each metric;
 - `date_range`: `start` and `end` as calendar dates in the data's `timezone` (GA4 property timezone, Pacific Time for Search Console), the `requested` values when they were relative (`7daysAgo`), and `data_complete`. When it is `false`, `settling_from` is the first day Google can still revise: do not compare those days with complete ones. When some sub-requests fail, `merchant_product_issues` and `gtm_inventory` return what they could read with `partial: true` and the failing part in `partial_error` / `partial_errors`.
 
-## All 78 tools
+## All 80 tools
 
 Legend. **R** = reads only. **Plan** = prepares a change, calls no write endpoint (platform dry runs aside), returns a signed plan; it changes nothing. **Apply** = the only tools that write. Almost every tool takes an optional `client_id` (needed once two clients are registered, see [MULTI-CLIENT.md](MULTI-CLIENT.md)); it is left out of the "key parameters" column. Detailed sections follow for the original 22 tools. Where they say "needs `GA4_PROPERTY_ID`" (or another id variable), that is legacy mode; with a client registry the id comes from the client's entry in `clients.json` and the variable is ignored.
 
@@ -56,11 +56,12 @@ Legend. **R** = reads only. **Plan** = prepares a change, calls no write endpoin
 
 All four also take `client_id`. They are annotated `readOnlyHint: false` and `destructiveHint: true`, so your MCP client asks you before each call. They refuse unless every lock of [WRITE.md](WRITE.md#the-locks-in-one-table) is open.
 
-### GA4 (7)
+### GA4 (8)
 
 | Tool | Type | Key parameters | What it does |
 |---|---|---|---|
 | `ga4_report` | R | `dimensions`, `metrics`, `start_date`, `end_date`, `limit`, `channel_group`, `property_id` | Any GA4 report |
+| `ga4_compare` | R | `metrics`, `dimensions`, `period`, `compare_to`, `limit`, `property_id` | One period against an earlier one (this month vs last month, 7 days vs the 7 before), with changes, totals and biggest moves |
 | `ga4_realtime` | R | `dimensions`, `metrics`, `property_id` | Last 30 minutes |
 | `ga4_properties` | R | `max_pages` | Every GA4 property you can read |
 | `ga4_custom_definitions` | R | `property_id` | Custom dimensions and metrics of the property |
@@ -73,6 +74,7 @@ All four also take `client_id`. They are annotated `readOnlyHint: false` and `de
 | Tool | Type | Key parameters | What it does |
 |---|---|---|---|
 | `gsc_performance` | R | `dimensions`, `start_date`, `end_date`, `limit`, `search_type`, `page_contains`, `site_url` | Clicks, impressions, CTR, position |
+| `gsc_moves` | R | `site_url`, `days`, `dimension`, `limit` | Queries or pages that lost and gained the most clicks, last N days against the N before |
 | `gsc_inspect_url` | R | `url`, `site_url` | URL Inspection: indexed, canonical, last crawl |
 | `gsc_sitemaps` | R | `site_url` | Declared sitemaps and their errors |
 | `gsc_sites` | R | none | Every property the token can see (useful with several clients) |
@@ -175,7 +177,7 @@ Then apply it with the matching `*_apply` tool. The full procedure, with example
 ## Contents of the detailed sections
 
 - [server_status](#server_status)
-- GA4: [ga4_report](#ga4_report), [ga4_realtime](#ga4_realtime), [ga4_properties](#ga4_properties)
+- GA4: [ga4_report](#ga4_report), [ga4_compare](#ga4_compare), [ga4_realtime](#ga4_realtime), [ga4_properties](#ga4_properties)
 - Search Console: [gsc_performance](#gsc_performance), [gsc_inspect_url](#gsc_inspect_url), [gsc_sitemaps](#gsc_sitemaps)
 - Merchant Center: [merchant_data_sources](#merchant_data_sources), [merchant_product_issues](#merchant_product_issues), [merchant_report_query](#merchant_report_query)
 - Tag Manager: [gtm_inventory](#gtm_inventory)
@@ -226,6 +228,43 @@ GA4 Data API `runReport`. Needs `GA4_PROPERTY_ID`.
 ```
 
 Ask: *"Top 10 landing pages from organic search last month, with purchases and revenue."*
+
+---
+
+## ga4_compare
+
+A period against an earlier one in ONE call: GA4 Data API `runReport` with two date ranges (`current` and `previous`), paired by dimension value. It only reads, and uses the same endpoint as `ga4_report`. Needs `GA4_PROPERTY_ID` (or the client's property).
+
+| Parameter | Type | Default | Notes |
+|---|---|---|---|
+| `metrics` | list of str | `["sessions", "totalUsers"]` | the first one ranks `biggest_moves` |
+| `dimensions` | list of str | `["sessionDefaultChannelGroup"]` | `[]` gives one row of totals |
+| `period` | str | `last_28_days` | `last_7_days`, `last_14_days`, `last_28_days`, `last_30_days`, `last_90_days`, `this_month`, `last_month`, or `YYYY-MM-DD:YYYY-MM-DD` |
+| `compare_to` | str | `previous_period` | `previous_period` or `previous_year` |
+| `limit` | int | `50` | rows returned (max 1,000); totals and `biggest_moves` use every fetched row |
+| `property_id` | str | `""` | numeric property id of the client |
+
+- `last_N_days` end yesterday. `this_month` is the month to date up to yesterday and, against `previous_period`, is set against the same number of days of the month before (never a partial month against a full one). `last_month` is the whole previous calendar month against the month before it.
+- Each row has the dimension values and, per metric, `current`, `previous`, `change` and `change_pct`. `change_pct` is a percentage (12.5 means +12.5 %); it is `null` when the previous value is 0 (with a `change_pct_note`), and 0.0 when both are 0. A key present in one range only shows 0 for the other and a `present_in` list.
+- `totals` are computed by GA4 over every row. `metrics` gives the unit and definition of each metric, `currency` the currency.
+- `date_range` holds `current` and `previous`, both resolved to calendar dates in the property timezone with `data_complete` (and `settling_from` when the last days can still change); `data_complete` at the top level is the current range's.
+- `biggest_moves`: the 5 rows with the largest absolute change of the first metric (`ranked_by`), unchanged rows left out.
+- GA4 returns at most 10,000 rows for the two ranges together, largest first by the first metric; `fetch_truncated` says when rows were left out of the pairing.
+- The ranges are computed on the UTC day, then checked against the property's own day; in the rare case that moves a month boundary the report is asked a second time with the right dates.
+
+```json
+{"rows": [{"sessionDefaultChannelGroup": "Organic Search",
+           "metrics": {"sessions": {"current": 412, "previous": 350, "change": 62, "change_pct": 17.71}}}],
+ "totals": {"sessions": {"current": 1290, "previous": 1180, "change": 110, "change_pct": 9.32}},
+ "biggest_moves": [{"sessionDefaultChannelGroup": "Organic Search", "metric": "sessions", "current": 412,
+                    "previous": 350, "change": 62, "change_pct": 17.71}], "ranked_by": "sessions",
+ "date_range": {"current": {"start": "2026-09-01", "end": "2026-09-30", "timezone": "Europe/Paris", "data_complete": true},
+                "previous": {"start": "2026-08-01", "end": "2026-08-31", "timezone": "Europe/Paris", "data_complete": true},
+                "period": "last_month", "compare_to": "previous_period"},
+ "data_complete": true, "currency": "EUR", "property_id": "123456789"}
+```
+
+Ask: *"Compare last month with the month before: which channels gained or lost the most sessions and revenue?"*
 
 ---
 
@@ -671,3 +710,39 @@ Google Ads, Meta and ChatGPT Ads side by side for one period. Sends no request i
 - A platform that fails or is not configured gets its own block; the others are still returned (`partial: true`).
 
 Ask: *"Put Google Ads, Meta and ChatGPT Ads side by side for last month, then compare their conversions with GA4."*
+
+---
+
+## Demo outputs
+
+[examples/demo](../examples/demo/README.md) holds three synthetic answers shaped like `ga4_report`, `gsc_performance` and `merchant_product_issues` (shop name Demo Shop), for a presentation without a network. They are not tool output from a real account.
+
+---
+
+## gsc_moves
+
+Search Console week-over-week moves. Two `searchAnalytics.query` calls (the last `days` days, ending 2 days ago, against the `days` days right before), joined on the dimension. It reads only; it uses the same endpoint as `gsc_performance`.
+
+| Parameter | Type | Default | Notes |
+|---|---|---|---|
+| `site_url` | str | `""` | one of the client's sites; empty uses the configured property |
+| `days` | int | `7` | length of each period, 1 to 90 |
+| `dimension` | str | `query` | `query` or `page` |
+| `limit` | int | `10` | losers and gainers returned, each (1 to 100) |
+
+- `losers` and `gainers` are ranked by the change in clicks. Each row has `status` (`changed`, `lost` or `new`), `clicks_delta`, and `current` / `previous` with clicks, impressions, CTR and position.
+- A key absent from the current period is a full loss (`lost`, current clicks 0); a key absent from the previous period is a full gain (`new`). The metrics of an absent period are `null`, never 0.
+- `totals` are sums of the fetched rows (up to 5,000 per period), so they leave out anonymized queries. `truncated` is true when a period reached that ceiling; a key near the bottom may then be shown as lost or new.
+- `date_range` holds `current`, `previous` and a note: Search Console data for the last 2 to 3 days is incomplete. No `dataState` is sent (final data only, as in `gsc_performance`).
+
+```json
+{"dimension": "query", "days": 7,
+ "losers": [{"query": "wargame terrain", "status": "changed", "clicks_delta": -9,
+             "current": {"clicks": 5, "impressions": 100, "ctr": 0.05, "position": 4.0},
+             "previous": {"clicks": 14, "impressions": 120, "ctr": 0.1167, "position": 3.0}}],
+ "gainers": [], "losers_count": 1, "gainers_count": 0, "truncated": false,
+ "totals": {"current": {"clicks": 5, "impressions": 100, "ctr": 0.05, "position": 4.0}, "previous": {"clicks": 14, "...": "..."}},
+ "date_range": {"current": {"start": "2026-10-13", "end": "2026-10-19", "data_complete": true}, "previous": {"start": "2026-10-06", "end": "2026-10-12"}}}
+```
+
+Ask: *"Which queries lost the most clicks this week compared with last week?"*

@@ -65,7 +65,7 @@ def test_every_tool_is_documented_in_tools_md():
 
 def test_tool_count_quoted_in_the_docs_is_the_golden_count():
     count = len(golden_tools())
-    assert count == 78
+    assert count == 80
     for name in ("README.md", "docs/TOOLS.md"):
         quoted = {int(n) for n in re.findall(r"\*\*(\d+) tools\.?\*\*", text(ROOT / name))}
         assert quoted == {count}, f"{name} quotes {quoted}, the code has {count} tools"

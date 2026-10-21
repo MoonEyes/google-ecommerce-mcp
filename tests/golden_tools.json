@@ -35,6 +35,25 @@
    ]
   },
   {
+   "name": "ga4_compare",
+   "title": "GA4 compare",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "compare_to",
+    "dimensions",
+    "limit",
+    "metrics",
+    "period",
+    "property_id"
+   ]
+  },
+  {
    "name": "ga4_realtime",
    "title": "GA4 realtime",
    "annotations": {
@@ -82,6 +101,23 @@
     "search_type",
     "site_url",
     "start_date"
+   ]
+  },
+  {
+   "name": "gsc_moves",
+   "title": "Search Console moves",
+   "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   },
+   "params": [
+    "client_id",
+    "days",
+    "dimension",
+    "limit",
+    "site_url"
    ]
   },
   {

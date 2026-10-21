@@ -12,6 +12,7 @@ another client's sites. Legacy mode (no registry) shows every property, as befor
 
 from __future__ import annotations
 
+import datetime
 from typing import Annotated, Any, Optional
 
 from pydantic import Field
@@ -87,6 +88,69 @@ def gsc_sites(client_id: CLIENT_ID = None) -> dict:
             out["note"] = (f"permission {level or 'unknown'!r} on the configured site cannot submit sitemaps "
                            "(siteOwner or siteFullUser needed)")
     return out
+
+
+# ------------------------------------------------------------------ week-over-week moves (gsc_moves)
+# The tool itself is registered in server.py (it reuses that module's token, scope and allow-list for
+# searchAnalytics/query); the pure logic lives here so it can be tested without a network.
+MOVES_FETCH_ROWS = 5000  # rows asked per period; Search Analytics allows up to 25,000 per request
+MOVES_DIMENSIONS = ("query", "page")
+MOVES_NOTE = ("Search Console data for the last 2 to 3 days is incomplete and can still change; the current period "
+              "ends 2 days ago, so its last days may be lower than their final values")
+
+
+def moves_periods(today: datetime.date, days: int) -> tuple[tuple[str, str], tuple[str, str]]:
+    """((current_start, current_end), (previous_start, previous_end)) in ISO dates: the `days` days ending 2 days
+    before `today` (the Search Console lag, as in gsc_performance), and the `days` days right before them."""
+    cur_end = today - datetime.timedelta(days=2)
+    cur_start = cur_end - datetime.timedelta(days=days - 1)
+    prev_end = cur_start - datetime.timedelta(days=1)
+    prev_start = prev_end - datetime.timedelta(days=days - 1)
+    return (cur_start.isoformat(), cur_end.isoformat()), (prev_start.isoformat(), prev_end.isoformat())
+
+
+def _num(value: Any) -> float:
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0.0
+
+
+def _by_key(rows: list, dimension: str) -> dict[str, dict]:
+    found: dict[str, dict] = {}
+    for row in rows:
+        keys = row.get("keys") if isinstance(row, dict) else None
+        if not isinstance(keys, list) or not keys:
+            continue
+        found[str(keys[0])] = {"clicks": int(_num(row.get("clicks"))), "impressions": int(_num(row.get("impressions"))),
+                               "ctr": round(_num(row.get("ctr")), 4), "position": round(_num(row.get("position")), 1)}
+    return found
+
+
+def _totals(period: dict[str, dict]) -> dict:
+    clicks = sum(r["clicks"] for r in period.values())
+    impressions = sum(r["impressions"] for r in period.values())
+    weighted = sum(r["position"] * r["impressions"] for r in period.values())
+    return {"clicks": clicks, "impressions": impressions, "ctr": round(clicks / impressions, 4) if impressions else 0,
+            "position": round(weighted / impressions, 1) if impressions else 0}
+
+
+def compute_moves(current_rows: list, previous_rows: list, dimension: str, limit: int) -> dict:
+    """Join the rows of the two periods on the dimension and rank the changes in clicks. A key missing from the
+    current period is a full loss (clicks_current 0, status "lost"); a key missing from the previous one is a full
+    gain (status "new"). Metrics of an absent period are None, not 0 (a position of 0 would read as the best)."""
+    cur, prev = _by_key(current_rows, dimension), _by_key(previous_rows, dimension)
+    moves = []
+    for key in cur.keys() | prev.keys():
+        now, before = cur.get(key), prev.get(key)
+        delta = (now["clicks"] if now else 0) - (before["clicks"] if before else 0)
+        moves.append({dimension: key, "status": "new" if before is None else "lost" if now is None else "changed",
+                      "clicks_delta": delta,
+                      "current": now or {"clicks": 0, "impressions": 0, "ctr": None, "position": None},
+                      "previous": before or {"clicks": 0, "impressions": 0, "ctr": None, "position": None}})
+    losers = sorted((m for m in moves if m["clicks_delta"] < 0), key=lambda m: (m["clicks_delta"], str(m[dimension])))
+    gainers = sorted((m for m in moves if m["clicks_delta"] > 0), key=lambda m: (-m["clicks_delta"], str(m[dimension])))
+    return {"losers": losers[:limit], "gainers": gainers[:limit], "losers_count": len(losers),
+            "gainers_count": len(gainers),
+            "totals": {"current": _totals(cur), "previous": _totals(prev)},
+            "rows_seen": {"current": len(cur), "previous": len(prev)}}
 
 
 def register(mcp: Any) -> list[str]:

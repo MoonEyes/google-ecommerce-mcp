@@ -559,6 +559,48 @@ def ga4_report(
     return out
 
 
+@tool("GA4 compare")
+@_guard("GA4 processed data; the last 24 to 48 hours can still change")
+def ga4_compare(
+    metrics: Annotated[list[str], Field(description="GA4 API metric names, e.g. sessions, purchaseRevenue, "
+                                        "ecommercePurchases; the first one ranks biggest_moves")] = ["sessions", "totalUsers"],
+    dimensions: Annotated[list[str], Field(description="GA4 API dimension names that split the rows, e.g. "
+                                           "sessionDefaultChannelGroup, landingPage, itemName; empty list for one "
+                                           "row of totals")] = ["sessionDefaultChannelGroup"],
+    period: Annotated[str, Field(description="last_7_days, last_14_days, last_28_days, last_30_days, last_90_days, "
+                                 "this_month (month to date, up to yesterday), last_month (whole previous month) or "
+                                 "YYYY-MM-DD:YYYY-MM-DD")] = "last_28_days",
+    compare_to: Annotated[Literal["previous_period", "previous_year"], Field(
+        description="previous_period: the range of the same length just before (this_month is set against the same "
+                    "number of days of the month before); previous_year: the same dates one year earlier")] = "previous_period",
+    limit: Annotated[int, Field(description="Maximum rows returned (1 to 1000); totals and biggest_moves always "
+                                "cover every fetched row", ge=1, le=1000)] = 50,
+    property_id: PROPERTY_ID = "",
+    client_id: CLIENT_ID = None,
+) -> dict:
+    """Compare a GA4 period with an earlier one in ONE call (Data API runReport with two date ranges): this month
+    against last month, the last 7 days against the 7 before, a month against the same month last year. Returns,
+    per row, the current and previous value of each metric with the absolute "change" and "change_pct" (percent;
+    None when the previous value is 0), "totals" over every row, the unit and definition of each metric under
+    "metrics", the currency, both "date_range"s resolved to calendar dates in the property's timezone with
+    "data_complete", and "biggest_moves": the 5 rows whose first metric changed the most in absolute terms. A key
+    present in one range only shows the other as 0 and a "present_in" list. Use ga4_report for a single range."""
+    from . import ga4_tools
+
+    scope = _as_scope(client_id)
+    try:
+        prop = _ga4_property(property_id, scope)
+    except ValueError as exc:
+        return {"error": "invalid_property_id", "detail": str(exc)}
+    url = f"https://analyticsdata.googleapis.com/v1beta/properties/{prop}:runReport"
+    out = ga4_tools.run_compare(lambda body: _call("POST", url, json=body, scope=scope), period=period,
+                                compare_to=compare_to, dimensions=list(dimensions), metric_names=list(metrics),
+                                limit=_cap(limit))
+    if "error" not in out:
+        out["property_id"] = prop
+    return out
+
+
 @tool("GA4 realtime")
 @_guard("realtime: last 30 minutes")
 def ga4_realtime(
@@ -706,6 +748,52 @@ def gsc_performance(
             out["totals_note"] = "totals include anonymized queries, so they exceed the sum of query rows"
     out["metrics"] = metrics.GSC_METRICS
     out["date_range"] = metrics_date_range(start, end, metrics.GSC_TIMEZONE, GSC_SETTLING_NOTE)
+    if site_url:
+        out["site_url"] = _site_url(site_url, scope)
+    return out
+
+
+@tool("Search Console moves")
+@_guard("Search Console data lags about 2 days; the last days of the current period may be incomplete")
+def gsc_moves(
+    site_url: SITE_URL = "",
+    days: Annotated[int, Field(description="Length of each period in days (1 to 90): the last N days, ending 2 days "
+                               "ago, against the N days before", ge=1, le=90)] = 7,
+    dimension: Annotated[Literal["query", "page"], Field(description="What to compare: query or page")] = "query",
+    limit: Annotated[int, Field(description="Losers and gainers returned, each (1 to 100)", ge=1, le=100)] = 10,
+    client_id: CLIENT_ID = None,
+) -> dict:
+    """Search Console week-over-week moves: the queries (or pages) that lost and gained the most clicks, last N days
+    against the N days before, with clicks, impressions, CTR and position for both periods, plus totals and both
+    date ranges. A key absent from one period counts as a full loss or a full gain. Read only."""
+    from . import gsc_tools
+
+    scope = _as_scope(client_id)
+    site = _site(scope, site_url)
+    today, _ = metrics.today_in(metrics.GSC_TIMEZONE)
+    periods = gsc_tools.moves_periods(today, days)
+    url = f"https://www.googleapis.com/webmasters/v3/sites/{site}/searchAnalytics/query"
+    fetched: list[list] = []
+    for start, end in periods:
+        resp = _call("POST", url, json={"startDate": start, "endDate": end, "dimensions": [dimension],
+                                        "rowLimit": gsc_tools.MOVES_FETCH_ROWS}, scope=scope)
+        if "error" in resp:
+            return resp
+        fetched.append(resp.get("rows", []))
+    out = gsc_tools.compute_moves(fetched[0], fetched[1], dimension, _cap(limit))
+    out["dimension"] = dimension
+    out["days"] = days
+    out["truncated"] = any(len(rows) >= gsc_tools.MOVES_FETCH_ROWS for rows in fetched)
+    if out["truncated"]:
+        out["truncated_note"] = (f"a period returned the {gsc_tools.MOVES_FETCH_ROWS} row ceiling, so a key near the "
+                                 "bottom may be shown as lost or new when it only moved out of the fetched rows")
+    out["totals_note"] = ("totals are the sums of the fetched rows; Google leaves anonymized queries out of "
+                          "query rows, so they are lower than gsc_performance totals")
+    out["metrics"] = metrics.GSC_METRICS
+    out["date_range"] = {
+        "current": metrics_date_range(*periods[0], metrics.GSC_TIMEZONE, GSC_SETTLING_NOTE),
+        "previous": metrics_date_range(*periods[1], metrics.GSC_TIMEZONE, GSC_SETTLING_NOTE),
+        "note": gsc_tools.MOVES_NOTE}
     if site_url:
         out["site_url"] = _site_url(site_url, scope)
     return out

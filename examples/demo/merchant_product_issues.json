@@ -1,0 +1,99 @@
+{
+  "_demo": "synthetic demo data, shop name Demo Shop",
+  "products": [
+    {
+      "offer_id": "MUG-BLU-01",
+      "feed_label": "FR",
+      "title": "Blue glaze ceramic mug 35 cl",
+      "link": "https://demo-shop.example/products/mug-blu-01",
+      "issues": [
+        {
+          "code": "image_link_broken",
+          "severity": "DISAPPROVED",
+          "description": "Invalid image [image link]",
+          "attribute": "image_link",
+          "destination": "SHOPPING_ADS"
+        },
+        {
+          "code": "image_link_broken",
+          "severity": "DISAPPROVED",
+          "description": "Invalid image [image link]",
+          "attribute": "image_link",
+          "destination": "FREE_LISTINGS"
+        }
+      ]
+    },
+    {
+      "offer_id": "MUG-GRN-02",
+      "feed_label": "FR",
+      "title": "Green glaze ceramic mug 35 cl",
+      "link": "https://demo-shop.example/products/mug-grn-02",
+      "issues": [
+        {
+          "code": "missing_shipping_weight",
+          "severity": "DEMOTED",
+          "description": "Missing value [shipping weight]",
+          "attribute": "shipping_weight",
+          "destination": "SHOPPING_ADS"
+        }
+      ]
+    },
+    {
+      "offer_id": "SET-ESP-04",
+      "feed_label": "FR",
+      "title": "Espresso cup set of 4",
+      "link": "https://demo-shop.example/products/set-esp-04",
+      "issues": [
+        {
+          "code": "price_mismatch",
+          "severity": "DISAPPROVED",
+          "description": "Mismatched value [price]",
+          "attribute": "price",
+          "destination": "SHOPPING_ADS"
+        },
+        {
+          "code": "price_mismatch",
+          "severity": "DISAPPROVED",
+          "description": "Mismatched value [price]",
+          "attribute": "price",
+          "destination": "FREE_LISTINGS"
+        }
+      ]
+    },
+    {
+      "offer_id": "PLT-WHT-07",
+      "feed_label": "FR",
+      "title": "White stoneware plate 27 cm",
+      "link": "https://demo-shop.example/products/plt-wht-07",
+      "issues": [
+        {
+          "code": "missing_gtin",
+          "severity": "NOT_IMPACTED",
+          "description": "Missing value [gtin]",
+          "attribute": "gtin",
+          "destination": "SHOPPING_ADS"
+        }
+      ]
+    },
+    {
+      "offer_id": "BWL-SND-09",
+      "feed_label": "BE",
+      "title": "Sand glaze bowl 15 cm",
+      "link": "https://demo-shop.example/products/bwl-snd-09",
+      "issues": [
+        {
+          "code": "landing_page_error",
+          "severity": "DISAPPROVED",
+          "description": "Unavailable landing page [link]",
+          "attribute": "link",
+          "destination": "SHOPPING_ADS"
+        }
+      ]
+    }
+  ],
+  "scanned": 312,
+  "truncated": false,
+  "client_id": "demo-shop",
+  "fetched_at": "2026-10-21T10:00:00+00:00",
+  "freshness": "current state; issues update a few hours after a feed fetch"
+}
