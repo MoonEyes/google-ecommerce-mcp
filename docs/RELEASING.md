@@ -2,7 +2,7 @@
 
 A checklist. Versions **0.4.0** (paid media connectors, `doctor`, guided setup, client report) and **0.4.1** (fixes found by the end-to-end tests) followed it: the version bump and the installer pins are in their own commit, the README pins that commit, and the tag is pushed only after the release pull request is merged.
 
-The previous version was `0.4.1`. Version `0.5.0` (multi-client, controlled writing) followed the same steps: the installers pin `0.5.0` in their own commit, the README pins that commit and the new SHA-256 values, and the tag is pushed only after the release pull request is merged and its owner has said so.
+The previous version was `0.5.0`. Versions `0.5.0` (multi-client, controlled writing) and `0.6.0` (agency pilot tools) followed the same steps: the installers pin `0.5.0` in their own commit, the README pins that commit and the new SHA-256 values, and the tag is pushed only after the release pull request is merged and its owner has said so.
 
 ## Checklist
 
